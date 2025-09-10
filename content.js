@@ -25,7 +25,7 @@ function saveEvent(eventData) {
   eventData.sessionId = sessionId; // add session ID
   console.log("[SwipeExtension] Event saved:", eventData);
 
-  fetch("http://localhost:4000/api/events", {
+  fetch("https://swipe-extension-server-2.onrender.com/api/events", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(eventData),

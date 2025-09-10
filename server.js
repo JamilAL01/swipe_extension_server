@@ -3,10 +3,17 @@ import bodyParser from "body-parser";
 import pkg from "pg";
 import cors from "cors";
 
+import pkg from "pg";
 const { Pool } = pkg;
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false } // ✅ needed for Render
+});
 
 const app = express();
 const port = 4000;
+
 
 // ================== PostgreSQL CONNECTION ==================
 const pool = new Pool({
@@ -60,6 +67,7 @@ app.post("/api/events", async (req, res) => {
         videoId,
         src,
         type,
+        timestamp,
         extra,
         watchedTime,
         duration,
