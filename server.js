@@ -81,7 +81,7 @@ app.post("/api/events", async (req, res) => {
 
 // Health check
 app.get("/", (req, res) => {
-  res.send("Server is running 🚀");
+  res.send("Server is running ");
 });
 
 // ================== START SERVER ==================
