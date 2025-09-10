@@ -21,5 +21,7 @@ YouTool is a Chrome/Android extension to track YouTube Shorts video events and s
 3. Click "Load" → select the ZIP/folder.
 4. Use YouTrack while browsing YouTube Shorts.
 
+Kiwi's link: "https://kiwi-browser.en.uptodown.com/android"
 ## License
 MIT
+
