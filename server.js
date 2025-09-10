@@ -10,7 +10,6 @@ const port = 4000;
 
 
 // ================== PostgreSQL CONNECTION ==================
-import pkg from "pg";
 const { Pool } = pkg;
 
 // Use the remote database URL from Render
