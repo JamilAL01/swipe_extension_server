@@ -3,26 +3,22 @@ import bodyParser from "body-parser";
 import pkg from "pg";
 import cors from "cors";
 
-import pkg from "pg";
-const { Pool } = pkg;
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false } // ✅ needed for Render
-});
 
 const app = express();
 const port = 4000;
 
 
 // ================== PostgreSQL CONNECTION ==================
+import pkg from "pg";
+const { Pool } = pkg;
+
+// Use the remote database URL from Render
 const pool = new Pool({
-  user: "postgres",
-  host: "localhost",
-  database: "swipe_db",
-  password: "J@mil01abou",
-  port: 5432,
+  connectionString: process.env.DATABASE_URL, // 
+  ssl: { rejectUnauthorized: false } // required for Render
 });
+
 // ================== MIDDLEWARE ==================
 app.use(bodyParser.json());
 app.use(cors()); // allow all origins (or restrict to your extension)
