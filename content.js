@@ -1,4 +1,4 @@
-console.log("[SwipeExtension] Content script injected ✅");
+console.log("[SwipeExtension] Content script injected ");
 
 // ================== SESSION SETUP ==================
 let sessionId = sessionStorage.getItem("swipeSessionId");
@@ -31,10 +31,10 @@ function saveEvent(eventData) {
     body: JSON.stringify(eventData),
   })
     .then((res) => {
-      if (res.ok) console.log("[SwipeExtension] Sent to server ✅");
-      else console.error("[SwipeExtension] Server error ❌", res.statusText);
+      if (res.ok) console.log("[SwipeExtension] Sent to server ");
+      else console.error("[SwipeExtension] Server error ", res.statusText);
     })
-    .catch((err) => console.error("[SwipeExtension] Fetch error ❌", err));
+    .catch((err) => console.error("[SwipeExtension] Fetch error ", err));
 }
 
 // ================== VIDEO EVENT HOOK ==================
@@ -42,7 +42,7 @@ function attachVideoEvents(video) {
   if (!video || video._hooked) return;
   video._hooked = true;
 
-  console.log(`[SwipeExtension] 🎥 Hooking into video: ${video.src} (ID: ${getVideoId()})`);
+  console.log(`[SwipeExtension]  Hooking into video: ${video.src} (ID: ${getVideoId()})`);
 
   video.addEventListener("loadedmetadata", () => {
     prevDuration = video.duration;
@@ -52,11 +52,11 @@ function attachVideoEvents(video) {
     setTimeout(() => {
       const videoId = getVideoId();
       if (!hasPlayed) {
-        console.log(`[SwipeExtension] video-start ▶️ ${video.src} (ID: ${videoId})`);
+        console.log(`[SwipeExtension] video-start  ${video.src} (ID: ${videoId})`);
         saveEvent({ type: "video-start", videoId, src: video.src, timestamp: new Date().toISOString() });
         hasPlayed = true;
       } else {
-        console.log(`[SwipeExtension] video-resume ▶️ ${video.src} (ID: ${videoId})`);
+        console.log(`[SwipeExtension] video-resume  ${video.src} (ID: ${videoId})`);
         saveEvent({ type: "video-resume", videoId, src: video.src, timestamp: new Date().toISOString() });
       }
     }, 100); // short delay to allow URL updates
@@ -68,7 +68,7 @@ function attachVideoEvents(video) {
     startTime = null;
     const watchPercent = prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100) : 0;
     const videoId = getVideoId();
-    console.log(`[SwipeExtension] video-paused ⏸️ ${video.src} (ID: ${videoId}) - Watched: ${watchedTime.toFixed(2)}s / ${prevDuration.toFixed(2)}s (${watchPercent.toFixed(1)}%)`);
+    console.log(`[SwipeExtension] video-paused  ${video.src} (ID: ${videoId}) - Watched: ${watchedTime.toFixed(2)}s / ${prevDuration.toFixed(2)}s (${watchPercent.toFixed(1)}%)`);
     saveEvent({ 
       type: "video-paused",
       videoId,
@@ -98,7 +98,7 @@ function attachVideoEvents(video) {
         percent: watchPercent,
       });
 
-      console.log(`[SwipeExtension] video-rewatch 🔁 ${video.src} (ID: ${videoId})`);
+      console.log(`[SwipeExtension] video-rewatch  ${video.src} (ID: ${videoId})`);
       saveEvent({ type: "video-rewatch", videoId, src: video.src, timestamp: new Date().toISOString() });
       watchedTime = 0;
     }
@@ -109,7 +109,7 @@ function attachVideoEvents(video) {
     startTime = null;
     const watchPercent = prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100) : 0;
     const videoId = getVideoId();
-    console.log(`[SwipeExtension] video-ended ⏹️ ${video.src} (ID: ${videoId}) - Watched: ${watchedTime.toFixed(2)}s / ${prevDuration.toFixed(2)}s (${watchPercent.toFixed(1)}%)`);
+    console.log(`[SwipeExtension] video-ended  ${video.src} (ID: ${videoId}) - Watched: ${watchedTime.toFixed(2)}s / ${prevDuration.toFixed(2)}s (${watchPercent.toFixed(1)}%)`);
     saveEvent({
       type: "video-ended",
       videoId,
@@ -133,7 +133,7 @@ const observer = new MutationObserver(() => {
       watchedTime += (Date.now() - startTime) / 1000;
       const watchPercent = prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100) : 0;
       const stoppedId = getVideoId();
-      console.log(`[SwipeExtension] video-stopped ⏹️ ${currentVideo.src} (ID: ${stoppedId}) - Watched: ${watchedTime.toFixed(2)}s / ${prevDuration.toFixed(2)}s (${watchPercent.toFixed(1)}%)`);
+      console.log(`[SwipeExtension] video-stopped  ${currentVideo.src} (ID: ${stoppedId}) - Watched: ${watchedTime.toFixed(2)}s / ${prevDuration.toFixed(2)}s (${watchPercent.toFixed(1)}%)`);
       saveEvent({
         type: "video-stopped",
         videoId: stoppedId,
@@ -146,7 +146,7 @@ const observer = new MutationObserver(() => {
     }
 
     if (lastSrc) {
-      console.log(`[SwipeExtension] swiped-to-new-video ↕️ Previous: ${lastSrc} (ID: ${getVideoId() || "N/A"})`);
+      console.log(`[SwipeExtension] swiped-to-new-video  Previous: ${lastSrc} (ID: ${getVideoId() || "N/A"})`);
       saveEvent({
         type: "swiped-to-new-video",
         videoId: videoId,
