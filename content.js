@@ -123,16 +123,17 @@ function attachVideoEvents(video) {
 
   // ================== NEW: JUMP / SEEK EVENT ==================
   video.addEventListener("seeked", () => {
-    const videoId = getVideoId();
-    saveEvent({
-      type: "video-jump",
-      videoId,
-      src: video.src,
-      timestamp: new Date().toISOString(),
-      extra: { jumpTo: video.currentTime.toFixed(2) },
-    });
-    console.log(`[SwipeExtension] video-jump ⏭️ ${video.src} (ID: ${videoId}) - Jumped to ${video.currentTime.toFixed(2)}s`);
+  const videoId = getVideoId();
+  const to = video.currentTime;
+  console.log(`[SwipeExtension] video-jump 🔀 ${video.src} (ID: ${videoId}) - to ${to.toFixed(2)}s`);
+  saveEvent({
+    type: "video-jump",
+    videoId,
+    src: video.src,
+    timestamp: new Date().toISOString(),
+    extra: { from: watchedTime.toFixed(2), to }
   });
+});
 }
 
 // ================== OBSERVE VIDEO CHANGES ==================
