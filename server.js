@@ -30,16 +30,21 @@ app.use(cors()); // allow all origins (or restrict to your extension)
 app.post("/api/events", async (req, res) => {
   try {
     const {
-      sessionId,
-      videoId,
-      type,
-      timestamp,
-      src = null,
-      watchedTime = null,
-      duration = null,
-      percent = null,
-      extra = {},
-    } = req.body;
+    userId,
+    sessionId,
+    videoId,
+    type,
+    timestamp,
+    src = null,
+    watchedTime = null,
+    duration = null,
+    percent = null,
+    extra = {},
+  } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ error: "userId is required" });
+    }
 
     if (!sessionId) {
       return res.status(400).json({ error: "sessionId is required" });
@@ -54,30 +59,22 @@ app.post("/api/events", async (req, res) => {
       return res.status(400).json({ error: "timestamp is required" });
     }
 
+    
+
     // Insert event into database
     await pool.query(
-      `INSERT INTO video_events 
-      (session_id, video_id, src, event_type, ts, extra, watched_time, duration, percent)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-      [
-        sessionId,
-        videoId,
-        src,
-        type,
-        timestamp,
-        extra,
-        watchedTime,
-        duration,
-        percent,
-      ]
+    `INSERT INTO video_events 
+    (user_id, session_id, video_id, src, event_type, ts, extra, watched_time, duration, percent)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [userId, sessionId, videoId, src, type, timestamp, extra, watchedTime, duration, percent]
     );
 
-    res.json({ status: "ok", saved: req.body });
-  } catch (err) {
-    console.error("Database error:", err);
-    res.status(500).json({ error: "Database error", details: err.message });
-  }
-});
+      res.json({ status: "ok", saved: req.body });
+    } catch (err) {
+      console.error("Database error:", err);
+      res.status(500).json({ error: "Database error", details: err.message });
+    }
+  });
 
 // Health check
 app.get("/", (req, res) => {

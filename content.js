@@ -1,11 +1,26 @@
 console.log("[SwipeExtension] Content script injected ");
 
+// ================== USER SETUP ==================
+let userId = null;
+chrome.storage.local.get("swipeUserId", (result) => {
+  if (result.swipeUserId) {
+    userId = result.swipeUserId;
+    console.log("[SwipeExtension] Loaded existing userId:", userId);
+  } else {
+    userId = crypto.randomUUID();
+    chrome.storage.local.set({ swipeUserId: userId }, () => {
+      console.log("[SwipeExtension] Generated new userId:", userId);
+    });
+  }
+});
+
 // ================== SESSION SETUP ==================
 let sessionId = sessionStorage.getItem("swipeSessionId");
 if (!sessionId) {
   sessionId = crypto.randomUUID();
   sessionStorage.setItem("swipeSessionId", sessionId);
 }
+
 
 let currentVideo = null;
 let lastSrc = null;
@@ -21,8 +36,18 @@ function getVideoId() {
   return match ? match[1] : null;
 }
 
+
 function saveEvent(eventData) {
-  eventData.sessionId = sessionId; // add session ID
+  eventData.sessionId = sessionId;
+
+  // Add persistent userId
+  let userId = localStorage.getItem("swipeUserId");
+  if (!userId) {
+    userId = crypto.randomUUID();
+    localStorage.setItem("swipeUserId", userId);
+  }
+  eventData.userId = userId;
+
   console.log("[SwipeExtension] Event saved:", eventData);
 
   fetch("https://swipe-extension-server-2.onrender.com/api/events", {
@@ -36,6 +61,7 @@ function saveEvent(eventData) {
     })
     .catch((err) => console.error("[SwipeExtension] Fetch error ", err));
 }
+
 
 // ================== VIDEO EVENT HOOK ==================
 function attachVideoEvents(video) {
