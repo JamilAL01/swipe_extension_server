@@ -93,41 +93,17 @@ function checkConsent() {
 
 // ================== CHANNEL NAME / HANDLE ==================
 function getChannelNameOrHandle() {
-  // Shorts-specific selector for @handles
-  let el = document.querySelector(
-    "a.yt-core-attributed-string__link[href*='/@']"
+  // Shorts: channel handle under ytReelChannelBarViewModelChannelName
+  const el = document.querySelector(
+    "span.ytReelChannelBarViewModelChannelName a.yt-core-attributed-string__link"
   );
 
-  // Other common selectors (fallbacks)
-  if (!el) {
-    el =
-      document.querySelector("ytd-reel-player-header-renderer #channel-name a") ||
-      document.querySelector("ytd-reel-player-header-renderer #text a[href*='/@']") ||
-      document.querySelector("#owner-text a") ||
-      document.querySelector("ytd-channel-name a") ||
-      document.querySelector("yt-formatted-string#channel-name") ||
-      document.querySelector("yt-formatted-string#owner-name a");
-  }
-
   if (el && el.innerText.trim()) {
-    return el.innerText.trim();
+    // ✅ Remove the leading '@' to get plain channel name
+    return el.innerText.trim().replace(/^@/, "");
   }
 
-  // Try meta tags
-  let metaAuthor = document.querySelector('meta[itemprop="author"]');
-  if (metaAuthor) {
-    return metaAuthor.getAttribute("content");
-  }
-
-  // Try schema.org description → look for @handle
-  let metaDesc = document.querySelector('meta[itemprop="description"]');
-  if (metaDesc) {
-    let desc = metaDesc.getAttribute("content");
-    let handleMatch = desc.match(/@[a-zA-Z0-9._-]+/);
-    if (handleMatch) return handleMatch[0];
-  }
-
-  console.warn("[SwipeExtension] ⚠️ Channel/handle not found in DOM!");
+  console.warn("[SwipeExtension] ⚠️ Could not find Shorts channel name in DOM!");
   return "Unknown";
 }
 
