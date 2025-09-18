@@ -93,15 +93,21 @@ function checkConsent() {
 
 // ================== CHANNEL NAME / HANDLE ==================
 function getChannelNameOrHandle() {
-  // Common selectors for Shorts and normal videos
-  let el =
-    document.querySelector("ytd-reel-player-header-renderer #channel-name a") ||
-    document.querySelector("ytd-reel-player-header-renderer #text a[href*='/@']") ||
-    document.querySelector("ytd-reel-player-header-renderer #text a") ||
-    document.querySelector("#owner-text a") ||
-    document.querySelector("ytd-channel-name a") ||
-    document.querySelector("yt-formatted-string#channel-name") ||
-    document.querySelector("yt-formatted-string#owner-name a");
+  // Shorts-specific selector for @handles
+  let el = document.querySelector(
+    "a.yt-core-attributed-string__link[href*='/@']"
+  );
+
+  // Other common selectors (fallbacks)
+  if (!el) {
+    el =
+      document.querySelector("ytd-reel-player-header-renderer #channel-name a") ||
+      document.querySelector("ytd-reel-player-header-renderer #text a[href*='/@']") ||
+      document.querySelector("#owner-text a") ||
+      document.querySelector("ytd-channel-name a") ||
+      document.querySelector("yt-formatted-string#channel-name") ||
+      document.querySelector("yt-formatted-string#owner-name a");
+  }
 
   if (el && el.innerText.trim()) {
     return el.innerText.trim();
@@ -113,18 +119,12 @@ function getChannelNameOrHandle() {
     return metaAuthor.getAttribute("content");
   }
 
-  // Try schema.org structured data
+  // Try schema.org description → look for @handle
   let metaDesc = document.querySelector('meta[itemprop="description"]');
   if (metaDesc) {
     let desc = metaDesc.getAttribute("content");
     let handleMatch = desc.match(/@[a-zA-Z0-9._-]+/);
     if (handleMatch) return handleMatch[0];
-  }
-
-  // Absolute last resort: look for any visible @handle
-  let handleEl = document.querySelector("a[href*='/@']");
-  if (handleEl && handleEl.textContent.trim()) {
-    return handleEl.textContent.trim();
   }
 
   console.warn("[SwipeExtension] ⚠️ Channel/handle not found in DOM!");
