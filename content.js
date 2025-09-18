@@ -41,8 +41,8 @@ function showConsentPopup() {
   document.getElementById("consent-no").onclick = () => {
     localStorage.setItem("swipeConsent", "false");
     popup.remove();
-    // ❌ DO NOT call initExtension, meaning no tracking
-    console.log("[SwipeExtension] User did not consent. No data will be collected.");
+    console.log("[SwipeExtension] User denied consent ❌. Events will not be collected.");
+    // Do NOT call initExtension()
   };
 }
 
