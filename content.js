@@ -93,24 +93,17 @@ function checkConsent() {
 
 // ================== CHANNEL NAME / HANDLE ==================
 function getChannelNameOrHandle() {
-  // Look for the Shorts channel handle element
   const el = document.querySelector(
     "span.ytReelChannelBarViewModelChannelName a.yt-core-attributed-string__link"
   );
 
   if (el && el.innerText.trim()) {
     const name = el.innerText.trim();
-
-    // ✅ Only return if it's a real Shorts handle
-    if (name.startsWith("@")) {
-      return name.replace(/^@/, ""); // strip @ if you want plain name
-    } else {
-      console.warn("[SwipeExtension] ⚠️ Detected ad / sponsor instead of channel:", name);
-      return "Ad";
-    }
+    if (name.startsWith("@")) return name.replace(/^@/, "");
+    return name; // return the ad name
   }
 
-  console.warn("[SwipeExtension] ⚠️ Could not find Shorts channel handle in DOM!");
+  console.warn("[SwipeExtension] ⚠️ Could not find Shorts channel/handle in DOM!");
   return "Unknown";
 }
 
@@ -134,7 +127,7 @@ function attachVideoTracking() {
   function saveEvent(eventData) {
     eventData.sessionId = window._swipeSessionId;
     eventData.userId = window._swipeUserId;
-    eventData.channelName = getChannelNameOrHandle(); // ✅ always include channel/handle
+    const channelName = getChannelNameOrHandle(); // query current DOM each time 
     console.log("[SwipeExtension] Event saved:", eventData);
 
     fetch("https://swipe-extension-server-2.onrender.com/api/events", {
@@ -161,10 +154,10 @@ function attachVideoTracking() {
       setTimeout(() => {
         const videoId = getVideoId();
         if (!hasPlayed) {
-          saveEvent({ type: "video-start", videoId, src: video.src, timestamp: new Date().toISOString() });
+          saveEvent({ type: "video-start", videoId, src: video.src, timestamp: new Date().toISOString(),channelName });
           hasPlayed = true;
         } else {
-          saveEvent({ type: "video-resume", videoId, src: video.src, timestamp: new Date().toISOString() });
+          saveEvent({ type: "video-resume", videoId, src: video.src, timestamp: new Date().toISOString(),channelName });
         }
       }, 100);
       startTime = Date.now();
@@ -183,6 +176,7 @@ function attachVideoTracking() {
         watchedTime: watchedTime.toFixed(2),
         duration: prevDuration.toFixed(2),
         percent: watchPercent.toFixed(1),
+        channelName,
       });
     });
 
@@ -200,8 +194,9 @@ function attachVideoTracking() {
           watchedTime: prevDuration.toFixed(2),
           duration: prevDuration.toFixed(2),
           percent: 100,
+          channelName,
         });
-        saveEvent({ type: "video-rewatch", videoId, src: video.src, timestamp: new Date().toISOString() });
+        saveEvent({ type: "video-rewatch", videoId, src: video.src, timestamp: new Date().toISOString(),channelName });
         watchedTime = 0;
       }
     });
@@ -219,6 +214,7 @@ function attachVideoTracking() {
         watchedTime: watchedTime.toFixed(2),
         duration: prevDuration.toFixed(2),
         percent: watchPercent.toFixed(1),
+        channelName,
       });
       watchedTime = 0;
     });
@@ -233,7 +229,8 @@ function attachVideoTracking() {
         videoId,
         src: video.src,
         timestamp: new Date().toISOString(),
-        extra: { from: watchedTime.toFixed(2), to }
+        extra: { from: watchedTime.toFixed(2), to },
+        channelName,
       });
     });
   }
