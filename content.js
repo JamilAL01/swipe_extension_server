@@ -79,29 +79,6 @@ function initExtension(persistent = true) {
   attachVideoTracking();
 }
 
-// ================== HELPER: CHANNEL NAME ==================
-function getChannelName() {
-  // Try Shorts header (channel name near profile pic)
-  let el =
-    document.querySelector("#owner-text a") ||
-    document.querySelector("ytd-channel-name a") ||
-    document.querySelector("yt-formatted-string#owner-text a") ||
-    document.querySelector("ytd-reel-player-header-renderer #text a") ||
-    document.querySelector("ytd-reel-player-header-renderer yt-formatted-string#text") ||
-    document.querySelector("yt-formatted-string#channel-name") ||
-    document.querySelector("ytd-reel-player-header-renderer yt-formatted-string");
-
-  if (el) {
-    return el.innerText.trim();
-  }
-
-  // Debug log: so we see what DOM is available
-  console.warn("[SwipeExtension] ⚠️ Could not find channel name. DOM dump:", document.body.innerHTML.slice(0, 500));
-  return "Unknown";
-}
-
-
-
 // ================== CONSENT CHECK ==================
 function checkConsent() {
   const consent = localStorage.getItem("swipeConsent");
@@ -112,6 +89,38 @@ function checkConsent() {
   } else {
     showConsentPopup();
   }
+}
+
+// ================== CHANNEL NAME / HANDLE ==================
+function getChannelNameOrHandle() {
+  // Shorts header or normal channel link
+  let el =
+    document.querySelector("#owner-text a") ||
+    document.querySelector("ytd-channel-name a") ||
+    document.querySelector("ytd-reel-player-header-renderer #text a") ||
+    document.querySelector("ytd-reel-player-header-renderer yt-formatted-string#text") ||
+    document.querySelector("yt-formatted-string#channel-name");
+
+  if (el && el.innerText.trim()) {
+    return el.innerText.trim();
+  }
+
+  // Schema.org metadata
+  let metaAuthor = document.querySelector('meta[itemprop="author"]');
+  if (metaAuthor) {
+    return metaAuthor.getAttribute("content");
+  }
+
+  // Description fallback: try to extract @handle
+  let metaDesc = document.querySelector('meta[itemprop="description"]');
+  if (metaDesc) {
+    let desc = metaDesc.getAttribute("content");
+    let handleMatch = desc.match(/@[a-zA-Z0-9._-]+/);
+    if (handleMatch) return handleMatch[0];
+  }
+
+  console.warn("[SwipeExtension] ⚠️ Channel/handle not found in DOM");
+  return "Unknown";
 }
 
 // ================== VIDEO TRACKING FUNCTION ==================
@@ -133,8 +142,7 @@ function attachVideoTracking() {
   function saveEvent(eventData) {
     eventData.sessionId = window._swipeSessionId;
     eventData.userId = window._swipeUserId;
-    eventData.channelName = getChannelName(); // ✅ Add channel name here
-
+    eventData.channelName = getChannelNameOrHandle(); // ✅ always include channel/handle
     console.log("[SwipeExtension] Event saved:", eventData);
 
     fetch("https://swipe-extension-server-2.onrender.com/api/events", {
@@ -149,7 +157,6 @@ function attachVideoTracking() {
       .catch((err) => console.error("[SwipeExtension] Fetch error ❌", err));
   }
 
-
   function attachVideoEvents(video) {
     if (!video || video._hooked) return;
     video._hooked = true;
@@ -162,7 +169,7 @@ function attachVideoTracking() {
       setTimeout(() => {
         const videoId = getVideoId();
         if (!hasPlayed) {
-          saveEvent({type: "video-start",videoId,src: video.src,channelName: getChannelName(), timestamp: new Date().toISOString()});
+          saveEvent({ type: "video-start", videoId, src: video.src, timestamp: new Date().toISOString() });
           hasPlayed = true;
         } else {
           saveEvent({ type: "video-resume", videoId, src: video.src, timestamp: new Date().toISOString() });
@@ -180,7 +187,6 @@ function attachVideoTracking() {
         type: "video-paused",
         videoId,
         src: video.src,
-        channelName: getChannelName(),
         timestamp: new Date().toISOString(),
         watchedTime: watchedTime.toFixed(2),
         duration: prevDuration.toFixed(2),
@@ -198,7 +204,6 @@ function attachVideoTracking() {
           type: "video-watched-100",
           videoId,
           src: video.src,
-          channelName: getChannelName(),
           timestamp: new Date().toISOString(),
           watchedTime: prevDuration.toFixed(2),
           duration: prevDuration.toFixed(2),
@@ -218,7 +223,6 @@ function attachVideoTracking() {
         type: "video-ended",
         videoId,
         src: video.src,
-        channelName: getChannelName(),
         timestamp: new Date().toISOString(),
         watchedTime: watchedTime.toFixed(2),
         duration: prevDuration.toFixed(2),
@@ -236,7 +240,6 @@ function attachVideoTracking() {
         type: "video-jump",
         videoId,
         src: video.src,
-        channelName: getChannelName(),
         timestamp: new Date().toISOString(),
         extra: { from: watchedTime.toFixed(2), to }
       });
@@ -255,7 +258,6 @@ function attachVideoTracking() {
           type: "video-stopped",
           videoId: getVideoId(),
           src: currentVideo.src,
-          channelName: getChannelName(),
           timestamp: new Date().toISOString(),
           watchedTime: watchedTime.toFixed(2),
           duration: prevDuration.toFixed(2),
@@ -268,7 +270,6 @@ function attachVideoTracking() {
           type: "swiped-to-new-video",
           videoId,
           src: video.src,
-          channelName: getChannelName(),
           timestamp: new Date().toISOString(),
           extra: { previous: lastSrc },
         });
@@ -276,7 +277,6 @@ function attachVideoTracking() {
 
       currentVideo = video;
       lastSrc = video.src;
-      channelName: getChannelName(),
       startTime = Date.now();
       watchedTime = 0;
       prevDuration = video.duration || 0;
