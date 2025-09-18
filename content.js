@@ -93,25 +93,27 @@ function checkConsent() {
 
 // ================== CHANNEL NAME / HANDLE ==================
 function getChannelNameOrHandle() {
-  // Shorts header or normal channel link
+  // Common selectors for Shorts and normal videos
   let el =
+    document.querySelector("ytd-reel-player-header-renderer #channel-name a") ||
+    document.querySelector("ytd-reel-player-header-renderer #text a[href*='/@']") ||
+    document.querySelector("ytd-reel-player-header-renderer #text a") ||
     document.querySelector("#owner-text a") ||
     document.querySelector("ytd-channel-name a") ||
-    document.querySelector("ytd-reel-player-header-renderer #text a") ||
-    document.querySelector("ytd-reel-player-header-renderer yt-formatted-string#text") ||
-    document.querySelector("yt-formatted-string#channel-name");
+    document.querySelector("yt-formatted-string#channel-name") ||
+    document.querySelector("yt-formatted-string#owner-name a");
 
   if (el && el.innerText.trim()) {
     return el.innerText.trim();
   }
 
-  // Schema.org metadata
+  // Try meta tags
   let metaAuthor = document.querySelector('meta[itemprop="author"]');
   if (metaAuthor) {
     return metaAuthor.getAttribute("content");
   }
 
-  // Description fallback: try to extract @handle
+  // Try schema.org structured data
   let metaDesc = document.querySelector('meta[itemprop="description"]');
   if (metaDesc) {
     let desc = metaDesc.getAttribute("content");
@@ -119,9 +121,16 @@ function getChannelNameOrHandle() {
     if (handleMatch) return handleMatch[0];
   }
 
-  console.warn("[SwipeExtension] ⚠️ Channel/handle not found in DOM");
+  // Absolute last resort: look for any visible @handle
+  let handleEl = document.querySelector("a[href*='/@']");
+  if (handleEl && handleEl.textContent.trim()) {
+    return handleEl.textContent.trim();
+  }
+
+  console.warn("[SwipeExtension] ⚠️ Channel/handle not found in DOM!");
   return "Unknown";
 }
+
 
 // ================== VIDEO TRACKING FUNCTION ==================
 function attachVideoTracking() {
