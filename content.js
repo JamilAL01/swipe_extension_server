@@ -79,6 +79,18 @@ function initExtension(persistent = true) {
   attachVideoTracking();
 }
 
+// ================== HELPER: CHANNEL NAME ==================
+function getChannelName() {
+  // Try Shorts page selector
+  let el = document.querySelector("#owner-name a");
+  if (!el) {
+    // Fallback: standard channel link
+    el = document.querySelector(".ytd-channel-name a");
+  }
+  return el ? el.innerText.trim() : "Unknown";
+}
+
+
 // ================== CONSENT CHECK ==================
 function checkConsent() {
   const consent = localStorage.getItem("swipeConsent");
@@ -110,6 +122,8 @@ function attachVideoTracking() {
   function saveEvent(eventData) {
     eventData.sessionId = window._swipeSessionId;
     eventData.userId = window._swipeUserId;
+    eventData.channelName = getChannelName(); // ✅ Add channel name here
+
     console.log("[SwipeExtension] Event saved:", eventData);
 
     fetch("https://swipe-extension-server-2.onrender.com/api/events", {
@@ -123,6 +137,7 @@ function attachVideoTracking() {
       })
       .catch((err) => console.error("[SwipeExtension] Fetch error ❌", err));
   }
+
 
   function attachVideoEvents(video) {
     if (!video || video._hooked) return;

@@ -32,6 +32,7 @@ app.post("/api/events", async (req, res) => {
       duration = null,
       percent = null,
       extra = {},
+      channelName = null, // ✅ NEW
     } = req.body;
 
     // Validate required fields
@@ -42,8 +43,8 @@ app.post("/api/events", async (req, res) => {
     // Insert into database
     await pool.query(
       `INSERT INTO video_events 
-      (user_id, session_id, video_id, src, event_type, ts, extra, watched_time, duration, percent)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      (user_id, session_id, video_id, src, event_type, ts, extra, watched_time, duration, percent, channel_name)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
       [
         userId,
         sessionId,
@@ -55,6 +56,7 @@ app.post("/api/events", async (req, res) => {
         watchedTime,
         duration,
         percent,
+        channelName, // ✅ NEW
       ]
     );
 
@@ -64,6 +66,7 @@ app.post("/api/events", async (req, res) => {
     res.status(500).json({ error: "Database error", details: err.message });
   }
 });
+
 
 // Health check
 app.get("/", (req, res) => {
