@@ -35,13 +35,14 @@ function showConsentPopup() {
   document.getElementById("consent-yes").onclick = () => {
     localStorage.setItem("swipeConsent", "true");
     popup.remove();
-    initExtension(true); // persistent ID
+    initExtension(true); // ✅ start tracking
   };
 
   document.getElementById("consent-no").onclick = () => {
     localStorage.setItem("swipeConsent", "false");
     popup.remove();
-    initExtension(false); // session-only ID
+    // ❌ DO NOT call initExtension, meaning no tracking
+    console.log("[SwipeExtension] User did not consent. No data will be collected.");
   };
 }
 
