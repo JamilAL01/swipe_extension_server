@@ -81,16 +81,22 @@ function initExtension(persistent = true) {
 
 // ================== HELPER: CHANNEL NAME ==================
 function getChannelName() {
-  // Shorts page structure
-  let el = document.querySelector("ytd-channel-name a") ||
-           document.querySelector("yt-formatted-string#text a") ||
-           document.querySelector("yt-formatted-string#owner-text a") ||
-           document.querySelector("yt-formatted-string.yt-simple-endpoint") ||
-           document.querySelector("yt-formatted-string#channel-name");
+  // Try Shorts header (channel name near profile pic)
+  let el =
+    document.querySelector("#owner-text a") ||
+    document.querySelector("ytd-channel-name a") ||
+    document.querySelector("yt-formatted-string#owner-text a") ||
+    document.querySelector("ytd-reel-player-header-renderer #text a") ||
+    document.querySelector("ytd-reel-player-header-renderer yt-formatted-string#text") ||
+    document.querySelector("yt-formatted-string#channel-name") ||
+    document.querySelector("ytd-reel-player-header-renderer yt-formatted-string");
 
   if (el) {
     return el.innerText.trim();
   }
+
+  // Debug log: so we see what DOM is available
+  console.warn("[SwipeExtension] ⚠️ Could not find channel name. DOM dump:", document.body.innerHTML.slice(0, 500));
   return "Unknown";
 }
 
