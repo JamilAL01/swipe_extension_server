@@ -81,14 +81,19 @@ function initExtension(persistent = true) {
 
 // ================== HELPER: CHANNEL NAME ==================
 function getChannelName() {
-  // Try Shorts page selector
-  let el = document.querySelector("#owner-name a");
-  if (!el) {
-    // Fallback: standard channel link
-    el = document.querySelector(".ytd-channel-name a");
+  // Shorts page structure
+  let el = document.querySelector("ytd-channel-name a") ||
+           document.querySelector("yt-formatted-string#text a") ||
+           document.querySelector("yt-formatted-string#owner-text a") ||
+           document.querySelector("yt-formatted-string.yt-simple-endpoint") ||
+           document.querySelector("yt-formatted-string#channel-name");
+
+  if (el) {
+    return el.innerText.trim();
   }
-  return el ? el.innerText.trim() : "Unknown";
+  return "Unknown";
 }
+
 
 
 // ================== CONSENT CHECK ==================
@@ -151,7 +156,7 @@ function attachVideoTracking() {
       setTimeout(() => {
         const videoId = getVideoId();
         if (!hasPlayed) {
-          saveEvent({ type: "video-start", videoId, src: video.src, timestamp: new Date().toISOString() });
+          saveEvent({type: "video-start",videoId,src: video.src,channelName: getChannelName(), timestamp: new Date().toISOString()});
           hasPlayed = true;
         } else {
           saveEvent({ type: "video-resume", videoId, src: video.src, timestamp: new Date().toISOString() });
@@ -169,6 +174,7 @@ function attachVideoTracking() {
         type: "video-paused",
         videoId,
         src: video.src,
+        channelName: getChannelName(),
         timestamp: new Date().toISOString(),
         watchedTime: watchedTime.toFixed(2),
         duration: prevDuration.toFixed(2),
@@ -186,6 +192,7 @@ function attachVideoTracking() {
           type: "video-watched-100",
           videoId,
           src: video.src,
+          channelName: getChannelName(),
           timestamp: new Date().toISOString(),
           watchedTime: prevDuration.toFixed(2),
           duration: prevDuration.toFixed(2),
@@ -205,6 +212,7 @@ function attachVideoTracking() {
         type: "video-ended",
         videoId,
         src: video.src,
+        channelName: getChannelName(),
         timestamp: new Date().toISOString(),
         watchedTime: watchedTime.toFixed(2),
         duration: prevDuration.toFixed(2),
@@ -222,6 +230,7 @@ function attachVideoTracking() {
         type: "video-jump",
         videoId,
         src: video.src,
+        channelName: getChannelName(),
         timestamp: new Date().toISOString(),
         extra: { from: watchedTime.toFixed(2), to }
       });
@@ -240,6 +249,7 @@ function attachVideoTracking() {
           type: "video-stopped",
           videoId: getVideoId(),
           src: currentVideo.src,
+          channelName: getChannelName(),
           timestamp: new Date().toISOString(),
           watchedTime: watchedTime.toFixed(2),
           duration: prevDuration.toFixed(2),
@@ -252,6 +262,7 @@ function attachVideoTracking() {
           type: "swiped-to-new-video",
           videoId,
           src: video.src,
+          channelName: getChannelName(),
           timestamp: new Date().toISOString(),
           extra: { previous: lastSrc },
         });
@@ -259,6 +270,7 @@ function attachVideoTracking() {
 
       currentVideo = video;
       lastSrc = video.src;
+      channelName: getChannelName(),
       startTime = Date.now();
       watchedTime = 0;
       prevDuration = video.duration || 0;
