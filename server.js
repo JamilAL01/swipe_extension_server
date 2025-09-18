@@ -11,7 +11,7 @@ const { Pool } = pkg;
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false } // required for Render
+  ssl: { rejectUnauthorized: false }, // required for Render
 });
 
 // ================== MIDDLEWARE ==================
@@ -32,13 +32,15 @@ app.post("/api/events", async (req, res) => {
       duration = null,
       percent = null,
       extra = {},
-      channelName = null,   // <-- new field
+      channelName = null,
     } = req.body;
 
+    // Validate required fields
     if (!userId || !sessionId || !videoId || !type || !timestamp) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
+    // Insert into database
     await pool.query(
       `INSERT INTO video_events 
       (user_id, session_id, video_id, src, event_type, ts, extra, watched_time, duration, percent, channel_name)
@@ -54,7 +56,7 @@ app.post("/api/events", async (req, res) => {
         watchedTime,
         duration,
         percent,
-        channelName,   // <-- pass it here
+        channelName,
       ]
     );
 
@@ -64,7 +66,6 @@ app.post("/api/events", async (req, res) => {
     res.status(500).json({ error: "Database error", details: err.message });
   }
 });
-
 
 // Health check
 app.get("/", (req, res) => {
