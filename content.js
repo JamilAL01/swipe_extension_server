@@ -48,7 +48,7 @@ function showConsentPopup() {
 
 // ================== INITIALIZATION ==================
 function initExtension(persistent = true) {
-  console.log("[SwipeExtension] Initializing...");
+  console.log("[SwipeExtension] Initializing extension...");
 
   // ---------- USER ID ----------
   let userId;
@@ -75,6 +75,24 @@ function initExtension(persistent = true) {
   }
   window._swipeSessionId = sessionId;
 
+  // ---------- VIDEO EVENT LOGIC ----------
+  attachVideoTracking();
+}
+
+// ================== CONSENT CHECK ==================
+function checkConsent() {
+  const consent = localStorage.getItem("swipeConsent");
+  if (consent === "true") initExtension(true);
+  else if (consent === "false") {
+    console.log("[SwipeExtension] User declined tracking ❌");
+    return; // do nothing
+  } else {
+    showConsentPopup();
+  }
+}
+
+// ================== VIDEO TRACKING FUNCTION ==================
+function attachVideoTracking() {
   let currentVideo = null;
   let lastSrc = null;
   let startTime = null;
@@ -83,15 +101,15 @@ function initExtension(persistent = true) {
   let hasPlayed = false;
   let lastUrl = window.location.href;
 
-  // ================== HELPER FUNCTIONS ==================
+  // Helper to get YouTube Shorts video ID
   function getVideoId() {
     const match = window.location.href.match(/\/shorts\/([a-zA-Z0-9_-]{11})/);
     return match ? match[1] : null;
   }
 
   function saveEvent(eventData) {
-    eventData.sessionId = sessionId;
-    eventData.userId = userId; // add user ID
+    eventData.sessionId = window._swipeSessionId;
+    eventData.userId = window._swipeUserId;
     console.log("[SwipeExtension] Event saved:", eventData);
 
     fetch("https://swipe-extension-server-2.onrender.com/api/events", {
@@ -106,16 +124,13 @@ function initExtension(persistent = true) {
       .catch((err) => console.error("[SwipeExtension] Fetch error ❌", err));
   }
 
-  // ================== VIDEO EVENT HOOK ==================
   function attachVideoEvents(video) {
     if (!video || video._hooked) return;
     video._hooked = true;
 
     console.log(`[SwipeExtension] 🎥 Hooking into video: ${video.src} (ID: ${getVideoId()})`);
 
-    video.addEventListener("loadedmetadata", () => {
-      prevDuration = video.duration;
-    });
+    video.addEventListener("loadedmetadata", () => { prevDuration = video.duration; });
 
     video.addEventListener("play", () => {
       setTimeout(() => {
@@ -183,25 +198,18 @@ function initExtension(persistent = true) {
       watchedTime = 0;
     });
 
-    // ================== NEW: JUMP / SEEK EVENT ==================
-    let seekFrom = null;
-
-    video.addEventListener("seeking", () => {
-      seekFrom = video.currentTime;
-    });
-
+    // ================== JUMP / SEEK EVENT ==================
     video.addEventListener("seeked", () => {
       const videoId = getVideoId();
       const to = video.currentTime;
-      console.log(`[SwipeExtension] video-jump 🔀 ${video.src} (ID: ${videoId}) - from ${seekFrom?.toFixed(2)}s to ${to.toFixed(2)}s`);
+      console.log(`[SwipeExtension] video-jump 🔀 ${video.src} (ID: ${videoId}) - to ${to.toFixed(2)}s`);
       saveEvent({
         type: "video-jump",
         videoId,
         src: video.src,
         timestamp: new Date().toISOString(),
-        extra: { from: seekFrom, to },
+        extra: { from: watchedTime.toFixed(2), to }
       });
-      seekFrom = null;
     });
   }
 
@@ -257,11 +265,14 @@ function initExtension(persistent = true) {
   }, 100);
 }
 
-// ================== STARTUP ==================
-if (localStorage.getItem("swipeConsent") === "true") {
-  initExtension(true);
-} else if (localStorage.getItem("swipeConsent") === "false") {
-  initExtension(false);
-} else {
-  showConsentPopup();
-}
+// ================== SPA NAVIGATION CHECK ==================
+let lastUrl = window.location.href;
+setInterval(() => {
+  if (window.location.href !== lastUrl) {
+    lastUrl = window.location.href;
+    checkConsent();
+  }
+}, 1000);
+
+// ================== INITIAL RUN ==================
+checkConsent();
