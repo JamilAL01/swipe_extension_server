@@ -93,17 +93,24 @@ function checkConsent() {
 
 // ================== CHANNEL NAME / HANDLE ==================
 function getChannelNameOrHandle() {
-  // Shorts: channel handle under ytReelChannelBarViewModelChannelName
+  // Look for the Shorts channel handle element
   const el = document.querySelector(
     "span.ytReelChannelBarViewModelChannelName a.yt-core-attributed-string__link"
   );
 
   if (el && el.innerText.trim()) {
-    // ✅ Remove the leading '@' to get plain channel name
-    return el.innerText.trim().replace(/^@/, "");
+    const name = el.innerText.trim();
+
+    // ✅ Only return if it's a real Shorts handle
+    if (name.startsWith("@")) {
+      return name.replace(/^@/, ""); // strip @ if you want plain name
+    } else {
+      console.warn("[SwipeExtension] ⚠️ Detected ad / sponsor instead of channel:", name);
+      return "Ad";
+    }
   }
 
-  console.warn("[SwipeExtension] ⚠️ Could not find Shorts channel name in DOM!");
+  console.warn("[SwipeExtension] ⚠️ Could not find Shorts channel handle in DOM!");
   return "Unknown";
 }
 
