@@ -107,14 +107,15 @@ function attachVideoTracking() {
   }
 
   function getChannelName() {
-    const channelElement = document.querySelector('#channel-name a, #owner-name a');
-    return channelElement ? channelElement.textContent.trim() : null;
-  }
+    const channelEl = document.querySelector("#owner-name a");
+    return channelEl ? channelEl.textContent.trim() : null;
+    }
+
 
   function saveEvent(eventData) {
     eventData.sessionId = window._swipeSessionId;
     eventData.userId = window._swipeUserId;
-    eventData.channelName = getChannelName(); // channel_name added
+    eventData.channelName = getChannelName(); // ✅ add channel name
     console.log("[SwipeExtension] Event saved:", eventData);
 
     fetch("https://swipe-extension-server-2.onrender.com/api/events", {
@@ -122,12 +123,13 @@ function attachVideoTracking() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(eventData),
     })
-      .then((res) => {
-        if (res.ok) console.log("[SwipeExtension] Sent to server ✅");
-        else console.error("[SwipeExtension] Server error ❌", res.statusText);
-      })
-      .catch((err) => console.error("[SwipeExtension] Fetch error ❌", err));
+    .then((res) => {
+      if (res.ok) console.log("[SwipeExtension] Sent to server ✅");
+      else console.error("[SwipeExtension] Server error ❌", res.statusText);
+    })
+    .catch((err) => console.error("[SwipeExtension] Fetch error ❌", err));
   }
+
 
   function attachVideoEvents(video) {
     if (!video || video._hooked) return;
