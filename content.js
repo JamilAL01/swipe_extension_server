@@ -35,14 +35,13 @@ function showConsentPopup() {
   document.getElementById("consent-yes").onclick = () => {
     localStorage.setItem("swipeConsent", "true");
     popup.remove();
-    initExtension(true); // ✅ start tracking
+    initExtension(true);
   };
 
   document.getElementById("consent-no").onclick = () => {
     localStorage.setItem("swipeConsent", "false");
     popup.remove();
     console.log("[SwipeExtension] User denied consent ❌. Events will not be collected.");
-    // Do NOT call initExtension()
   };
 }
 
@@ -50,32 +49,19 @@ function showConsentPopup() {
 function initExtension(persistent = true) {
   console.log("[SwipeExtension] Initializing extension...");
 
-  // ---------- USER ID ----------
-  let userId;
-  if (persistent) {
-    userId = localStorage.getItem("swipeUserId");
-    if (!userId) {
-      userId = crypto.randomUUID();
-      localStorage.setItem("swipeUserId", userId);
-    }
-  } else {
-    userId = sessionStorage.getItem("swipeUserId");
-    if (!userId) {
-      userId = crypto.randomUUID();
-      sessionStorage.setItem("swipeUserId", userId);
-    }
-  }
+  let userId = persistent
+    ? localStorage.getItem("swipeUserId") || crypto.randomUUID()
+    : sessionStorage.getItem("swipeUserId") || crypto.randomUUID();
+
+  if (persistent && !localStorage.getItem("swipeUserId")) localStorage.setItem("swipeUserId", userId);
+  if (!persistent && !sessionStorage.getItem("swipeUserId")) sessionStorage.setItem("swipeUserId", userId);
+
   window._swipeUserId = userId;
 
-  // ---------- SESSION ID ----------
-  let sessionId = sessionStorage.getItem("swipeSessionId");
-  if (!sessionId) {
-    sessionId = crypto.randomUUID();
-    sessionStorage.setItem("swipeSessionId", sessionId);
-  }
+  let sessionId = sessionStorage.getItem("swipeSessionId") || crypto.randomUUID();
+  if (!sessionStorage.getItem("swipeSessionId")) sessionStorage.setItem("swipeSessionId", sessionId);
   window._swipeSessionId = sessionId;
 
-  // ---------- VIDEO EVENT LOGIC ----------
   attachVideoTracking();
 }
 
@@ -83,41 +69,34 @@ function initExtension(persistent = true) {
 function checkConsent() {
   const consent = localStorage.getItem("swipeConsent");
   if (consent === "true") initExtension(true);
-  else if (consent === "false") {
-    console.log("[SwipeExtension] User declined tracking ❌");
-    return; // do nothing
-  } else {
-    showConsentPopup();
-  }
+  else if (consent === "false") console.log("[SwipeExtension] User declined tracking ❌");
+  else showConsentPopup();
 }
 
 // ================== CHANNEL NAME / HANDLE ==================
 let currentChannelName = null;
 
 function extractChannelName() {
-  let channelEl = document.querySelector("span.ytReelChannelBarViewModelChannelName a");
+  const channelEl = document.querySelector("span.ytReelChannelBarViewModelChannelName a");
   if (channelEl) return channelEl.textContent.trim();
 
-  let adEl = document.querySelector("span.ytAdMetadataShapeHostHeadline a");
+  const adEl = document.querySelector("span.ytAdMetadataShapeHostHeadline a");
   if (adEl) return adEl.textContent.trim();
 
   return null;
 }
 
-// Keep observer as a backup (dynamic DOM updates)
-const observer = new MutationObserver(() => {
+// Backup observer to update channel dynamically
+const channelObserver = new MutationObserver(() => {
   const name = extractChannelName();
   if (name && name !== currentChannelName) {
     currentChannelName = name;
     console.log("[SwipeExtension] Channel name updated via DOM observer:", currentChannelName);
   }
 });
-observer.observe(document.body, {
-  childList: true,
-  subtree: true
-});
+channelObserver.observe(document.body, { childList: true, subtree: true });
 
-// ================== VIDEO TRACKING FUNCTION ==================
+// ================== VIDEO TRACKING ==================
 function attachVideoTracking() {
   let currentVideo = null;
   let lastSrc = null;
@@ -127,7 +106,6 @@ function attachVideoTracking() {
   let hasPlayed = false;
   let lastUrl = window.location.href;
 
-  // Helper to get YouTube Shorts video ID
   function getVideoId() {
     const match = window.location.href.match(/\/shorts\/([a-zA-Z0-9_-]{11})/);
     return match ? match[1] : null;
@@ -144,11 +122,8 @@ function attachVideoTracking() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(eventData),
     })
-      .then((res) => {
-        if (res.ok) console.log("[SwipeExtension] Sent to server ✅");
-        else console.error("[SwipeExtension] Server error ❌", res.statusText);
-      })
-      .catch((err) => console.error("[SwipeExtension] Fetch error ❌", err));
+      .then(res => res.ok ? console.log("[SwipeExtension] Sent to server ✅") : console.error("[SwipeExtension] Server error ❌", res.statusText))
+      .catch(err => console.error("[SwipeExtension] Fetch error ❌", err));
   }
 
   function attachVideoEvents(video) {
@@ -157,9 +132,9 @@ function attachVideoTracking() {
 
     console.log(`[SwipeExtension] 🎥 Hooking into video: ${video.src} (ID: ${getVideoId()})`);
 
-    let justRewatched = false; // Flag to ignore first jump after rewatch
+    let justRewatched = false;
 
-    video.addEventListener("loadedmetadata", () => { prevDuration = video.duration; });
+    video.addEventListener("loadedmetadata", () => prevDuration = video.duration);
 
     video.addEventListener("play", () => {
       setTimeout(() => {
@@ -212,8 +187,7 @@ function attachVideoTracking() {
           timestamp: new Date().toISOString()
         });
 
-        // Ignore the first jump event caused by rewatch
-        justRewatched = true;
+        justRewatched = true; 
         watchedTime = 0;
       }
     });
@@ -235,19 +209,16 @@ function attachVideoTracking() {
       watchedTime = 0;
     });
 
-    // ================== JUMP / SEEK EVENT WITH DIRECTION ==================
     video.addEventListener("seeked", () => {
       const videoId = getVideoId();
       const to = video.currentTime;
 
-      // Ignore first jump immediately after a rewatch
       if (justRewatched) {
-        justRewatched = false; // reset flag
-        watchedTime = to; // sync watchedTime
+        justRewatched = false;
+        watchedTime = to;
         return;
       }
 
-      // Ignore trivial jump at video start
       if (watchedTime === 0 && to === 0) return;
 
       const direction = to > watchedTime ? "jump-forward" : "jump-backward";
@@ -259,24 +230,18 @@ function attachVideoTracking() {
         videoId,
         src: video.src,
         timestamp: new Date().toISOString(),
-        extra: {
-          direction,
-          from: watchedTime.toFixed(2),
-          to: to.toFixed(2)
-        }
+        extra: { direction, from: watchedTime.toFixed(2), to: to.toFixed(2) }
       });
 
-      watchedTime = to; // update watchedTime after jump
+      watchedTime = to;
     });
   }
 
-  // ================== OBSERVE VIDEO CHANGES ==================
   const videoObserver = new MutationObserver(() => {
     const video = document.querySelector("video");
     if (video && video.src !== lastSrc) {
       const videoId = getVideoId();
 
-      // ✅ force refresh channel name when a new video is detected
       const freshName = extractChannelName();
       if (freshName) {
         currentChannelName = freshName;
@@ -287,7 +252,7 @@ function attachVideoTracking() {
         watchedTime += (Date.now() - startTime) / 1000;
         saveEvent({
           type: "video-stopped",
-          videoId: getVideoId(),
+          videoId,
           src: currentVideo.src,
           timestamp: new Date().toISOString(),
           watchedTime: watchedTime.toFixed(2),
@@ -319,7 +284,6 @@ function attachVideoTracking() {
 
   videoObserver.observe(document.body, { childList: true, subtree: true });
 
-  // ================== RE-HOOK ON URL CHANGE ==================
   setInterval(() => {
     if (window.location.href !== lastUrl) {
       lastUrl = window.location.href;
