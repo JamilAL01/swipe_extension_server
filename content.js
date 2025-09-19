@@ -4,25 +4,30 @@ console.log("[SwipeExtension] Content script injected ✅");
 function showConsentPopup() {
   const popup = document.createElement("div");
   popup.style.position = "fixed";
-  popup.style.bottom = "20px";
-  popup.style.right = "20px";
-  popup.style.width = "320px";
-  popup.style.padding = "15px";
+  popup.style.top = "50%";
+  popup.style.left = "50%";
+  popup.style.transform = "translate(-50%, -50%)";
+  popup.style.width = "500px";
+  popup.style.padding = "25px";
   popup.style.background = "white";
-  popup.style.border = "1px solid #ccc";
-  popup.style.borderRadius = "8px";
-  popup.style.boxShadow = "0 2px 10px rgba(0,0,0,0.2)";
+  popup.style.border = "2px solid #444";
+  popup.style.borderRadius = "12px";
+  popup.style.boxShadow = "0 4px 20px rgba(0,0,0,0.3)";
   popup.style.zIndex = "9999";
-  popup.style.fontSize = "14px";
+  popup.style.fontSize = "16px";
   popup.style.fontFamily = "Arial, sans-serif";
+  popup.style.textAlign = "center";
 
   popup.innerHTML = `
-    <p><b>Data Collection Notice</b></p>
-    <p>This extension collects your video interaction events (play, pause, watch time, etc.)
-    for research purposes. A random user ID will be stored locally to recognize you across sessions.</p>
-    <p>Do you agree?</p>
-    <button id="consent-yes" style="margin-right:10px;">Yes</button>
-    <button id="consent-no">No</button>
+    <h2 style="margin-top:0; font-size:20px;">🔒 Data Collection Notice</h2>
+    <p style="line-height:1.5;">
+      This extension collects your video interaction events 
+      (<b>play, pause, jumps, watch time</b>, etc.) for research purposes.  
+      A random user ID will be stored locally to recognize you across sessions.
+    </p>
+    <p><b>Do you agree?</b></p>
+    <button id="consent-yes" style="margin:10px; padding:10px 20px; font-size:16px;">✅ Yes</button>
+    <button id="consent-no" style="margin:10px; padding:10px 20px; font-size:16px;">❌ No</button>
   `;
 
   document.body.appendChild(popup);
@@ -39,6 +44,7 @@ function showConsentPopup() {
     initExtension(false); // session-only ID
   };
 }
+
 
 // ================== INITIALIZATION ==================
 function initExtension(persistent = true) {
