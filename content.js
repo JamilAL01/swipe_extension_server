@@ -99,6 +99,8 @@ function attachVideoTracking() {
   let prevDuration = 0;
   let hasPlayed = false;
   let lastUrl = window.location.href;
+  let suppressNextJump = false; // ✅ NEW FLAG
+  let lastSeekPosition = 0; // track jumps properly
 
   // Helper to get YouTube Shorts video ID
   function getVideoId() {
@@ -177,6 +179,7 @@ function attachVideoTracking() {
         });
         saveEvent({ type: "video-rewatch", videoId, src: video.src, timestamp: new Date().toISOString() });
         watchedTime = 0;
+        suppressNextJump = true; // ✅ Prevents false jump after rewatch
       }
     });
 
@@ -201,13 +204,24 @@ function attachVideoTracking() {
     video.addEventListener("seeked", () => {
       const videoId = getVideoId();
       const to = video.currentTime;
-      console.log(`[SwipeExtension] video-jump 🔀 ${video.src} (ID: ${videoId}) - to ${to.toFixed(2)}s`);
+
+      if (suppressNextJump) {
+        console.log("[SwipeExtension] Ignored jump after rewatch ✅");
+        suppressNextJump = false; // reset
+        lastSeekPosition = to;
+        return;
+      }
+
+      const from = lastSeekPosition;
+      lastSeekPosition = to;
+
+      console.log(`[SwipeExtension] video-jump 🔀 ${video.src} (ID: ${videoId}) from ${from.toFixed(2)}s → to ${to.toFixed(2)}s`);
       saveEvent({
         type: "video-jump",
         videoId,
         src: video.src,
         timestamp: new Date().toISOString(),
-        extra: { from: watchedTime.toFixed(2), to }
+        extra: { from: from.toFixed(2), to: to.toFixed(2) }
       });
     });
   }
@@ -247,6 +261,8 @@ function attachVideoTracking() {
       watchedTime = 0;
       prevDuration = video.duration || 0;
       hasPlayed = false;
+      suppressNextJump = false;
+      lastSeekPosition = 0;
 
       attachVideoEvents(video);
     }
