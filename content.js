@@ -35,14 +35,13 @@ function showConsentPopup() {
   document.getElementById("consent-yes").onclick = () => {
     localStorage.setItem("swipeConsent", "true");
     popup.remove();
-    initExtension(true); // ✅ start tracking
+    initExtension(true);
   };
 
   document.getElementById("consent-no").onclick = () => {
     localStorage.setItem("swipeConsent", "false");
     popup.remove();
     console.log("[SwipeExtension] User denied consent ❌. Events will not be collected.");
-    // Do NOT call initExtension()
   };
 }
 
@@ -50,32 +49,20 @@ function showConsentPopup() {
 function initExtension(persistent = true) {
   console.log("[SwipeExtension] Initializing extension...");
 
-  // ---------- USER ID ----------
   let userId;
   if (persistent) {
-    userId = localStorage.getItem("swipeUserId");
-    if (!userId) {
-      userId = crypto.randomUUID();
-      localStorage.setItem("swipeUserId", userId);
-    }
+    userId = localStorage.getItem("swipeUserId") || crypto.randomUUID();
+    localStorage.setItem("swipeUserId", userId);
   } else {
-    userId = sessionStorage.getItem("swipeUserId");
-    if (!userId) {
-      userId = crypto.randomUUID();
-      sessionStorage.setItem("swipeUserId", userId);
-    }
+    userId = sessionStorage.getItem("swipeUserId") || crypto.randomUUID();
+    sessionStorage.setItem("swipeUserId", userId);
   }
   window._swipeUserId = userId;
 
-  // ---------- SESSION ID ----------
-  let sessionId = sessionStorage.getItem("swipeSessionId");
-  if (!sessionId) {
-    sessionId = crypto.randomUUID();
-    sessionStorage.setItem("swipeSessionId", sessionId);
-  }
+  let sessionId = sessionStorage.getItem("swipeSessionId") || crypto.randomUUID();
+  sessionStorage.setItem("swipeSessionId", sessionId);
   window._swipeSessionId = sessionId;
 
-  // ---------- VIDEO EVENT LOGIC ----------
   attachVideoTracking();
 }
 
@@ -83,183 +70,38 @@ function initExtension(persistent = true) {
 function checkConsent() {
   const consent = localStorage.getItem("swipeConsent");
   if (consent === "true") initExtension(true);
-  else if (consent === "false") {
-    console.log("[SwipeExtension] User declined tracking ❌");
-    return; // do nothing
-  } else {
-    showConsentPopup();
-  }
+  else if (consent === "false") console.log("[SwipeExtension] User declined tracking ❌");
+  else showConsentPopup();
 }
 
-// ================== CHANNEL NAME / HANDLE (robust) ==================
-// Map video.src -> { name, url }
-// This ensures a channel is tied to a specific video instance (avoids previous-video bleed)
-const videoChannelMap = new Map(); // src -> { name, url }
-let lastKnownChannel = null;
+// ================== CHANNEL NAME / HANDLE ==================
+let currentChannelName = null;
 
-// small debounce helper
-function debounce(fn, wait = 80) {
-  let t;
-  return (...args) => {
-    clearTimeout(t);
-    t = setTimeout(() => fn(...args), wait);
-  };
+function extractChannelName() {
+  let channelEl = document.querySelector("span.ytReelChannelBarViewModelChannelName a");
+  if (channelEl) return channelEl.textContent.trim();
+
+  let adEl = document.querySelector("span.ytAdMetadataShapeHostHeadline a");
+  if (adEl) return adEl.textContent.trim();
+
+  return null;
 }
 
-function extractChannelMetaFromDOM() {
-  // Shorts channel name
-  const shortAnchor = document.querySelector("span.ytReelChannelBarViewModelChannelName a");
-  if (shortAnchor) return { name: shortAnchor.textContent.trim(), url: shortAnchor.getAttribute("href") || null };
-
-  // Ads / brand headline
-  const adAnchor = document.querySelector("span.ytAdMetadataShapeHostHeadline a");
-  if (adAnchor) return { name: adAnchor.textContent.trim(), url: adAnchor.getAttribute("href") || adAnchor.href || null };
-
-  // Fallback: any attributed-string link visible in the bar (less specific)
-  const alt = document.querySelector(".yt-core-attributed-string__link");
-  if (alt) return { name: alt.textContent.trim(), url: alt.getAttribute("href") || null };
-
-  return { name: null, url: null };
-}
-
-function getVideoElement() {
-  return document.querySelector("video");
-}
-
-function getCurrentVideoSrc() {
-  const v = getVideoElement();
-  return v ? (v.currentSrc || v.src || null) : null;
-}
-
-// update mapping for current video if DOM contains channel info
-function updateMappingForCurrentVideo() {
-  const src = getCurrentVideoSrc();
-  const meta = extractChannelMetaFromDOM();
-  if (meta && meta.name) {
-    if (src) videoChannelMap.set(src, meta);
-    lastKnownChannel = meta;
-  }
-}
-
-// Observe body mutations (debounced) to detect when YouTube updates channel DOM
-const bodyObserver = new MutationObserver(debounce(() => {
-  updateMappingForCurrentVideo();
-}, 80));
-bodyObserver.observe(document.body, { childList: true, subtree: true, characterData: true });
-
-// Repeatedly ensure we listen to video events and attribute changes
-function attachVideoListenersOnce() {
-  const v = getVideoElement();
-  if (!v) return;
-
-  // avoid attaching multiple times
-  if (v._channelHooked) return;
-  v._channelHooked = true;
-
-  // When metadata/data/play fires, update mapping (video.src is usually stable by then)
-  v.addEventListener("loadedmetadata", updateMappingForCurrentVideo);
-  v.addEventListener("loadeddata", updateMappingForCurrentVideo);
-  v.addEventListener("playing", updateMappingForCurrentVideo);
-
-  // Observe attribute changes on the video element (src/currentSrc)
-  try {
-    const attrObs = new MutationObserver((mutations) => {
-      for (const m of mutations) {
-        if (m.type === "attributes" && (m.attributeName === "src" || m.attributeName === "currentSrc")) {
-          updateMappingForCurrentVideo();
-        }
-      }
-    });
-    attrObs.observe(v, { attributes: true });
-  } catch (e) {
-    // ignore inability to attach observer
-  }
-}
-
-// Re-attach listeners when DOM changes and a new <video> appears
-const reattachObserver = new MutationObserver(debounce(() => {
-  attachVideoListenersOnce();
-}, 150));
-reattachObserver.observe(document.body, { childList: true, subtree: true });
-
-// Resolve channel info for the current video.
-// Strategy:
-// 1) If video.src is in map → return it immediately.
-// 2) If lastKnownChannel exists → return it immediately (useful fallback).
-// 3) Otherwise wait up to `timeout` ms for DOM/video events to populate the mapping.
-function resolveChannelInfo(timeout = 400) {
-  const src = getCurrentVideoSrc();
-  if (src && videoChannelMap.has(src)) return Promise.resolve(videoChannelMap.get(src));
-  if (lastKnownChannel) return Promise.resolve(lastKnownChannel);
-
-  return new Promise((resolve) => {
-    let done = false;
-
-    function tryResolve() {
-      if (done) return;
-      const s = getCurrentVideoSrc();
-      if (s && videoChannelMap.has(s)) {
-        done = true;
-        cleanup();
-        return resolve(videoChannelMap.get(s));
-      }
-      const meta = extractChannelMetaFromDOM();
-      if (meta && meta.name) {
-        if (s) videoChannelMap.set(s, meta);
-        done = true;
-        cleanup();
-        return resolve(meta);
-      }
-      // else continue waiting
-    }
-
-    function cleanup() {
-      const v = getVideoElement();
-      if (v) {
-        v.removeEventListener("playing", tryResolve);
-        v.removeEventListener("loadeddata", tryResolve);
-      }
-      tempObserver.disconnect();
-      clearTimeout(tid);
-    }
-
-    const v = getVideoElement();
-    if (v) {
-      v.addEventListener("playing", tryResolve);
-      v.addEventListener("loadeddata", tryResolve);
-    }
-
-    const tempObserver = new MutationObserver(tryResolve);
-    tempObserver.observe(document.body, { childList: true, subtree: true, characterData: true });
-
-    const tid = setTimeout(() => {
-      if (done) return;
-      done = true;
-      tempObserver.disconnect();
-      if (v) {
-        v.removeEventListener("playing", tryResolve);
-        v.removeEventListener("loadeddata", tryResolve);
-      }
-      // fallback to lastKnownChannel or null
-      resolve(lastKnownChannel || null);
-    }, timeout);
-  });
-}
-
-// Expose debug helpers
-window._videoChannelMap = videoChannelMap;
-window._lastKnownChannel = () => lastKnownChannel;
+const observerChannel = new MutationObserver(() => {
+  const name = extractChannelName();
+  if (name && name !== currentChannelName) currentChannelName = name;
+});
+observerChannel.observe(document.body, { childList: true, subtree: true });
 
 // ================== VIDEO TRACKING FUNCTION ==================
 function attachVideoTracking() {
   let currentVideo = null;
   let lastSrc = null;
-  let lastEventSent = {}; // Track last event type per video src
   let startTime = null;
   let watchedTime = 0;
   let prevDuration = 0;
   let hasPlayed = false;
-  let lastUrl = window.location.href;
+  let lastEventSent = {};
   let justRewatched = false;
 
   function getVideoId() {
@@ -269,7 +111,7 @@ function attachVideoTracking() {
 
   function saveEvent(eventData) {
     const key = `${eventData.videoId}-${eventData.type}`;
-    if (lastEventSent[key]) return; // prevent duplicate
+    if (lastEventSent[key]) return;
     lastEventSent[key] = true;
 
     eventData.sessionId = window._swipeSessionId;
@@ -290,6 +132,8 @@ function attachVideoTracking() {
   function attachVideoEvents(video) {
     if (!video || video._hooked) return;
     video._hooked = true;
+
+    video.addEventListener("loadedmetadata", () => { prevDuration = video.duration; });
 
     video.addEventListener("play", () => {
       startTime = Date.now();
@@ -318,19 +162,11 @@ function attachVideoTracking() {
     });
 
     video.addEventListener("seeked", () => {
+      if (justRewatched) { justRewatched = false; watchedTime = video.currentTime; return; }
       const videoId = getVideoId();
       const to = video.currentTime;
-      if (justRewatched) { justRewatched = false; watchedTime = to; return; }
-      if (watchedTime === 0 && to === 0) return;
-
       const direction = to > watchedTime ? "jump-forward" : "jump-backward";
-      saveEvent({
-        type: "video-jump",
-        videoId,
-        src: video.src,
-        timestamp: new Date().toISOString(),
-        extra: { from: watchedTime.toFixed(2), to: to.toFixed(2), direction }
-      });
+      saveEvent({ type: "video-jump", videoId, src: video.src, timestamp: new Date().toISOString(), extra: { from: watchedTime.toFixed(2), to: to.toFixed(2), direction } });
       watchedTime = to;
     });
 
@@ -347,8 +183,7 @@ function attachVideoTracking() {
     });
   }
 
-  // ================= OBSERVE VIDEO CHANGES =================
-  const observer = new MutationObserver(() => {
+  const observerVideo = new MutationObserver(() => {
     const video = document.querySelector("video");
     if (!video || video.src === lastSrc) return;
 
@@ -366,24 +201,13 @@ function attachVideoTracking() {
     prevDuration = video.duration || 0;
     hasPlayed = false;
     justRewatched = false;
-    lastEventSent = {}; // reset for new video
+    lastEventSent = {};
 
     attachVideoEvents(video);
   });
 
-  observer.observe(document.body, { childList: true, subtree: true });
+  observerVideo.observe(document.body, { childList: true, subtree: true });
 }
-
-
-  // ================== RE-HOOK ON URL CHANGE ==================
-  setInterval(() => {
-    if (window.location.href !== lastUrl) {
-      lastUrl = window.location.href;
-      const video = document.querySelector("video");
-      if (video) attachVideoEvents(video);
-    }
-  }, 100);
-
 
 // ================== SPA NAVIGATION CHECK ==================
 let lastUrl = window.location.href;
