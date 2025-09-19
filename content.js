@@ -152,108 +152,123 @@ function attachVideoTracking() {
   }
 
   function attachVideoEvents(video) {
-  if (!video || video._hooked) return;
-  video._hooked = true;
+    if (!video || video._hooked) return;
+    video._hooked = true;
 
-  console.log(`[SwipeExtension] 🎥 Hooking into video: ${video.src} (ID: ${getVideoId()})`);
+    console.log(`[SwipeExtension] 🎥 Hooking into video: ${video.src} (ID: ${getVideoId()})`);
 
-  video.addEventListener("loadedmetadata", () => { prevDuration = video.duration; });
+    let justRewatched = false; // Flag to ignore first jump after rewatch
 
-  video.addEventListener("play", () => {
-    setTimeout(() => {
-      const videoId = getVideoId();
-      if (!hasPlayed) {
-        saveEvent({ type: "video-start", videoId, src: video.src, timestamp: new Date().toISOString() });
-        hasPlayed = true;
-      } else {
-        saveEvent({ type: "video-resume", videoId, src: video.src, timestamp: new Date().toISOString() });
-      }
-    }, 100);
-    startTime = Date.now();
-  });
+    video.addEventListener("loadedmetadata", () => { prevDuration = video.duration; });
 
-  video.addEventListener("pause", () => {
-    if (startTime) watchedTime += (Date.now() - startTime) / 1000;
-    startTime = null;
-    const videoId = getVideoId();
-    const watchPercent = prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100) : 0;
-    saveEvent({
-      type: "video-paused",
-      videoId,
-      src: video.src,
-      timestamp: new Date().toISOString(),
-      watchedTime: watchedTime.toFixed(2),
-      duration: prevDuration.toFixed(2),
-      percent: watchPercent.toFixed(1),
+    video.addEventListener("play", () => {
+      setTimeout(() => {
+        const videoId = getVideoId();
+        if (!hasPlayed) {
+          saveEvent({ type: "video-start", videoId, src: video.src, timestamp: new Date().toISOString() });
+          hasPlayed = true;
+        } else {
+          saveEvent({ type: "video-resume", videoId, src: video.src, timestamp: new Date().toISOString() });
+        }
+      }, 100);
+      startTime = Date.now();
     });
-  });
 
-  video.addEventListener("timeupdate", () => {
-    if (startTime) watchedTime += (Date.now() - startTime) / 1000;
-    startTime = Date.now();
-
-    if (prevDuration && watchedTime >= prevDuration) {
+    video.addEventListener("pause", () => {
+      if (startTime) watchedTime += (Date.now() - startTime) / 1000;
+      startTime = null;
       const videoId = getVideoId();
+      const watchPercent = prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100) : 0;
       saveEvent({
-        type: "video-watched-100",
+        type: "video-paused",
         videoId,
         src: video.src,
         timestamp: new Date().toISOString(),
-        watchedTime: prevDuration.toFixed(2),
+        watchedTime: watchedTime.toFixed(2),
         duration: prevDuration.toFixed(2),
-        percent: 100,
+        percent: watchPercent.toFixed(1),
       });
-      saveEvent({ type: "video-rewatch", videoId, src: video.src, timestamp: new Date().toISOString() });
-      watchedTime = 0;
-    }
-  });
-
-  video.addEventListener("ended", () => {
-    if (startTime) watchedTime += (Date.now() - startTime) / 1000;
-    startTime = null;
-    const videoId = getVideoId();
-    const watchPercent = prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100) : 0;
-    saveEvent({
-      type: "video-ended",
-      videoId,
-      src: video.src,
-      timestamp: new Date().toISOString(),
-      watchedTime: watchedTime.toFixed(2),
-      duration: prevDuration.toFixed(2),
-      percent: watchPercent.toFixed(1),
     });
-    watchedTime = 0;
-  });
 
-  // ================== JUMP / SEEK EVENT WITH DIRECTION ==================
-  video.addEventListener("seeked", () => {
-    const videoId = getVideoId();
-    const to = video.currentTime;
+    video.addEventListener("timeupdate", () => {
+      if (startTime) watchedTime += (Date.now() - startTime) / 1000;
+      startTime = Date.now();
 
-    // Skip jump event if this is a rewatch start (jump from T -> 0)
-    if (watchedTime === 0 && to === 0) return;
+      if (prevDuration && watchedTime >= prevDuration) {
+        const videoId = getVideoId();
+        saveEvent({
+          type: "video-watched-100",
+          videoId,
+          src: video.src,
+          timestamp: new Date().toISOString(),
+          watchedTime: prevDuration.toFixed(2),
+          duration: prevDuration.toFixed(2),
+          percent: 100,
+        });
+        saveEvent({
+          type: "video-rewatch",
+          videoId,
+          src: video.src,
+          timestamp: new Date().toISOString()
+        });
 
-    const direction = to > watchedTime ? "jump-forward" : "jump-backward";
-
-    console.log(`[SwipeExtension] video-${direction} 🔀 ${video.src} (ID: ${videoId}) - from ${watchedTime.toFixed(2)}s to ${to.toFixed(2)}s`);
-
-    saveEvent({
-      type: "video-jump",
-      videoId,
-      src: video.src,
-      timestamp: new Date().toISOString(),
-      extra: {
-        direction,
-        from: watchedTime.toFixed(2),
-        to: to.toFixed(2)
+        // Ignore the first jump event caused by rewatch
+        justRewatched = true;
+        watchedTime = 0;
       }
     });
 
-    // Update watchedTime to the new position
-    watchedTime = to;
-  });
- }
+    video.addEventListener("ended", () => {
+      if (startTime) watchedTime += (Date.now() - startTime) / 1000;
+      startTime = null;
+      const videoId = getVideoId();
+      const watchPercent = prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100) : 0;
+      saveEvent({
+        type: "video-ended",
+        videoId,
+        src: video.src,
+        timestamp: new Date().toISOString(),
+        watchedTime: watchedTime.toFixed(2),
+        duration: prevDuration.toFixed(2),
+        percent: watchPercent.toFixed(1),
+      });
+      watchedTime = 0;
+    });
 
+    // ================== JUMP / SEEK EVENT WITH DIRECTION ==================
+    video.addEventListener("seeked", () => {
+      const videoId = getVideoId();
+      const to = video.currentTime;
+
+      // Ignore first jump immediately after a rewatch
+      if (justRewatched) {
+        justRewatched = false; // reset flag
+        watchedTime = to; // sync watchedTime
+        return;
+      }
+
+      // Ignore trivial jump at video start
+      if (watchedTime === 0 && to === 0) return;
+
+      const direction = to > watchedTime ? "jump-forward" : "jump-backward";
+
+      console.log(`[SwipeExtension] video-${direction} 🔀 ${video.src} (ID: ${videoId}) - from ${watchedTime.toFixed(2)}s to ${to.toFixed(2)}s`);
+
+      saveEvent({
+        type: "video-jump",
+        videoId,
+        src: video.src,
+        timestamp: new Date().toISOString(),
+        extra: {
+          direction,
+          from: watchedTime.toFixed(2),
+          to: to.toFixed(2)
+        }
+      });
+
+      watchedTime = to; // update watchedTime after jump
+    });
+  }
 
   // ================== OBSERVE VIDEO CHANGES ==================
   const videoObserver = new MutationObserver(() => {
