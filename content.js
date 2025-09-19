@@ -91,37 +91,164 @@ function checkConsent() {
   }
 }
 
-// ================== CHANNEL NAME / HANDLE ==================
-function getChannelNameOrHandle() {
-  // Shorts header or normal channel link
-  let el =
-    document.querySelector("#owner-text a") ||
-    document.querySelector("ytd-channel-name a") ||
-    document.querySelector("ytd-reel-player-header-renderer #text a") ||
-    document.querySelector("ytd-reel-player-header-renderer yt-formatted-string#text") ||
-    document.querySelector("yt-formatted-string#channel-name");
+// ================== CHANNEL NAME / HANDLE (robust) ==================
+// Map video.src -> { name, url }
+// This ensures a channel is tied to a specific video instance (avoids previous-video bleed)
+const videoChannelMap = new Map(); // src -> { name, url }
+let lastKnownChannel = null;
 
-  if (el && el.innerText.trim()) {
-    return el.innerText.trim();
-  }
-
-  // Schema.org metadata
-  let metaAuthor = document.querySelector('meta[itemprop="author"]');
-  if (metaAuthor) {
-    return metaAuthor.getAttribute("content");
-  }
-
-  // Description fallback: try to extract @handle
-  let metaDesc = document.querySelector('meta[itemprop="description"]');
-  if (metaDesc) {
-    let desc = metaDesc.getAttribute("content");
-    let handleMatch = desc.match(/@[a-zA-Z0-9._-]+/);
-    if (handleMatch) return handleMatch[0];
-  }
-
-  console.warn("[SwipeExtension] ⚠️ Channel/handle not found in DOM");
-  return "Unknown";
+// small debounce helper
+function debounce(fn, wait = 80) {
+  let t;
+  return (...args) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...args), wait);
+  };
 }
+
+function extractChannelMetaFromDOM() {
+  // Shorts channel name
+  const shortAnchor = document.querySelector("span.ytReelChannelBarViewModelChannelName a");
+  if (shortAnchor) return { name: shortAnchor.textContent.trim(), url: shortAnchor.getAttribute("href") || null };
+
+  // Ads / brand headline
+  const adAnchor = document.querySelector("span.ytAdMetadataShapeHostHeadline a");
+  if (adAnchor) return { name: adAnchor.textContent.trim(), url: adAnchor.getAttribute("href") || adAnchor.href || null };
+
+  // Fallback: any attributed-string link visible in the bar (less specific)
+  const alt = document.querySelector(".yt-core-attributed-string__link");
+  if (alt) return { name: alt.textContent.trim(), url: alt.getAttribute("href") || null };
+
+  return { name: null, url: null };
+}
+
+function getVideoElement() {
+  return document.querySelector("video");
+}
+
+function getCurrentVideoSrc() {
+  const v = getVideoElement();
+  return v ? (v.currentSrc || v.src || null) : null;
+}
+
+// update mapping for current video if DOM contains channel info
+function updateMappingForCurrentVideo() {
+  const src = getCurrentVideoSrc();
+  const meta = extractChannelMetaFromDOM();
+  if (meta && meta.name) {
+    if (src) videoChannelMap.set(src, meta);
+    lastKnownChannel = meta;
+  }
+}
+
+// Observe body mutations (debounced) to detect when YouTube updates channel DOM
+const bodyObserver = new MutationObserver(debounce(() => {
+  updateMappingForCurrentVideo();
+}, 80));
+bodyObserver.observe(document.body, { childList: true, subtree: true, characterData: true });
+
+// Repeatedly ensure we listen to video events and attribute changes
+function attachVideoListenersOnce() {
+  const v = getVideoElement();
+  if (!v) return;
+
+  // avoid attaching multiple times
+  if (v._channelHooked) return;
+  v._channelHooked = true;
+
+  // When metadata/data/play fires, update mapping (video.src is usually stable by then)
+  v.addEventListener("loadedmetadata", updateMappingForCurrentVideo);
+  v.addEventListener("loadeddata", updateMappingForCurrentVideo);
+  v.addEventListener("playing", updateMappingForCurrentVideo);
+
+  // Observe attribute changes on the video element (src/currentSrc)
+  try {
+    const attrObs = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        if (m.type === "attributes" && (m.attributeName === "src" || m.attributeName === "currentSrc")) {
+          updateMappingForCurrentVideo();
+        }
+      }
+    });
+    attrObs.observe(v, { attributes: true });
+  } catch (e) {
+    // ignore inability to attach observer
+  }
+}
+
+// Re-attach listeners when DOM changes and a new <video> appears
+const reattachObserver = new MutationObserver(debounce(() => {
+  attachVideoListenersOnce();
+}, 150));
+reattachObserver.observe(document.body, { childList: true, subtree: true });
+
+// Resolve channel info for the current video.
+// Strategy:
+// 1) If video.src is in map → return it immediately.
+// 2) If lastKnownChannel exists → return it immediately (useful fallback).
+// 3) Otherwise wait up to `timeout` ms for DOM/video events to populate the mapping.
+function resolveChannelInfo(timeout = 400) {
+  const src = getCurrentVideoSrc();
+  if (src && videoChannelMap.has(src)) return Promise.resolve(videoChannelMap.get(src));
+  if (lastKnownChannel) return Promise.resolve(lastKnownChannel);
+
+  return new Promise((resolve) => {
+    let done = false;
+
+    function tryResolve() {
+      if (done) return;
+      const s = getCurrentVideoSrc();
+      if (s && videoChannelMap.has(s)) {
+        done = true;
+        cleanup();
+        return resolve(videoChannelMap.get(s));
+      }
+      const meta = extractChannelMetaFromDOM();
+      if (meta && meta.name) {
+        if (s) videoChannelMap.set(s, meta);
+        done = true;
+        cleanup();
+        return resolve(meta);
+      }
+      // else continue waiting
+    }
+
+    function cleanup() {
+      const v = getVideoElement();
+      if (v) {
+        v.removeEventListener("playing", tryResolve);
+        v.removeEventListener("loadeddata", tryResolve);
+      }
+      tempObserver.disconnect();
+      clearTimeout(tid);
+    }
+
+    const v = getVideoElement();
+    if (v) {
+      v.addEventListener("playing", tryResolve);
+      v.addEventListener("loadeddata", tryResolve);
+    }
+
+    const tempObserver = new MutationObserver(tryResolve);
+    tempObserver.observe(document.body, { childList: true, subtree: true, characterData: true });
+
+    const tid = setTimeout(() => {
+      if (done) return;
+      done = true;
+      tempObserver.disconnect();
+      if (v) {
+        v.removeEventListener("playing", tryResolve);
+        v.removeEventListener("loadeddata", tryResolve);
+      }
+      // fallback to lastKnownChannel or null
+      resolve(lastKnownChannel || null);
+    }, timeout);
+  });
+}
+
+// Expose debug helpers
+window._videoChannelMap = videoChannelMap;
+window._lastKnownChannel = () => lastKnownChannel;
 
 // ================== VIDEO TRACKING FUNCTION ==================
 function attachVideoTracking() {
@@ -139,12 +266,29 @@ function attachVideoTracking() {
     return match ? match[1] : null;
   }
 
-  function saveEvent(eventData) {
+  // Save event: now async so we can resolve and attach channelName before sending
+  async function saveEvent(eventData) {
     eventData.sessionId = window._swipeSessionId;
     eventData.userId = window._swipeUserId;
-    eventData.channelName = getChannelNameOrHandle(); // ✅ always include channel/handle
+
+    // Resolve channel meta (name + url) with a small wait if needed
+    try {
+      const meta = await resolveChannelInfo(400); // 400ms default; increase if you need more tolerance
+      if (meta) {
+        eventData.channelName = meta.name || null;
+        eventData.channelUrl = meta.url || null;
+      } else {
+        eventData.channelName = null;
+        eventData.channelUrl = null;
+      }
+    } catch (e) {
+      eventData.channelName = null;
+      eventData.channelUrl = null;
+    }
+
     console.log("[SwipeExtension] Event saved:", eventData);
 
+    // Keep your existing server endpoint
     fetch("https://swipe-extension-server-2.onrender.com/api/events", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -163,7 +307,7 @@ function attachVideoTracking() {
 
     console.log(`[SwipeExtension] 🎥 Hooking into video: ${video.src} (ID: ${getVideoId()})`);
 
-    video.addEventListener("loadedmetadata", () => { prevDuration = video.duration; });
+    video.addEventListener("loadedmetadata", () => { prevDuration = video.duration || 0; });
 
     video.addEventListener("play", () => {
       setTimeout(() => {
@@ -188,13 +332,14 @@ function attachVideoTracking() {
         videoId,
         src: video.src,
         timestamp: new Date().toISOString(),
-        watchedTime: watchedTime.toFixed(2),
-        duration: prevDuration.toFixed(2),
-        percent: watchPercent.toFixed(1),
+        watchedTime: Number(watchedTime.toFixed(2)),
+        duration: Number(prevDuration.toFixed(2)),
+        percent: Number(watchPercent.toFixed(1)),
       });
     });
 
     video.addEventListener("timeupdate", () => {
+      // timeupdate fires frequently; use it to accumulate watchedTime
       if (startTime) watchedTime += (Date.now() - startTime) / 1000;
       startTime = Date.now();
 
@@ -205,8 +350,8 @@ function attachVideoTracking() {
           videoId,
           src: video.src,
           timestamp: new Date().toISOString(),
-          watchedTime: prevDuration.toFixed(2),
-          duration: prevDuration.toFixed(2),
+          watchedTime: Number(prevDuration.toFixed(2)),
+          duration: Number(prevDuration.toFixed(2)),
           percent: 100,
         });
         saveEvent({ type: "video-rewatch", videoId, src: video.src, timestamp: new Date().toISOString() });
@@ -224,9 +369,9 @@ function attachVideoTracking() {
         videoId,
         src: video.src,
         timestamp: new Date().toISOString(),
-        watchedTime: watchedTime.toFixed(2),
-        duration: prevDuration.toFixed(2),
-        percent: watchPercent.toFixed(1),
+        watchedTime: Number(watchedTime.toFixed(2)),
+        duration: Number(prevDuration.toFixed(2)),
+        percent: Number(watchPercent.toFixed(1)),
       });
       watchedTime = 0;
     });
@@ -241,17 +386,18 @@ function attachVideoTracking() {
         videoId,
         src: video.src,
         timestamp: new Date().toISOString(),
-        extra: { from: watchedTime.toFixed(2), to }
+        extra: { from: Number(watchedTime.toFixed(2)), to }
       });
     });
   }
 
   // ================== OBSERVE VIDEO CHANGES ==================
-  const observer = new MutationObserver(() => {
+  const videoChangeObserver = new MutationObserver(() => {
     const video = document.querySelector("video");
     if (video && video.src !== lastSrc) {
       const videoId = getVideoId();
 
+      // If switching away from previous video, emit video-stopped for previous
       if (currentVideo && startTime) {
         watchedTime += (Date.now() - startTime) / 1000;
         saveEvent({
@@ -259,12 +405,13 @@ function attachVideoTracking() {
           videoId: getVideoId(),
           src: currentVideo.src,
           timestamp: new Date().toISOString(),
-          watchedTime: watchedTime.toFixed(2),
-          duration: prevDuration.toFixed(2),
-          percent: prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100).toFixed(1) : 0,
+          watchedTime: Number(watchedTime.toFixed(2)),
+          duration: Number(prevDuration.toFixed(2)),
+          percent: prevDuration ? Number((Math.min((watchedTime / prevDuration) * 100, 100)).toFixed(1)) : 0,
         });
       }
 
+      // swiped-to-new-video event for the new video
       if (lastSrc) {
         saveEvent({
           type: "swiped-to-new-video",
@@ -275,6 +422,7 @@ function attachVideoTracking() {
         });
       }
 
+      // update refs for new video
       currentVideo = video;
       lastSrc = video.src;
       startTime = Date.now();
@@ -282,11 +430,15 @@ function attachVideoTracking() {
       prevDuration = video.duration || 0;
       hasPlayed = false;
 
+      // Update mapping for the current video immediately if possible
+      updateMappingForCurrentVideo();
+
       attachVideoEvents(video);
+      attachVideoListenersOnce();
     }
   });
 
-  observer.observe(document.body, { childList: true, subtree: true });
+  videoChangeObserver.observe(document.body, { childList: true, subtree: true });
 
   // ================== RE-HOOK ON URL CHANGE ==================
   setInterval(() => {
