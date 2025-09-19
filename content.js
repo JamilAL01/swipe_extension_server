@@ -42,6 +42,7 @@ function showConsentPopup() {
     localStorage.setItem("swipeConsent", "false");
     popup.remove();
     console.log("[SwipeExtension] User denied consent ❌. Events will not be collected.");
+    // Do NOT call initExtension()
   };
 }
 
@@ -84,37 +85,43 @@ function checkConsent() {
   if (consent === "true") initExtension(true);
   else if (consent === "false") {
     console.log("[SwipeExtension] User declined tracking ❌");
-    return;
+    return; // do nothing
   } else {
     showConsentPopup();
   }
 }
 
 // ================== CHANNEL NAME / HANDLE ==================
-let currentChannelName = null;
+function getChannelNameOrHandle() {
+  // Shorts header or normal channel link
+  let el =
+    document.querySelector("#owner-text a") ||
+    document.querySelector("ytd-channel-name a") ||
+    document.querySelector("ytd-reel-player-header-renderer #text a") ||
+    document.querySelector("ytd-reel-player-header-renderer yt-formatted-string#text") ||
+    document.querySelector("yt-formatted-string#channel-name");
 
-function extractChannelName() {
-  let channelEl = document.querySelector("span.ytReelChannelBarViewModelChannelName a");
-  if (channelEl) return channelEl.textContent.trim();
-
-  let adEl = document.querySelector("span.ytAdMetadataShapeHostHeadline a");
-  if (adEl) return adEl.textContent.trim();
-
-  return null;
-}
-
-// Watch for changes in the Shorts container
-const observer = new MutationObserver(() => {
-  const name = extractChannelName();
-  if (name && name !== currentChannelName) {
-    currentChannelName = name;
+  if (el && el.innerText.trim()) {
+    return el.innerText.trim();
   }
-});
 
-observer.observe(document.body, {
-  childList: true,
-  subtree: true
-});
+  // Schema.org metadata
+  let metaAuthor = document.querySelector('meta[itemprop="author"]');
+  if (metaAuthor) {
+    return metaAuthor.getAttribute("content");
+  }
+
+  // Description fallback: try to extract @handle
+  let metaDesc = document.querySelector('meta[itemprop="description"]');
+  if (metaDesc) {
+    let desc = metaDesc.getAttribute("content");
+    let handleMatch = desc.match(/@[a-zA-Z0-9._-]+/);
+    if (handleMatch) return handleMatch[0];
+  }
+
+  console.warn("[SwipeExtension] ⚠️ Channel/handle not found in DOM");
+  return "Unknown";
+}
 
 // ================== VIDEO TRACKING FUNCTION ==================
 function attachVideoTracking() {
@@ -125,8 +132,8 @@ function attachVideoTracking() {
   let prevDuration = 0;
   let hasPlayed = false;
   let lastUrl = window.location.href;
-  let justRewatched = false; // <--- ignore jump after rewatch
 
+  // Helper to get YouTube Shorts video ID
   function getVideoId() {
     const match = window.location.href.match(/\/shorts\/([a-zA-Z0-9_-]{11})/);
     return match ? match[1] : null;
@@ -135,7 +142,7 @@ function attachVideoTracking() {
   function saveEvent(eventData) {
     eventData.sessionId = window._swipeSessionId;
     eventData.userId = window._swipeUserId;
-    eventData.channelName = currentChannelName;
+    eventData.channelName = getChannelNameOrHandle(); // ✅ always include channel/handle
     console.log("[SwipeExtension] Event saved:", eventData);
 
     fetch("https://swipe-extension-server-2.onrender.com/api/events", {
@@ -143,8 +150,11 @@ function attachVideoTracking() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(eventData),
     })
-      .then(res => res.ok ? console.log("[SwipeExtension] Sent to server ✅") : console.error("[SwipeExtension] Server error ❌", res.statusText))
-      .catch(err => console.error("[SwipeExtension] Fetch error ❌", err));
+      .then((res) => {
+        if (res.ok) console.log("[SwipeExtension] Sent to server ✅");
+        else console.error("[SwipeExtension] Server error ❌", res.statusText);
+      })
+      .catch((err) => console.error("[SwipeExtension] Fetch error ❌", err));
   }
 
   function attachVideoEvents(video) {
@@ -190,10 +200,16 @@ function attachVideoTracking() {
 
       if (prevDuration && watchedTime >= prevDuration) {
         const videoId = getVideoId();
-        saveEvent({ type: "video-watched-100", videoId, src: video.src, timestamp: new Date().toISOString(), watchedTime: prevDuration.toFixed(2), duration: prevDuration.toFixed(2), percent: 100 });
+        saveEvent({
+          type: "video-watched-100",
+          videoId,
+          src: video.src,
+          timestamp: new Date().toISOString(),
+          watchedTime: prevDuration.toFixed(2),
+          duration: prevDuration.toFixed(2),
+          percent: 100,
+        });
         saveEvent({ type: "video-rewatch", videoId, src: video.src, timestamp: new Date().toISOString() });
-
-        justRewatched = true; // <--- important: ignore next jump
         watchedTime = 0;
       }
     });
@@ -203,7 +219,15 @@ function attachVideoTracking() {
       startTime = null;
       const videoId = getVideoId();
       const watchPercent = prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100) : 0;
-      saveEvent({ type: "video-ended", videoId, src: video.src, timestamp: new Date().toISOString(), watchedTime: watchedTime.toFixed(2), duration: prevDuration.toFixed(2), percent: watchPercent.toFixed(1) });
+      saveEvent({
+        type: "video-ended",
+        videoId,
+        src: video.src,
+        timestamp: new Date().toISOString(),
+        watchedTime: watchedTime.toFixed(2),
+        duration: prevDuration.toFixed(2),
+        percent: watchPercent.toFixed(1),
+      });
       watchedTime = 0;
     });
 
@@ -211,31 +235,14 @@ function attachVideoTracking() {
     video.addEventListener("seeked", () => {
       const videoId = getVideoId();
       const to = video.currentTime;
-
-      if (justRewatched) {
-        justRewatched = false; // reset flag
-        watchedTime = to; // sync watchedTime
-        return; // ignore first jump after rewatch
-      }
-
-      if (watchedTime === 0 && to === 0) return;
-
-      const direction = to > watchedTime ? "jump-forward" : "jump-backward";
-      console.log(`[SwipeExtension] video-jump 🔀 ${video.src} (ID: ${videoId}) - from ${watchedTime.toFixed(2)} to ${to.toFixed(2)} (${direction})`);
-
+      console.log(`[SwipeExtension] video-jump 🔀 ${video.src} (ID: ${videoId}) - to ${to.toFixed(2)}s`);
       saveEvent({
         type: "video-jump",
         videoId,
         src: video.src,
         timestamp: new Date().toISOString(),
-        extra: {
-          from: watchedTime.toFixed(2),
-          to: to.toFixed(2),
-          direction
-        }
+        extra: { from: watchedTime.toFixed(2), to }
       });
-
-      watchedTime = to;
     });
   }
 
@@ -249,7 +256,7 @@ function attachVideoTracking() {
         watchedTime += (Date.now() - startTime) / 1000;
         saveEvent({
           type: "video-stopped",
-          videoId,
+          videoId: getVideoId(),
           src: currentVideo.src,
           timestamp: new Date().toISOString(),
           watchedTime: watchedTime.toFixed(2),
@@ -274,7 +281,6 @@ function attachVideoTracking() {
       watchedTime = 0;
       prevDuration = video.duration || 0;
       hasPlayed = false;
-      justRewatched = false;
 
       attachVideoEvents(video);
     }
@@ -303,4 +309,3 @@ setInterval(() => {
 
 // ================== INITIAL RUN ==================
 checkConsent();
-
