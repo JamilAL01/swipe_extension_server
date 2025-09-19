@@ -35,13 +35,14 @@ function showConsentPopup() {
   document.getElementById("consent-yes").onclick = () => {
     localStorage.setItem("swipeConsent", "true");
     popup.remove();
-    initExtension(true);
+    initExtension(true); // ✅ start tracking
   };
 
   document.getElementById("consent-no").onclick = () => {
     localStorage.setItem("swipeConsent", "false");
     popup.remove();
     console.log("[SwipeExtension] User denied consent ❌. Events will not be collected.");
+    // Do NOT call initExtension()
   };
 }
 
@@ -49,20 +50,32 @@ function showConsentPopup() {
 function initExtension(persistent = true) {
   console.log("[SwipeExtension] Initializing extension...");
 
+  // ---------- USER ID ----------
   let userId;
   if (persistent) {
-    userId = localStorage.getItem("swipeUserId") || crypto.randomUUID();
-    localStorage.setItem("swipeUserId", userId);
+    userId = localStorage.getItem("swipeUserId");
+    if (!userId) {
+      userId = crypto.randomUUID();
+      localStorage.setItem("swipeUserId", userId);
+    }
   } else {
-    userId = sessionStorage.getItem("swipeUserId") || crypto.randomUUID();
-    sessionStorage.setItem("swipeUserId", userId);
+    userId = sessionStorage.getItem("swipeUserId");
+    if (!userId) {
+      userId = crypto.randomUUID();
+      sessionStorage.setItem("swipeUserId", userId);
+    }
   }
   window._swipeUserId = userId;
 
-  let sessionId = sessionStorage.getItem("swipeSessionId") || crypto.randomUUID();
-  sessionStorage.setItem("swipeSessionId", sessionId);
+  // ---------- SESSION ID ----------
+  let sessionId = sessionStorage.getItem("swipeSessionId");
+  if (!sessionId) {
+    sessionId = crypto.randomUUID();
+    sessionStorage.setItem("swipeSessionId", sessionId);
+  }
   window._swipeSessionId = sessionId;
 
+  // ---------- VIDEO EVENT LOGIC ----------
   attachVideoTracking();
 }
 
@@ -72,35 +85,39 @@ function checkConsent() {
   if (consent === "true") initExtension(true);
   else if (consent === "false") {
     console.log("[SwipeExtension] User declined tracking ❌");
+    return; // do nothing
   } else {
     showConsentPopup();
   }
 }
 
-// ================== CHANNEL NAME ==================
+// ================== CHANNEL NAME / HANDLE ==================
 let currentChannelName = null;
 
 function extractChannelName() {
-  const channelEl = document.querySelector("span.ytReelChannelBarViewModelChannelName a");
+  let channelEl = document.querySelector("span.ytReelChannelBarViewModelChannelName a");
   if (channelEl) return channelEl.textContent.trim();
 
-  const adEl = document.querySelector("span.ytAdMetadataShapeHostHeadline a");
+  let adEl = document.querySelector("span.ytAdMetadataShapeHostHeadline a");
   if (adEl) return adEl.textContent.trim();
 
   return null;
 }
 
-// DOM observer for dynamic channel updates
-const channelObserver = new MutationObserver(() => {
+// Keep observer as a backup (dynamic DOM updates)
+const observer = new MutationObserver(() => {
   const name = extractChannelName();
   if (name && name !== currentChannelName) {
     currentChannelName = name;
     console.log("[SwipeExtension] Channel name updated via DOM observer:", currentChannelName);
   }
 });
-channelObserver.observe(document.body, { childList: true, subtree: true });
+observer.observe(document.body, {
+  childList: true,
+  subtree: true
+});
 
-// ================== VIDEO TRACKING ==================
+// ================== VIDEO TRACKING FUNCTION ==================
 function attachVideoTracking() {
   let currentVideo = null;
   let lastSrc = null;
@@ -110,6 +127,7 @@ function attachVideoTracking() {
   let hasPlayed = false;
   let lastUrl = window.location.href;
 
+  // Helper to get YouTube Shorts video ID
   function getVideoId() {
     const match = window.location.href.match(/\/shorts\/([a-zA-Z0-9_-]{11})/);
     return match ? match[1] : null;
@@ -125,10 +143,12 @@ function attachVideoTracking() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(eventData),
-    }).then(res => {
-      if (res.ok) console.log("[SwipeExtension] Sent to server ✅");
-      else console.error("[SwipeExtension] Server error ❌", res.statusText);
-    }).catch(err => console.error("[SwipeExtension] Fetch error ❌", err));
+    })
+      .then((res) => {
+        if (res.ok) console.log("[SwipeExtension] Sent to server ✅");
+        else console.error("[SwipeExtension] Server error ❌", res.statusText);
+      })
+      .catch((err) => console.error("[SwipeExtension] Fetch error ❌", err));
   }
 
   function attachVideoEvents(video) {
@@ -136,8 +156,6 @@ function attachVideoTracking() {
     video._hooked = true;
 
     console.log(`[SwipeExtension] 🎥 Hooking into video: ${video.src} (ID: ${getVideoId()})`);
-
-    let justRewatched = false;
 
     video.addEventListener("loadedmetadata", () => { prevDuration = video.duration; });
 
@@ -185,14 +203,7 @@ function attachVideoTracking() {
           duration: prevDuration.toFixed(2),
           percent: 100,
         });
-        saveEvent({
-          type: "video-rewatch",
-          videoId,
-          src: video.src,
-          timestamp: new Date().toISOString()
-        });
-
-        justRewatched = true;
+        saveEvent({ type: "video-rewatch", videoId, src: video.src, timestamp: new Date().toISOString() });
         watchedTime = 0;
       }
     });
@@ -214,41 +225,28 @@ function attachVideoTracking() {
       watchedTime = 0;
     });
 
-    // ================== JUMP / SEEK ==================
+    // ================== JUMP / SEEK EVENT ==================
     video.addEventListener("seeked", () => {
       const videoId = getVideoId();
       const to = video.currentTime;
-
-      if (justRewatched) {
-        justRewatched = false;
-        watchedTime = to;
-        return;
-      }
-
-      if (watchedTime === 0 && to === 0) return;
-
-      const direction = to > watchedTime ? "jump-forward" : "jump-backward";
-
+      console.log(`[SwipeExtension] video-jump 🔀 ${video.src} (ID: ${videoId}) - to ${to.toFixed(2)}s`);
       saveEvent({
         type: "video-jump",
         videoId,
         src: video.src,
         timestamp: new Date().toISOString(),
-        extra: { direction, from: watchedTime.toFixed(2), to: to.toFixed(2) }
+        extra: { from: watchedTime.toFixed(2), to }
       });
-
-      watchedTime = to;
     });
   }
 
-  // ================== VIDEO MUTATION OBSERVER ==================
+  // ================== OBSERVE VIDEO CHANGES ==================
   const videoObserver = new MutationObserver(() => {
     const video = document.querySelector("video");
-    if (!video) return;
-
-    if (video !== currentVideo || video.src !== lastSrc) {
+    if (video && video.src !== lastSrc) {
       const videoId = getVideoId();
 
+      // ✅ force refresh channel name when a new video is detected
       const freshName = extractChannelName();
       if (freshName) {
         currentChannelName = freshName;
@@ -268,7 +266,7 @@ function attachVideoTracking() {
         });
       }
 
-      if (lastSrc && lastSrc !== video.src) {
+      if (lastSrc) {
         saveEvent({
           type: "swiped-to-new-video",
           videoId,
@@ -288,6 +286,7 @@ function attachVideoTracking() {
       attachVideoEvents(video);
     }
   });
+
   videoObserver.observe(document.body, { childList: true, subtree: true });
 
   // ================== RE-HOOK ON URL CHANGE ==================
