@@ -4,25 +4,27 @@ import pkg from "pg";
 import cors from "cors";
 
 const app = express();
-const port = process.env.PORT || 4000;
+const port = process.env.PORT || 4000; // Render will auto-assign PORT
 
 // ================== PostgreSQL CONNECTION ==================
 const { Pool } = pkg;
 
+// Use Render's managed PostgreSQL connection string
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false } // required for Render
+  ssl: { rejectUnauthorized: false }, // required for Render
 });
 
 // ================== MIDDLEWARE ==================
 app.use(bodyParser.json());
-app.use(cors());
+app.use(cors()); // allow all origins (or restrict to your extension)
 
 // ================== API ROUTES ==================
+
+// Endpoint to receive events from extension
 app.post("/api/events", async (req, res) => {
   try {
     const {
-      userId,
       sessionId,
       videoId,
       type,
@@ -32,21 +34,27 @@ app.post("/api/events", async (req, res) => {
       duration = null,
       percent = null,
       extra = {},
-      channelName = null, // ✅ NEW
     } = req.body;
 
-    // Validate required fields
-    if (!userId || !sessionId || !videoId || !type || !timestamp) {
-      return res.status(400).json({ error: "Missing required fields" });
+    if (!sessionId) {
+      return res.status(400).json({ error: "sessionId is required" });
+    }
+    if (!videoId) {
+      return res.status(400).json({ error: "videoId is required" });
+    }
+    if (!type) {
+      return res.status(400).json({ error: "type is required" });
+    }
+    if (!timestamp) {
+      return res.status(400).json({ error: "timestamp is required" });
     }
 
-    // Insert into database
+    // Insert event into database
     await pool.query(
       `INSERT INTO video_events 
-      (user_id, session_id, video_id, src, event_type, ts, extra, watched_time, duration, percent, channel_name)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      (session_id, video_id, src, event_type, ts, extra, watched_time, duration, percent)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
       [
-        userId,
         sessionId,
         videoId,
         src,
@@ -56,7 +64,6 @@ app.post("/api/events", async (req, res) => {
         watchedTime,
         duration,
         percent,
-        channelName, // ✅ NEW
       ]
     );
 
@@ -67,7 +74,6 @@ app.post("/api/events", async (req, res) => {
   }
 });
 
-
 // Health check
 app.get("/", (req, res) => {
   res.send("Server is running 🚀");
@@ -75,7 +81,5 @@ app.get("/", (req, res) => {
 
 // ================== START SERVER ==================
 app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
+  console.log(`✅ Server running on port ${port}`);
 });
-
-
