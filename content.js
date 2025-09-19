@@ -121,6 +121,30 @@ function attachVideoEvents(video) {
     });
     watchedTime = 0;
   });
+
+  // Detect jump/seek events
+  let lastTime = 0;
+
+  video.addEventListener("seeking", () => {
+    lastTime = video.currentTime;
+  });
+
+  video.addEventListener("seeked", () => {
+    const newTime = video.currentTime;
+    const videoId = getVideoId();
+    const direction = newTime > lastTime ? "jump-forward" : "jump-backward";
+
+    console.log(`[SwipeExtension] video-jump ⏩ ${direction} (from ${lastTime.toFixed(2)}s to ${newTime.toFixed(2)}s)`);
+
+    saveEvent({
+      type: "video-jump",
+      videoId,
+      src: video.src,
+      timestamp: new Date().toISOString(),
+      extra: { direction, from: lastTime.toFixed(2), to: newTime.toFixed(2) },
+    });
+  });
+
 }
 
 // ================== OBSERVE VIDEO CHANGES ==================
