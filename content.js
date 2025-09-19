@@ -92,21 +92,30 @@ function checkConsent() {
 }
 
 // ================== CHANNEL NAME / HANDLE ==================
-function getChannelName() {
-  // Shorts channel name
+let currentChannelName = null;
+
+function extractChannelName() {
   let channelEl = document.querySelector("span.ytReelChannelBarViewModelChannelName a");
-  if (channelEl) {
-    return channelEl.textContent.trim();
-  }
+  if (channelEl) return channelEl.textContent.trim();
 
-  // Ads channel/brand name
   let adEl = document.querySelector("span.ytAdMetadataShapeHostHeadline a");
-  if (adEl) {
-    return adEl.textContent.trim();
-  }
+  if (adEl) return adEl.textContent.trim();
 
-  return null; // fallback if not found
+  return null;
 }
+
+// Watch for changes in the Shorts container
+const observer = new MutationObserver(() => {
+  const name = extractChannelName();
+  if (name && name !== currentChannelName) {
+    currentChannelName = name;
+  }
+});
+
+observer.observe(document.body, {
+  childList: true,
+  subtree: true
+});
 
 // ================== VIDEO TRACKING FUNCTION ==================
 function attachVideoTracking() {
@@ -127,7 +136,7 @@ function attachVideoTracking() {
   function saveEvent(eventData) {
     eventData.sessionId = window._swipeSessionId;
     eventData.userId = window._swipeUserId;
-    eventData.channelName = getChannelName();
+    eventData.channelName = currentChannelName;;
     console.log("[SwipeExtension] Event saved:", eventData);
 
     fetch("https://swipe-extension-server-2.onrender.com/api/events", {
