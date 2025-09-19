@@ -12,7 +12,7 @@ let lastSrc = null;
 let startTime = null;
 let watchedTime = 0;
 let prevDuration = 0;
-let hasPlayed = false; // Track if video has played before
+let hasPlayed = false;
 let lastUrl = window.location.href;
 
 // ================== HELPER FUNCTIONS ==================
@@ -22,7 +22,7 @@ function getVideoId() {
 }
 
 function saveEvent(eventData) {
-  eventData.sessionId = sessionId; // add session ID
+  eventData.sessionId = sessionId;
   console.log("[SwipeExtension] Event saved:", eventData);
 
   fetch("https://swipe-extension-server-2.onrender.com/api/events", {
@@ -30,11 +30,11 @@ function saveEvent(eventData) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(eventData),
   })
-    .then((res) => {
+    .then(res => {
       if (res.ok) console.log("[SwipeExtension] Sent to server ✅");
       else console.error("[SwipeExtension] Server error ❌", res.statusText);
     })
-    .catch((err) => console.error("[SwipeExtension] Fetch error ❌", err));
+    .catch(err => console.error("[SwipeExtension] Fetch error ❌", err));
 }
 
 // ================== VIDEO EVENT HOOK ==================
@@ -44,8 +44,11 @@ function attachVideoEvents(video) {
 
   console.log(`[SwipeExtension] 🎥 Hooking into video: ${video.src} (ID: ${getVideoId()})`);
 
+  let lastTime = 0;
+
   video.addEventListener("loadedmetadata", () => {
     prevDuration = video.duration;
+    lastTime = 0;
   });
 
   video.addEventListener("play", () => {
@@ -59,7 +62,7 @@ function attachVideoEvents(video) {
         console.log(`[SwipeExtension] video-resume ▶️ ${video.src} (ID: ${videoId})`);
         saveEvent({ type: "video-resume", videoId, src: video.src, timestamp: new Date().toISOString() });
       }
-    }, 100); // short delay to allow URL updates
+    }, 100);
     startTime = Date.now();
   });
 
@@ -87,7 +90,6 @@ function attachVideoEvents(video) {
     if (prevDuration && watchedTime >= prevDuration) {
       const videoId = getVideoId();
       const watchPercent = 100;
-      // Log full watch before rewatch
       saveEvent({
         type: "video-watched-100",
         videoId,
@@ -122,15 +124,14 @@ function attachVideoEvents(video) {
     watchedTime = 0;
   });
 
-  // Detect jump/seek events
-  let lastTime = 0;
-
+  // ================== JUMP / SEEK EVENT ==================
   video.addEventListener("seeking", () => {
     lastTime = video.currentTime;
   });
 
   video.addEventListener("seeked", () => {
     const newTime = video.currentTime;
+    if (Math.abs(newTime - lastTime) < 0.01) return; // ignore tiny movements
     const videoId = getVideoId();
     const direction = newTime > lastTime ? "jump-forward" : "jump-backward";
 
@@ -143,8 +144,9 @@ function attachVideoEvents(video) {
       timestamp: new Date().toISOString(),
       extra: { direction, from: lastTime.toFixed(2), to: newTime.toFixed(2) },
     });
-  });
 
+    lastTime = newTime; // update lastTime after jump
+  });
 }
 
 // ================== OBSERVE VIDEO CHANGES ==================
