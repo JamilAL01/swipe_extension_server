@@ -45,10 +45,12 @@ function attachVideoEvents(video) {
   console.log(`[SwipeExtension] 🎥 Hooking into video: ${video.src} (ID: ${getVideoId()})`);
 
   let lastTime = 0;
+  let jumpCount = 0; // counter for jumps
 
   video.addEventListener("loadedmetadata", () => {
     prevDuration = video.duration;
-    lastTime = 0;
+    lastTime = video.currentTime || 0;
+    jumpCount = 0;
   });
 
   video.addEventListener("play", () => {
@@ -125,11 +127,13 @@ function attachVideoEvents(video) {
   });
 
   // ================== JUMP / SEEK EVENT ==================
-  let jumpCount = 0; // new counter
+  video.addEventListener("seeking", () => {
+    lastTime = video.currentTime;
+  });
 
   video.addEventListener("seeked", () => {
     const newTime = video.currentTime;
-    if (Math.abs(newTime - lastTime) < 0.01) return;
+    if (Math.abs(newTime - lastTime) < 0.01) return; // ignore tiny movements
     const videoId = getVideoId();
     const direction = newTime > lastTime ? "jump-forward" : "jump-backward";
 
