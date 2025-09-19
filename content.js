@@ -254,191 +254,126 @@ window._lastKnownChannel = () => lastKnownChannel;
 function attachVideoTracking() {
   let currentVideo = null;
   let lastSrc = null;
+  let lastEventSent = {}; // Track last event type per video src
   let startTime = null;
   let watchedTime = 0;
   let prevDuration = 0;
   let hasPlayed = false;
   let lastUrl = window.location.href;
+  let justRewatched = false;
 
-  // Helper to get YouTube Shorts video ID
   function getVideoId() {
     const match = window.location.href.match(/\/shorts\/([a-zA-Z0-9_-]{11})/);
     return match ? match[1] : null;
   }
 
-  // Save event: now async so we can resolve and attach channelName before sending
-  async function saveEvent(eventData) {
+  function saveEvent(eventData) {
+    const key = `${eventData.videoId}-${eventData.type}`;
+    if (lastEventSent[key]) return; // prevent duplicate
+    lastEventSent[key] = true;
+
     eventData.sessionId = window._swipeSessionId;
     eventData.userId = window._swipeUserId;
-
-    // Resolve channel meta (name + url) with a small wait if needed
-    try {
-      const meta = await resolveChannelInfo(400); // 400ms default; increase if you need more tolerance
-      if (meta) {
-        eventData.channelName = meta.name || null;
-        eventData.channelUrl = meta.url || null;
-      } else {
-        eventData.channelName = null;
-        eventData.channelUrl = null;
-      }
-    } catch (e) {
-      eventData.channelName = null;
-      eventData.channelUrl = null;
-    }
+    eventData.channelName = currentChannelName;
 
     console.log("[SwipeExtension] Event saved:", eventData);
 
-    // Keep your existing server endpoint
     fetch("https://swipe-extension-server-2.onrender.com/api/events", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(eventData),
     })
-      .then((res) => {
-        if (res.ok) console.log("[SwipeExtension] Sent to server ✅");
-        else console.error("[SwipeExtension] Server error ❌", res.statusText);
-      })
-      .catch((err) => console.error("[SwipeExtension] Fetch error ❌", err));
+    .then(res => res.ok ? console.log("[SwipeExtension] Sent to server ✅") : console.error("[SwipeExtension] Server error ❌", res.statusText))
+    .catch(err => console.error("[SwipeExtension] Fetch error ❌", err));
   }
 
   function attachVideoEvents(video) {
     if (!video || video._hooked) return;
     video._hooked = true;
 
-    console.log(`[SwipeExtension] 🎥 Hooking into video: ${video.src} (ID: ${getVideoId()})`);
-
-    video.addEventListener("loadedmetadata", () => { prevDuration = video.duration || 0; });
-
     video.addEventListener("play", () => {
-      setTimeout(() => {
-        const videoId = getVideoId();
-        if (!hasPlayed) {
-          saveEvent({ type: "video-start", videoId, src: video.src, timestamp: new Date().toISOString() });
-          hasPlayed = true;
-        } else {
-          saveEvent({ type: "video-resume", videoId, src: video.src, timestamp: new Date().toISOString() });
-        }
-      }, 100);
       startTime = Date.now();
+      const videoId = getVideoId();
+      if (!hasPlayed) {
+        saveEvent({ type: "video-start", videoId, src: video.src, timestamp: new Date().toISOString() });
+        hasPlayed = true;
+      } else {
+        saveEvent({ type: "video-resume", videoId, src: video.src, timestamp: new Date().toISOString() });
+      }
     });
 
     video.addEventListener("pause", () => {
       if (startTime) watchedTime += (Date.now() - startTime) / 1000;
       startTime = null;
       const videoId = getVideoId();
-      const watchPercent = prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100) : 0;
       saveEvent({
         type: "video-paused",
         videoId,
         src: video.src,
         timestamp: new Date().toISOString(),
-        watchedTime: Number(watchedTime.toFixed(2)),
-        duration: Number(prevDuration.toFixed(2)),
-        percent: Number(watchPercent.toFixed(1)),
+        watchedTime: watchedTime.toFixed(2),
+        duration: prevDuration.toFixed(2),
+        percent: prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100).toFixed(1) : 0
       });
     });
 
-    video.addEventListener("timeupdate", () => {
-      // timeupdate fires frequently; use it to accumulate watchedTime
-      if (startTime) watchedTime += (Date.now() - startTime) / 1000;
-      startTime = Date.now();
-
-      if (prevDuration && watchedTime >= prevDuration) {
-        const videoId = getVideoId();
-        saveEvent({
-          type: "video-watched-100",
-          videoId,
-          src: video.src,
-          timestamp: new Date().toISOString(),
-          watchedTime: Number(prevDuration.toFixed(2)),
-          duration: Number(prevDuration.toFixed(2)),
-          percent: 100,
-        });
-        saveEvent({ type: "video-rewatch", videoId, src: video.src, timestamp: new Date().toISOString() });
-        watchedTime = 0;
-      }
-    });
-
-    video.addEventListener("ended", () => {
-      if (startTime) watchedTime += (Date.now() - startTime) / 1000;
-      startTime = null;
-      const videoId = getVideoId();
-      const watchPercent = prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100) : 0;
-      saveEvent({
-        type: "video-ended",
-        videoId,
-        src: video.src,
-        timestamp: new Date().toISOString(),
-        watchedTime: Number(watchedTime.toFixed(2)),
-        duration: Number(prevDuration.toFixed(2)),
-        percent: Number(watchPercent.toFixed(1)),
-      });
-      watchedTime = 0;
-    });
-
-    // ================== JUMP / SEEK EVENT ==================
     video.addEventListener("seeked", () => {
       const videoId = getVideoId();
       const to = video.currentTime;
-      console.log(`[SwipeExtension] video-jump 🔀 ${video.src} (ID: ${videoId}) - to ${to.toFixed(2)}s`);
+      if (justRewatched) { justRewatched = false; watchedTime = to; return; }
+      if (watchedTime === 0 && to === 0) return;
+
+      const direction = to > watchedTime ? "jump-forward" : "jump-backward";
       saveEvent({
         type: "video-jump",
         videoId,
         src: video.src,
         timestamp: new Date().toISOString(),
-        extra: { from: Number(watchedTime.toFixed(2)), to }
+        extra: { from: watchedTime.toFixed(2), to: to.toFixed(2), direction }
       });
+      watchedTime = to;
+    });
+
+    video.addEventListener("timeupdate", () => {
+      if (startTime) watchedTime += (Date.now() - startTime) / 1000;
+      startTime = Date.now();
+      if (prevDuration && watchedTime >= prevDuration) {
+        const videoId = getVideoId();
+        saveEvent({ type: "video-watched-100", videoId, src: video.src, timestamp: new Date().toISOString(), watchedTime: prevDuration.toFixed(2), duration: prevDuration.toFixed(2), percent: 100 });
+        saveEvent({ type: "video-rewatch", videoId, src: video.src, timestamp: new Date().toISOString() });
+        justRewatched = true;
+        watchedTime = 0;
+      }
     });
   }
 
-  // ================== OBSERVE VIDEO CHANGES ==================
-  const videoChangeObserver = new MutationObserver(() => {
+  // ================= OBSERVE VIDEO CHANGES =================
+  const observer = new MutationObserver(() => {
     const video = document.querySelector("video");
-    if (video && video.src !== lastSrc) {
-      const videoId = getVideoId();
+    if (!video || video.src === lastSrc) return;
 
-      // If switching away from previous video, emit video-stopped for previous
-      if (currentVideo && startTime) {
-        watchedTime += (Date.now() - startTime) / 1000;
-        saveEvent({
-          type: "video-stopped",
-          videoId: getVideoId(),
-          src: currentVideo.src,
-          timestamp: new Date().toISOString(),
-          watchedTime: Number(watchedTime.toFixed(2)),
-          duration: Number(prevDuration.toFixed(2)),
-          percent: prevDuration ? Number((Math.min((watchedTime / prevDuration) * 100, 100)).toFixed(1)) : 0,
-        });
-      }
-
-      // swiped-to-new-video event for the new video
-      if (lastSrc) {
-        saveEvent({
-          type: "swiped-to-new-video",
-          videoId,
-          src: video.src,
-          timestamp: new Date().toISOString(),
-          extra: { previous: lastSrc },
-        });
-      }
-
-      // update refs for new video
-      currentVideo = video;
-      lastSrc = video.src;
-      startTime = Date.now();
-      watchedTime = 0;
-      prevDuration = video.duration || 0;
-      hasPlayed = false;
-
-      // Update mapping for the current video immediately if possible
-      updateMappingForCurrentVideo();
-
-      attachVideoEvents(video);
-      attachVideoListenersOnce();
+    if (currentVideo && startTime) {
+      watchedTime += (Date.now() - startTime) / 1000;
+      saveEvent({ type: "video-stopped", videoId: getVideoId(), src: currentVideo.src, timestamp: new Date().toISOString(), watchedTime: watchedTime.toFixed(2), duration: prevDuration.toFixed(2), percent: prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100).toFixed(1) : 0 });
     }
+
+    if (lastSrc) saveEvent({ type: "swiped-to-new-video", videoId: getVideoId(), src: video.src, timestamp: new Date().toISOString(), extra: { previous: lastSrc } });
+
+    currentVideo = video;
+    lastSrc = video.src;
+    startTime = Date.now();
+    watchedTime = 0;
+    prevDuration = video.duration || 0;
+    hasPlayed = false;
+    justRewatched = false;
+    lastEventSent = {}; // reset for new video
+
+    attachVideoEvents(video);
   });
 
-  videoChangeObserver.observe(document.body, { childList: true, subtree: true });
+  observer.observe(document.body, { childList: true, subtree: true });
+}
+
 
   // ================== RE-HOOK ON URL CHANGE ==================
   setInterval(() => {
@@ -448,7 +383,7 @@ function attachVideoTracking() {
       if (video) attachVideoEvents(video);
     }
   }, 100);
-}
+
 
 // ================== SPA NAVIGATION CHECK ==================
 let lastUrl = window.location.href;
