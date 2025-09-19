@@ -92,35 +92,20 @@ function checkConsent() {
 }
 
 // ================== CHANNEL NAME / HANDLE ==================
-function getChannelNameOrHandle() {
-  // Shorts header or normal channel link
-  let el =
-    document.querySelector("#owner-text a") ||
-    document.querySelector("ytd-channel-name a") ||
-    document.querySelector("ytd-reel-player-header-renderer #text a") ||
-    document.querySelector("ytd-reel-player-header-renderer yt-formatted-string#text") ||
-    document.querySelector("yt-formatted-string#channel-name");
-
-  if (el && el.innerText.trim()) {
-    return el.innerText.trim();
+function getChannelName() {
+  // Shorts channel name
+  let channelEl = document.querySelector("span.ytReelChannelBarViewModelChannelName a");
+  if (channelEl) {
+    return channelEl.textContent.trim();
   }
 
-  // Schema.org metadata
-  let metaAuthor = document.querySelector('meta[itemprop="author"]');
-  if (metaAuthor) {
-    return metaAuthor.getAttribute("content");
+  // Ads channel/brand name
+  let adEl = document.querySelector("span.ytAdMetadataShapeHostHeadline a");
+  if (adEl) {
+    return adEl.textContent.trim();
   }
 
-  // Description fallback: try to extract @handle
-  let metaDesc = document.querySelector('meta[itemprop="description"]');
-  if (metaDesc) {
-    let desc = metaDesc.getAttribute("content");
-    let handleMatch = desc.match(/@[a-zA-Z0-9._-]+/);
-    if (handleMatch) return handleMatch[0];
-  }
-
-  console.warn("[SwipeExtension] ⚠️ Channel/handle not found in DOM");
-  return "Unknown";
+  return null; // fallback if not found
 }
 
 // ================== VIDEO TRACKING FUNCTION ==================
@@ -142,7 +127,7 @@ function attachVideoTracking() {
   function saveEvent(eventData) {
     eventData.sessionId = window._swipeSessionId;
     eventData.userId = window._swipeUserId;
-    eventData.channelName = getChannelNameOrHandle(); // ✅ always include channel/handle
+    eventData.channelName = getChannelName();
     console.log("[SwipeExtension] Event saved:", eventData);
 
     fetch("https://swipe-extension-server-2.onrender.com/api/events", {
