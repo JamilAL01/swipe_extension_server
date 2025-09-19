@@ -49,17 +49,18 @@ function showConsentPopup() {
 function initExtension(persistent = true) {
   console.log("[SwipeExtension] Initializing extension...");
 
-  let userId = persistent
-    ? localStorage.getItem("swipeUserId") || crypto.randomUUID()
-    : sessionStorage.getItem("swipeUserId") || crypto.randomUUID();
-
-  if (persistent && !localStorage.getItem("swipeUserId")) localStorage.setItem("swipeUserId", userId);
-  if (!persistent && !sessionStorage.getItem("swipeUserId")) sessionStorage.setItem("swipeUserId", userId);
-
+  let userId;
+  if (persistent) {
+    userId = localStorage.getItem("swipeUserId") || crypto.randomUUID();
+    localStorage.setItem("swipeUserId", userId);
+  } else {
+    userId = sessionStorage.getItem("swipeUserId") || crypto.randomUUID();
+    sessionStorage.setItem("swipeUserId", userId);
+  }
   window._swipeUserId = userId;
 
   let sessionId = sessionStorage.getItem("swipeSessionId") || crypto.randomUUID();
-  if (!sessionStorage.getItem("swipeSessionId")) sessionStorage.setItem("swipeSessionId", sessionId);
+  sessionStorage.setItem("swipeSessionId", sessionId);
   window._swipeSessionId = sessionId;
 
   attachVideoTracking();
@@ -69,11 +70,14 @@ function initExtension(persistent = true) {
 function checkConsent() {
   const consent = localStorage.getItem("swipeConsent");
   if (consent === "true") initExtension(true);
-  else if (consent === "false") console.log("[SwipeExtension] User declined tracking ❌");
-  else showConsentPopup();
+  else if (consent === "false") {
+    console.log("[SwipeExtension] User declined tracking ❌");
+  } else {
+    showConsentPopup();
+  }
 }
 
-// ================== CHANNEL NAME / HANDLE ==================
+// ================== CHANNEL NAME ==================
 let currentChannelName = null;
 
 function extractChannelName() {
@@ -86,7 +90,7 @@ function extractChannelName() {
   return null;
 }
 
-// Backup observer to update channel dynamically
+// DOM observer for dynamic channel updates
 const channelObserver = new MutationObserver(() => {
   const name = extractChannelName();
   if (name && name !== currentChannelName) {
@@ -121,9 +125,10 @@ function attachVideoTracking() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(eventData),
-    })
-      .then(res => res.ok ? console.log("[SwipeExtension] Sent to server ✅") : console.error("[SwipeExtension] Server error ❌", res.statusText))
-      .catch(err => console.error("[SwipeExtension] Fetch error ❌", err));
+    }).then(res => {
+      if (res.ok) console.log("[SwipeExtension] Sent to server ✅");
+      else console.error("[SwipeExtension] Server error ❌", res.statusText);
+    }).catch(err => console.error("[SwipeExtension] Fetch error ❌", err));
   }
 
   function attachVideoEvents(video) {
@@ -134,7 +139,7 @@ function attachVideoTracking() {
 
     let justRewatched = false;
 
-    video.addEventListener("loadedmetadata", () => prevDuration = video.duration);
+    video.addEventListener("loadedmetadata", () => { prevDuration = video.duration; });
 
     video.addEventListener("play", () => {
       setTimeout(() => {
@@ -187,7 +192,7 @@ function attachVideoTracking() {
           timestamp: new Date().toISOString()
         });
 
-        justRewatched = true; 
+        justRewatched = true;
         watchedTime = 0;
       }
     });
@@ -209,6 +214,7 @@ function attachVideoTracking() {
       watchedTime = 0;
     });
 
+    // ================== JUMP / SEEK ==================
     video.addEventListener("seeked", () => {
       const videoId = getVideoId();
       const to = video.currentTime;
@@ -223,8 +229,6 @@ function attachVideoTracking() {
 
       const direction = to > watchedTime ? "jump-forward" : "jump-backward";
 
-      console.log(`[SwipeExtension] video-${direction} 🔀 ${video.src} (ID: ${videoId}) - from ${watchedTime.toFixed(2)}s to ${to.toFixed(2)}s`);
-
       saveEvent({
         type: "video-jump",
         videoId,
@@ -237,9 +241,12 @@ function attachVideoTracking() {
     });
   }
 
+  // ================== VIDEO MUTATION OBSERVER ==================
   const videoObserver = new MutationObserver(() => {
     const video = document.querySelector("video");
-    if (video && video.src !== lastSrc) {
+    if (!video) return;
+
+    if (video !== currentVideo || video.src !== lastSrc) {
       const videoId = getVideoId();
 
       const freshName = extractChannelName();
@@ -252,7 +259,7 @@ function attachVideoTracking() {
         watchedTime += (Date.now() - startTime) / 1000;
         saveEvent({
           type: "video-stopped",
-          videoId,
+          videoId: getVideoId(),
           src: currentVideo.src,
           timestamp: new Date().toISOString(),
           watchedTime: watchedTime.toFixed(2),
@@ -261,7 +268,7 @@ function attachVideoTracking() {
         });
       }
 
-      if (lastSrc) {
+      if (lastSrc && lastSrc !== video.src) {
         saveEvent({
           type: "swiped-to-new-video",
           videoId,
@@ -281,9 +288,9 @@ function attachVideoTracking() {
       attachVideoEvents(video);
     }
   });
-
   videoObserver.observe(document.body, { childList: true, subtree: true });
 
+  // ================== RE-HOOK ON URL CHANGE ==================
   setInterval(() => {
     if (window.location.href !== lastUrl) {
       lastUrl = window.location.href;
