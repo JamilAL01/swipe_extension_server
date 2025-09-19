@@ -121,16 +121,22 @@ function attachVideoEvents(video) {
 
   video.addEventListener("seeked", () => {
     const newTime = video.currentTime;
-    if (Math.abs(newTime - lastTime) < 0.01) return; // ignore tiny changes
+    if (Math.abs(newTime - lastTime) < 0.01) return; // ignore tiny movements
+
+    const videoId = getVideoId() || window.location.href; // fallback
     const direction = newTime > lastTime ? "jump-forward" : "jump-backward";
+
+    console.log(`[SwipeExtension] video-jump ⏩ ${direction} (from ${lastTime.toFixed(2)}s to ${newTime.toFixed(2)}s)`);
+
     saveEvent({
       type: "video-jump",
-      videoId: getVideoId(),
-      src: video.src,
+      videoId,
+      src: window.location.href, // safer than blob URL
       timestamp: new Date().toISOString(),
       extra: { direction, from: lastTime.toFixed(2), to: newTime.toFixed(2) },
     });
-    lastTime = newTime;
+
+    lastTime = newTime; // update after sending
   });
 }
 
