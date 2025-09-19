@@ -98,9 +98,11 @@ function attachVideoTracking() {
   let watchedTime = 0;
   let prevDuration = 0;
   let hasPlayed = false;
+  let suppressNextJump = false;
+  let lastSeekPosition = 0;
   let lastUrl = window.location.href;
-  let suppressNextJump = false; // ✅ NEW FLAG
-  let lastSeekPosition = 0; // track jumps properly
+
+  let observer; // keep single observer
 
   // Helper to get YouTube Shorts video ID
   function getVideoId() {
@@ -131,7 +133,9 @@ function attachVideoTracking() {
 
     console.log(`[SwipeExtension] 🎥 Hooking into video: ${video.src} (ID: ${getVideoId()})`);
 
-    video.addEventListener("loadedmetadata", () => { prevDuration = video.duration; });
+    video.addEventListener("loadedmetadata", () => {
+      prevDuration = video.duration;
+    });
 
     video.addEventListener("play", () => {
       setTimeout(() => {
@@ -179,7 +183,7 @@ function attachVideoTracking() {
         });
         saveEvent({ type: "video-rewatch", videoId, src: video.src, timestamp: new Date().toISOString() });
         watchedTime = 0;
-        suppressNextJump = true; // ✅ Prevents false jump after rewatch
+        suppressNextJump = true; // prevent false jump after rewatch
       }
     });
 
@@ -207,7 +211,7 @@ function attachVideoTracking() {
 
       if (suppressNextJump) {
         console.log("[SwipeExtension] Ignored jump after rewatch ✅");
-        suppressNextJump = false; // reset
+        suppressNextJump = false;
         lastSeekPosition = to;
         return;
       }
@@ -226,58 +230,70 @@ function attachVideoTracking() {
     });
   }
 
-  // ================== OBSERVE VIDEO CHANGES ==================
-  const observer = new MutationObserver(() => {
-    const video = document.querySelector("video");
-    if (video && video.src !== lastSrc) {
-      const videoId = getVideoId();
+  // ================== HANDLE NEW VIDEO ==================
+  function handleNewVideo(video) {
+    const videoId = getVideoId();
 
-      if (currentVideo && startTime) {
-        watchedTime += (Date.now() - startTime) / 1000;
-        saveEvent({
-          type: "video-stopped",
-          videoId: getVideoId(),
-          src: currentVideo.src,
-          timestamp: new Date().toISOString(),
-          watchedTime: watchedTime.toFixed(2),
-          duration: prevDuration.toFixed(2),
-          percent: prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100).toFixed(1) : 0,
-        });
-      }
-
-      if (lastSrc) {
-        saveEvent({
-          type: "swiped-to-new-video",
-          videoId,
-          src: video.src,
-          timestamp: new Date().toISOString(),
-          extra: { previous: lastSrc },
-        });
-      }
-
-      currentVideo = video;
-      lastSrc = video.src;
-      startTime = Date.now();
-      watchedTime = 0;
-      prevDuration = video.duration || 0;
-      hasPlayed = false;
-      suppressNextJump = false;
-      lastSeekPosition = 0;
-
-      attachVideoEvents(video);
+    // stop current video
+    if (currentVideo && startTime) {
+      watchedTime += (Date.now() - startTime) / 1000;
+      saveEvent({
+        type: "video-stopped",
+        videoId: getVideoId(),
+        src: currentVideo.src,
+        timestamp: new Date().toISOString(),
+        watchedTime: watchedTime.toFixed(2),
+        duration: prevDuration.toFixed(2),
+        percent: prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100).toFixed(1) : 0,
+      });
     }
-  });
 
-  observer.observe(document.body, { childList: true, subtree: true });
+    // swipe event
+    if (lastSrc) {
+      saveEvent({
+        type: "swiped-to-new-video",
+        videoId,
+        src: video.src,
+        timestamp: new Date().toISOString(),
+        extra: { previous: lastSrc },
+      });
+    }
+
+    // reset state
+    currentVideo = video;
+    lastSrc = video.src;
+    startTime = Date.now();
+    watchedTime = 0;
+    prevDuration = video.duration || 0;
+    hasPlayed = false;
+    suppressNextJump = false;
+    lastSeekPosition = 0;
+
+    attachVideoEvents(video);
+  }
+
+  // ================== OBSERVE VIDEO CHANGES ==================
+  function observeVideo() {
+    if (observer) observer.disconnect(); // prevent multiple observers
+    observer = new MutationObserver(() => {
+      const video = document.querySelector("video");
+      if (video && video.src !== lastSrc) {
+        handleNewVideo(video);
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
+
+  observeVideo();
 
   // ================== RE-HOOK ON URL CHANGE ==================
   setInterval(() => {
     if (window.location.href !== lastUrl) {
       lastUrl = window.location.href;
       const video = document.querySelector("video");
-      if (video) attachVideoEvents(video);
+      if (video) handleNewVideo(video);
     }
-  }, 100);
+  }, 500);
 }
 
 // ================== SPA NAVIGATION CHECK ==================
