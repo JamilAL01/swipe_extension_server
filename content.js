@@ -125,27 +125,27 @@ function attachVideoEvents(video) {
   });
 
   // ================== JUMP / SEEK EVENT ==================
-  video.addEventListener("seeking", () => {
-    lastTime = video.currentTime;
-  });
+  let jumpCount = 0; // new counter
 
   video.addEventListener("seeked", () => {
     const newTime = video.currentTime;
-    if (Math.abs(newTime - lastTime) < 0.01) return; // ignore tiny movements
+    if (Math.abs(newTime - lastTime) < 0.01) return;
     const videoId = getVideoId();
     const direction = newTime > lastTime ? "jump-forward" : "jump-backward";
 
-    console.log(`[SwipeExtension] video-jump ⏩ ${direction} (from ${lastTime.toFixed(2)}s to ${newTime.toFixed(2)}s)`);
+    jumpCount += 1; // increment jump counter
+
+    console.log(`[SwipeExtension] video-jump ⏩ ${direction} (from ${lastTime.toFixed(2)}s to ${newTime.toFixed(2)}s) | jump #${jumpCount}`);
 
     saveEvent({
       type: "video-jump",
       videoId,
       src: video.src,
       timestamp: new Date().toISOString(),
-      extra: { direction, from: lastTime.toFixed(2), to: newTime.toFixed(2) },
+      extra: { direction, from: lastTime.toFixed(2), to: newTime.toFixed(2), jumpCount },
     });
 
-    lastTime = newTime; // update lastTime after jump
+    lastTime = newTime;
   });
 }
 
