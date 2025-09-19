@@ -2,10 +2,7 @@ console.log("[SwipeExtension] Content script injected ✅");
 
 // ================== GDPR CONSENT ==================
 function showConsentPopup() {
-  if (document.getElementById("swipe-consent-popup")) return;
-
   const popup = document.createElement("div");
-  popup.id = "swipe-consent-popup";
   popup.style.position = "fixed";
   popup.style.top = "50%";
   popup.style.left = "50%";
@@ -38,13 +35,14 @@ function showConsentPopup() {
   document.getElementById("consent-yes").onclick = () => {
     localStorage.setItem("swipeConsent", "true");
     popup.remove();
-    initExtension(true);
+    initExtension(true); // ✅ start tracking
   };
 
   document.getElementById("consent-no").onclick = () => {
     localStorage.setItem("swipeConsent", "false");
     popup.remove();
     console.log("[SwipeExtension] User denied consent ❌. Events will not be collected.");
+    // Do NOT call initExtension()
   };
 }
 
@@ -52,6 +50,7 @@ function showConsentPopup() {
 function initExtension(persistent = true) {
   console.log("[SwipeExtension] Initializing extension...");
 
+  // ---------- USER ID ----------
   let userId;
   if (persistent) {
     userId = localStorage.getItem("swipeUserId");
@@ -68,6 +67,7 @@ function initExtension(persistent = true) {
   }
   window._swipeUserId = userId;
 
+  // ---------- SESSION ID ----------
   let sessionId = sessionStorage.getItem("swipeSessionId");
   if (!sessionId) {
     sessionId = crypto.randomUUID();
@@ -75,6 +75,7 @@ function initExtension(persistent = true) {
   }
   window._swipeSessionId = sessionId;
 
+  // ---------- VIDEO EVENT LOGIC ----------
   attachVideoTracking();
 }
 
@@ -84,27 +85,45 @@ function checkConsent() {
   if (consent === "true") initExtension(true);
   else if (consent === "false") {
     console.log("[SwipeExtension] User declined tracking ❌");
-    return;
+    return; // do nothing
   } else {
     showConsentPopup();
   }
 }
 
-// ================== CHANNEL NAME HELPER ==================
+// ================== CHANNEL NAME / HANDLE ==================
 function getChannelNameOrHandle() {
-  const el = document.querySelector(
-    "span.ytReelChannelBarViewModelChannelName a.yt-core-attributed-string__link"
-  );
+  // Shorts header or normal channel link
+  let el =
+    document.querySelector("#owner-text a") ||
+    document.querySelector("ytd-channel-name a") ||
+    document.querySelector("ytd-reel-player-header-renderer #text a") ||
+    document.querySelector("ytd-reel-player-header-renderer yt-formatted-string#text") ||
+    document.querySelector("yt-formatted-string#channel-name");
+
   if (el && el.innerText.trim()) {
-    const name = el.innerText.trim();
-    if (name.startsWith("@")) return name.replace(/^@/, "");
-    return name; // works for ads or normal channels
+    return el.innerText.trim();
   }
-  console.warn("[SwipeExtension] ⚠️ Could not find Shorts channel/handle in DOM!");
+
+  // Schema.org metadata
+  let metaAuthor = document.querySelector('meta[itemprop="author"]');
+  if (metaAuthor) {
+    return metaAuthor.getAttribute("content");
+  }
+
+  // Description fallback: try to extract @handle
+  let metaDesc = document.querySelector('meta[itemprop="description"]');
+  if (metaDesc) {
+    let desc = metaDesc.getAttribute("content");
+    let handleMatch = desc.match(/@[a-zA-Z0-9._-]+/);
+    if (handleMatch) return handleMatch[0];
+  }
+
+  console.warn("[SwipeExtension] ⚠️ Channel/handle not found in DOM");
   return "Unknown";
 }
 
-// ================== VIDEO TRACKING ==================
+// ================== VIDEO TRACKING FUNCTION ==================
 function attachVideoTracking() {
   let currentVideo = null;
   let lastSrc = null;
@@ -114,6 +133,7 @@ function attachVideoTracking() {
   let hasPlayed = false;
   let lastUrl = window.location.href;
 
+  // Helper to get YouTube Shorts video ID
   function getVideoId() {
     const match = window.location.href.match(/\/shorts\/([a-zA-Z0-9_-]{11})/);
     return match ? match[1] : null;
@@ -122,7 +142,7 @@ function attachVideoTracking() {
   function saveEvent(eventData) {
     eventData.sessionId = window._swipeSessionId;
     eventData.userId = window._swipeUserId;
-    eventData.channelName = getChannelNameOrHandle();
+    eventData.channelName = getChannelNameOrHandle(); // ✅ always include channel/handle
     console.log("[SwipeExtension] Event saved:", eventData);
 
     fetch("https://swipe-extension-server-2.onrender.com/api/events", {
@@ -174,6 +194,26 @@ function attachVideoTracking() {
       });
     });
 
+    video.addEventListener("timeupdate", () => {
+      if (startTime) watchedTime += (Date.now() - startTime) / 1000;
+      startTime = Date.now();
+
+      if (prevDuration && watchedTime >= prevDuration) {
+        const videoId = getVideoId();
+        saveEvent({
+          type: "video-watched-100",
+          videoId,
+          src: video.src,
+          timestamp: new Date().toISOString(),
+          watchedTime: prevDuration.toFixed(2),
+          duration: prevDuration.toFixed(2),
+          percent: 100,
+        });
+        saveEvent({ type: "video-rewatch", videoId, src: video.src, timestamp: new Date().toISOString() });
+        watchedTime = 0;
+      }
+    });
+
     video.addEventListener("ended", () => {
       if (startTime) watchedTime += (Date.now() - startTime) / 1000;
       startTime = null;
@@ -191,10 +231,11 @@ function attachVideoTracking() {
       watchedTime = 0;
     });
 
-    // ================== JUMP / SEEK ==================
+    // ================== JUMP / SEEK EVENT ==================
     video.addEventListener("seeked", () => {
       const videoId = getVideoId();
       const to = video.currentTime;
+      console.log(`[SwipeExtension] video-jump 🔀 ${video.src} (ID: ${videoId}) - to ${to.toFixed(2)}s`);
       saveEvent({
         type: "video-jump",
         videoId,
@@ -247,6 +288,7 @@ function attachVideoTracking() {
 
   observer.observe(document.body, { childList: true, subtree: true });
 
+  // ================== RE-HOOK ON URL CHANGE ==================
   setInterval(() => {
     if (window.location.href !== lastUrl) {
       lastUrl = window.location.href;
