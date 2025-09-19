@@ -104,14 +104,14 @@ function extractChannelName() {
   return null;
 }
 
-// Watch for changes in the Shorts container
+// Keep observer as a backup (dynamic DOM updates)
 const observer = new MutationObserver(() => {
   const name = extractChannelName();
   if (name && name !== currentChannelName) {
     currentChannelName = name;
+    console.log("[SwipeExtension] Channel name updated via DOM observer:", currentChannelName);
   }
 });
-
 observer.observe(document.body, {
   childList: true,
   subtree: true
@@ -136,7 +136,7 @@ function attachVideoTracking() {
   function saveEvent(eventData) {
     eventData.sessionId = window._swipeSessionId;
     eventData.userId = window._swipeUserId;
-    eventData.channelName = currentChannelName;;
+    eventData.channelName = currentChannelName;
     console.log("[SwipeExtension] Event saved:", eventData);
 
     fetch("https://swipe-extension-server-2.onrender.com/api/events", {
@@ -241,10 +241,17 @@ function attachVideoTracking() {
   }
 
   // ================== OBSERVE VIDEO CHANGES ==================
-  const observer = new MutationObserver(() => {
+  const videoObserver = new MutationObserver(() => {
     const video = document.querySelector("video");
     if (video && video.src !== lastSrc) {
       const videoId = getVideoId();
+
+      // ✅ force refresh channel name when a new video is detected
+      const freshName = extractChannelName();
+      if (freshName) {
+        currentChannelName = freshName;
+        console.log("[SwipeExtension] Channel name set on video change:", currentChannelName);
+      }
 
       if (currentVideo && startTime) {
         watchedTime += (Date.now() - startTime) / 1000;
@@ -280,7 +287,7 @@ function attachVideoTracking() {
     }
   });
 
-  observer.observe(document.body, { childList: true, subtree: true });
+  videoObserver.observe(document.body, { childList: true, subtree: true });
 
   // ================== RE-HOOK ON URL CHANGE ==================
   setInterval(() => {
