@@ -97,8 +97,10 @@ function attachVideoTracking() {
   let hasPlayed = false;
   let lastUrl = window.location.href;
   let lastSeekTime = 0;
-  let lastEvent = null;
   let watched100Fired = false;
+
+  // Deduplication map per video
+  const recentEvents = new Map(); // key -> timestamp
 
   function getVideoId() {
     const match = window.location.href.match(/\/shorts\/([a-zA-Z0-9_-]{11})/);
@@ -115,12 +117,19 @@ function attachVideoTracking() {
       src: eventData.src,
       extra: eventData.extra || {}
     });
+
     const now = Date.now();
 
-    if (lastEvent && lastEvent.key === key && (now - lastEvent.ts) < 300) {
+    if (recentEvents.has(key) && (now - recentEvents.get(key) < 300)) {
       return; // skip duplicate
     }
-    lastEvent = { key, ts: now };
+
+    recentEvents.set(key, now);
+
+    // Clean old events to prevent memory growth
+    for (let [k, ts] of recentEvents.entries()) {
+      if (now - ts > 5000) recentEvents.delete(k);
+    }
 
     console.log("[SwipeExtension] Event saved:", eventData);
 
@@ -145,31 +154,37 @@ function attachVideoTracking() {
     video.addEventListener("loadedmetadata", () => { prevDuration = video.duration; });
 
     video.addEventListener("play", () => {
-      setTimeout(() => {
-        const videoId = getVideoId();
-        if (!hasPlayed) {
-          saveEvent({ type: "video-start", videoId, src: video.src, timestamp: new Date().toISOString() });
-          hasPlayed = true;
-        } else {
-          saveEvent({ type: "video-resume", videoId, src: video.src, timestamp: new Date().toISOString() });
-        }
-      }, 100);
+      if (!hasPlayed) {
+        saveEvent({
+          type: "video-start",
+          videoId: getVideoId(),
+          src: video.src,
+          timestamp: new Date().toISOString()
+        });
+        hasPlayed = true;
+      } else {
+        saveEvent({
+          type: "video-resume",
+          videoId: getVideoId(),
+          src: video.src,
+          timestamp: new Date().toISOString()
+        });
+      }
       startTime = Date.now();
     });
 
     video.addEventListener("pause", () => {
       if (startTime) watchedTime += (Date.now() - startTime) / 1000;
       startTime = null;
-      const videoId = getVideoId();
-      const watchPercent = prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100) : 0;
+
       saveEvent({
         type: "video-paused",
-        videoId,
+        videoId: getVideoId(),
         src: video.src,
         timestamp: new Date().toISOString(),
         watchedTime: watchedTime.toFixed(2),
         duration: prevDuration.toFixed(2),
-        percent: watchPercent.toFixed(1),
+        percent: prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100).toFixed(1) : 0
       });
     });
 
@@ -178,15 +193,14 @@ function attachVideoTracking() {
       startTime = Date.now();
 
       if (!watched100Fired && prevDuration && watchedTime >= prevDuration) {
-        const videoId = getVideoId();
         saveEvent({
           type: "video-watched-100",
-          videoId,
+          videoId: getVideoId(),
           src: video.src,
           timestamp: new Date().toISOString(),
           watchedTime: prevDuration.toFixed(2),
           duration: prevDuration.toFixed(2),
-          percent: 100,
+          percent: 100
         });
         watched100Fired = true;
         watchedTime = 0;
@@ -196,39 +210,38 @@ function attachVideoTracking() {
     video.addEventListener("ended", () => {
       if (startTime) watchedTime += (Date.now() - startTime) / 1000;
       startTime = null;
-      const videoId = getVideoId();
-      const watchPercent = prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100) : 0;
+
       saveEvent({
         type: "video-stopped",
-        videoId,
+        videoId: getVideoId(),
         src: video.src,
         timestamp: new Date().toISOString(),
         watchedTime: watchedTime.toFixed(2),
         duration: prevDuration.toFixed(2),
-        percent: watchPercent.toFixed(1),
+        percent: prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100).toFixed(1) : 0
       });
+
       watched100Fired = true;
       watchedTime = 0;
     });
 
     // ================== SEEK / JUMP / REWATCH ==================
     video.addEventListener("seeked", () => {
-      const videoId = getVideoId();
       const to = video.currentTime;
       const from = lastSeekTime;
       lastSeekTime = to;
 
-      if (to < 1 && from > 1) {
+      if (from > 1 && to < 1) {
         // Rewatch
         saveEvent({
           type: "video-rewatch",
-          videoId,
+          videoId: getVideoId(),
           src: video.src,
           timestamp: new Date().toISOString()
         });
         saveEvent({
           type: "video-watched-100",
-          videoId,
+          videoId: getVideoId(),
           src: video.src,
           timestamp: new Date().toISOString(),
           watchedTime: prevDuration.toFixed(2),
@@ -241,7 +254,7 @@ function attachVideoTracking() {
         // Normal jump
         saveEvent({
           type: "video-jump",
-          videoId,
+          videoId: getVideoId(),
           src: video.src,
           timestamp: new Date().toISOString(),
           extra: { from, to }
@@ -254,8 +267,6 @@ function attachVideoTracking() {
   const observer = new MutationObserver(() => {
     const video = document.querySelector("video");
     if (video && video.src !== lastSrc) {
-      const videoId = getVideoId();
-
       if (currentVideo && startTime) {
         watchedTime += (Date.now() - startTime) / 1000;
         saveEvent({
@@ -265,17 +276,17 @@ function attachVideoTracking() {
           timestamp: new Date().toISOString(),
           watchedTime: watchedTime.toFixed(2),
           duration: prevDuration.toFixed(2),
-          percent: prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100).toFixed(1) : 0,
+          percent: prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100).toFixed(1) : 0
         });
       }
 
       if (lastSrc) {
         saveEvent({
           type: "swiped-to-new-video",
-          videoId,
+          videoId: getVideoId(),
           src: video.src,
           timestamp: new Date().toISOString(),
-          extra: { previous: lastSrc },
+          extra: { previous: lastSrc }
         });
       }
 
