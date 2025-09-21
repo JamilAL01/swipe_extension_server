@@ -99,6 +99,7 @@ function attachVideoTracking() {
   let prevDuration = 0;
   let hasPlayed = false;
   let lastUrl = window.location.href;
+  let lastSeekTime = 0;
 
   // Helper to get YouTube Shorts video ID
   function getVideoId() {
@@ -106,9 +107,26 @@ function attachVideoTracking() {
     return match ? match[1] : null;
   }
 
+  // ================== DEDUPLICATION ==================
+  let lastEvent = null;
   function saveEvent(eventData) {
     eventData.sessionId = window._swipeSessionId;
     eventData.userId = window._swipeUserId;
+
+    const key = JSON.stringify({
+      type: eventData.type,
+      videoId: eventData.videoId,
+      src: eventData.src,
+      extra: eventData.extra || {}
+    });
+    const now = Date.now();
+
+    if (lastEvent && lastEvent.key === key && (now - lastEvent.ts) < 500) {
+      console.log("[SwipeExtension] Skipped duplicate:", eventData.type);
+      return;
+    }
+    lastEvent = { key, ts: now };
+
     console.log("[SwipeExtension] Event saved:", eventData);
 
     fetch("https://swipe-extension-server-2.onrender.com/api/events", {
@@ -197,18 +215,30 @@ function attachVideoTracking() {
       watchedTime = 0;
     });
 
-    // ================== JUMP / SEEK EVENT ==================
+    // ================== JUMP / REWATCH DETECTION ==================
     video.addEventListener("seeked", () => {
       const videoId = getVideoId();
       const to = video.currentTime;
-      console.log(`[SwipeExtension] video-jump 🔀 ${video.src} (ID: ${videoId}) - to ${to.toFixed(2)}s`);
-      saveEvent({
-        type: "video-jump",
-        videoId,
-        src: video.src,
-        timestamp: new Date().toISOString(),
-        extra: { from: watchedTime.toFixed(2), to }
-      });
+      const from = lastSeekTime;
+      lastSeekTime = to;
+
+      if (to === 0 && from > 1) {
+        saveEvent({
+          type: "video-rewatch",
+          videoId,
+          src: video.src,
+          timestamp: new Date().toISOString(),
+          extra: { from, to }
+        });
+      } else if (Math.abs(to - from) > 1) {
+        saveEvent({
+          type: "video-jump",
+          videoId,
+          src: video.src,
+          timestamp: new Date().toISOString(),
+          extra: { from, to }
+        });
+      }
     });
   }
 
