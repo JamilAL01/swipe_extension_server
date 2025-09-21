@@ -222,15 +222,29 @@ function attachVideoTracking() {
       const from = lastSeekTime;
       lastSeekTime = to;
 
+      // Detect rewatch (seek from >1s to start)
       if (to < 1 && from > 1) {
+        // 1. Rewatch event (no extra anymore)
         saveEvent({
           type: "video-rewatch",
           videoId,
           src: video.src,
-          timestamp: new Date().toISOString(),
-          extra: { from, to }
+          timestamp: new Date().toISOString()
         });
+
+        // 2. Immediately mark watched-100
+        saveEvent({
+          type: "video-watched-100",
+          videoId,
+          src: video.src,
+          timestamp: new Date().toISOString(),
+          watchedTime: prevDuration.toFixed(2),
+          duration: prevDuration.toFixed(2),
+          percent: 100
+        });
+
       } else if (Math.abs(to - from) > 1) {
+        // Regular jump
         saveEvent({
           type: "video-jump",
           videoId,
@@ -240,6 +254,7 @@ function attachVideoTracking() {
         });
       }
     });
+
 
   }
 
