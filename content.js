@@ -2,7 +2,7 @@ console.log("[SwipeExtension] Content script injected ✅");
 
 // ================== GDPR CONSENT ==================
 function showConsentPopup() {
-  if (document.getElementById("swipe-consent-popup")) return; // prevent duplicates
+  if (document.getElementById("swipe-consent-popup")) return;
 
   const popup = document.createElement("div");
   popup.id = "swipe-consent-popup";
@@ -35,7 +35,7 @@ function showConsentPopup() {
   document.getElementById("consent-yes").onclick = () => {
     localStorage.setItem("swipeConsent", "true");
     popup.remove();
-    initExtension(true); // persistent tracking
+    initExtension(true);
   };
 
   document.getElementById("consent-no").onclick = () => {
@@ -49,7 +49,6 @@ function showConsentPopup() {
 function initExtension(persistent = true) {
   console.log("[SwipeExtension] Initializing extension...");
 
-  // ---------- USER ID ----------
   let userId;
   if (persistent) {
     userId = localStorage.getItem("swipeUserId");
@@ -66,7 +65,6 @@ function initExtension(persistent = true) {
   }
   window._swipeUserId = userId;
 
-  // ---------- SESSION ID ----------
   let sessionId = sessionStorage.getItem("swipeSessionId");
   if (!sessionId) {
     sessionId = crypto.randomUUID();
@@ -74,7 +72,6 @@ function initExtension(persistent = true) {
   }
   window._swipeSessionId = sessionId;
 
-  // ---------- VIDEO EVENT LOGIC ----------
   attachVideoTracking();
 }
 
@@ -84,13 +81,13 @@ function checkConsent() {
   if (consent === "true") initExtension(true);
   else if (consent === "false") {
     console.log("[SwipeExtension] User declined tracking ❌");
-    return; // do nothing
+    return;
   } else {
     showConsentPopup();
   }
 }
 
-// ================== VIDEO TRACKING FUNCTION ==================
+// ================== VIDEO TRACKING ==================
 function attachVideoTracking() {
   let currentVideo = null;
   let lastSrc = null;
@@ -100,15 +97,13 @@ function attachVideoTracking() {
   let hasPlayed = false;
   let lastUrl = window.location.href;
   let lastSeekTime = 0;
+  let lastEvent = null;
 
-  // Helper to get YouTube Shorts video ID
   function getVideoId() {
     const match = window.location.href.match(/\/shorts\/([a-zA-Z0-9_-]{11})/);
     return match ? match[1] : null;
   }
 
-  // ================== DEDUPLICATION ==================
-  let lastEvent = null;
   function saveEvent(eventData) {
     eventData.sessionId = window._swipeSessionId;
     eventData.userId = window._swipeUserId;
@@ -121,7 +116,7 @@ function attachVideoTracking() {
     });
     const now = Date.now();
 
-    if (lastEvent && lastEvent.key === key && (now - lastEvent.ts) < 500) {
+    if (lastEvent && lastEvent.key === key && (now - lastEvent.ts) < 300) {
       console.log("[SwipeExtension] Skipped duplicate:", eventData.type);
       return;
     }
@@ -193,7 +188,6 @@ function attachVideoTracking() {
           duration: prevDuration.toFixed(2),
           percent: 100,
         });
-        saveEvent({ type: "video-rewatch", videoId, src: video.src, timestamp: new Date().toISOString() });
         watchedTime = 0;
       }
     });
@@ -215,24 +209,21 @@ function attachVideoTracking() {
       watchedTime = 0;
     });
 
-    // ================== JUMP / REWATCH DETECTION ==================
+    // ================== SEEK / JUMP / REWATCH ==================
     video.addEventListener("seeked", () => {
       const videoId = getVideoId();
       const to = video.currentTime;
       const from = lastSeekTime;
       lastSeekTime = to;
 
-      // Detect rewatch (seek from >1s to start)
       if (to < 1 && from > 1) {
-        // 1. Rewatch event (no extra anymore)
+        // Video rewatch: no extra, then immediately watched-100
         saveEvent({
           type: "video-rewatch",
           videoId,
           src: video.src,
           timestamp: new Date().toISOString()
         });
-
-        // 2. Immediately mark watched-100
         saveEvent({
           type: "video-watched-100",
           videoId,
@@ -242,9 +233,8 @@ function attachVideoTracking() {
           duration: prevDuration.toFixed(2),
           percent: 100
         });
-
+        watchedTime = 0;
       } else if (Math.abs(to - from) > 1) {
-        // Regular jump
         saveEvent({
           type: "video-jump",
           videoId,
@@ -254,8 +244,6 @@ function attachVideoTracking() {
         });
       }
     });
-
-
   }
 
   // ================== OBSERVE VIDEO CHANGES ==================
@@ -300,7 +288,6 @@ function attachVideoTracking() {
 
   observer.observe(document.body, { childList: true, subtree: true });
 
-  // ================== RE-HOOK ON URL CHANGE ==================
   setInterval(() => {
     if (window.location.href !== lastUrl) {
       lastUrl = window.location.href;
