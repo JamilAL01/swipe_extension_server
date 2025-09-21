@@ -98,6 +98,7 @@ function attachVideoTracking() {
   let lastUrl = window.location.href;
   let lastSeekTime = 0;
   let lastEvent = null;
+  let watched100Fired = false;
 
   function getVideoId() {
     const match = window.location.href.match(/\/shorts\/([a-zA-Z0-9_-]{11})/);
@@ -117,8 +118,7 @@ function attachVideoTracking() {
     const now = Date.now();
 
     if (lastEvent && lastEvent.key === key && (now - lastEvent.ts) < 300) {
-      console.log("[SwipeExtension] Skipped duplicate:", eventData.type);
-      return;
+      return; // skip duplicate
     }
     lastEvent = { key, ts: now };
 
@@ -130,8 +130,7 @@ function attachVideoTracking() {
       body: JSON.stringify(eventData),
     })
       .then((res) => {
-        if (res.ok) console.log("[SwipeExtension] Sent to server ✅");
-        else console.error("[SwipeExtension] Server error ❌", res.statusText);
+        if (!res.ok) console.error("[SwipeExtension] Server error ❌", res.statusText);
       })
       .catch((err) => console.error("[SwipeExtension] Fetch error ❌", err));
   }
@@ -140,7 +139,8 @@ function attachVideoTracking() {
     if (!video || video._hooked) return;
     video._hooked = true;
 
-    console.log(`[SwipeExtension] 🎥 Hooking into video: ${video.src} (ID: ${getVideoId()})`);
+    watched100Fired = false;
+    lastSeekTime = video.currentTime || 0;
 
     video.addEventListener("loadedmetadata", () => { prevDuration = video.duration; });
 
@@ -177,7 +177,7 @@ function attachVideoTracking() {
       if (startTime) watchedTime += (Date.now() - startTime) / 1000;
       startTime = Date.now();
 
-      if (prevDuration && watchedTime >= prevDuration) {
+      if (!watched100Fired && prevDuration && watchedTime >= prevDuration) {
         const videoId = getVideoId();
         saveEvent({
           type: "video-watched-100",
@@ -188,6 +188,7 @@ function attachVideoTracking() {
           duration: prevDuration.toFixed(2),
           percent: 100,
         });
+        watched100Fired = true;
         watchedTime = 0;
       }
     });
@@ -198,7 +199,7 @@ function attachVideoTracking() {
       const videoId = getVideoId();
       const watchPercent = prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100) : 0;
       saveEvent({
-        type: "video-ended",
+        type: "video-stopped",
         videoId,
         src: video.src,
         timestamp: new Date().toISOString(),
@@ -206,6 +207,7 @@ function attachVideoTracking() {
         duration: prevDuration.toFixed(2),
         percent: watchPercent.toFixed(1),
       });
+      watched100Fired = true;
       watchedTime = 0;
     });
 
@@ -217,7 +219,7 @@ function attachVideoTracking() {
       lastSeekTime = to;
 
       if (to < 1 && from > 1) {
-        // Video rewatch: no extra, then immediately watched-100
+        // Rewatch
         saveEvent({
           type: "video-rewatch",
           videoId,
@@ -233,8 +235,10 @@ function attachVideoTracking() {
           duration: prevDuration.toFixed(2),
           percent: 100
         });
+        watched100Fired = true;
         watchedTime = 0;
       } else if (Math.abs(to - from) > 1) {
+        // Normal jump
         saveEvent({
           type: "video-jump",
           videoId,
@@ -281,6 +285,8 @@ function attachVideoTracking() {
       watchedTime = 0;
       prevDuration = video.duration || 0;
       hasPlayed = false;
+      watched100Fired = false;
+      lastSeekTime = video.currentTime || 0;
 
       attachVideoEvents(video);
     }
@@ -288,6 +294,7 @@ function attachVideoTracking() {
 
   observer.observe(document.body, { childList: true, subtree: true });
 
+  // ================== RE-HOOK ON URL CHANGE ==================
   setInterval(() => {
     if (window.location.href !== lastUrl) {
       lastUrl = window.location.href;
