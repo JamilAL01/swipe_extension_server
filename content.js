@@ -222,7 +222,7 @@ function attachVideoTracking() {
       const from = lastSeekTime;
       lastSeekTime = to;
 
-      if (to === 0 && from > 1) {
+      if (to < 1 && from > 1) {
         saveEvent({
           type: "video-rewatch",
           videoId,
@@ -240,6 +240,7 @@ function attachVideoTracking() {
         });
       }
     });
+
   }
 
   // ================== OBSERVE VIDEO CHANGES ==================
