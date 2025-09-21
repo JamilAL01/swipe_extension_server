@@ -100,10 +100,11 @@ function attachVideoTracking() {
   let watched100Fired = false;
 
   // Deduplication map per video
-  const recentEvents = new Map(); // key -> timestamp
+  const recentEvents = new Map();
 
-  function getVideoId() {
-    const match = window.location.href.match(/\/shorts\/([a-zA-Z0-9_-]{11})/);
+  // ---------- Get YouTube Shorts video ID ----------
+  function getVideoId(url = window.location.href) {
+    const match = url.match(/\/shorts\/([a-zA-Z0-9_-]{11})/);
     return match ? match[1] : null;
   }
 
@@ -119,29 +120,17 @@ function attachVideoTracking() {
     });
 
     const now = Date.now();
-
-    if (recentEvents.has(key) && (now - recentEvents.get(key) < 300)) {
-      return; // skip duplicate
-    }
-
+    if (recentEvents.has(key) && now - recentEvents.get(key) < 300) return;
     recentEvents.set(key, now);
 
-    // Clean old events to prevent memory growth
-    for (let [k, ts] of recentEvents.entries()) {
-      if (now - ts > 5000) recentEvents.delete(k);
-    }
+    for (let [k, ts] of recentEvents.entries()) if (now - ts > 5000) recentEvents.delete(k);
 
     console.log("[SwipeExtension] Event saved:", eventData);
-
     fetch("https://swipe-extension-server-2.onrender.com/api/events", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(eventData),
-    })
-      .then((res) => {
-        if (!res.ok) console.error("[SwipeExtension] Server error ❌", res.statusText);
-      })
-      .catch((err) => console.error("[SwipeExtension] Fetch error ❌", err));
+    }).catch((err) => console.error("[SwipeExtension] Fetch error ❌", err));
   }
 
   function attachVideoEvents(video) {
@@ -151,24 +140,14 @@ function attachVideoTracking() {
     watched100Fired = false;
     lastSeekTime = video.currentTime || 0;
 
-    video.addEventListener("loadedmetadata", () => { prevDuration = video.duration; });
+    video.addEventListener("loadedmetadata", () => prevDuration = video.duration);
 
     video.addEventListener("play", () => {
       if (!hasPlayed) {
-        saveEvent({
-          type: "video-start",
-          videoId: getVideoId(),
-          src: video.src,
-          timestamp: new Date().toISOString()
-        });
+        saveEvent({ type: "video-start", videoId: getVideoId(), src: video.src, timestamp: new Date().toISOString() });
         hasPlayed = true;
       } else {
-        saveEvent({
-          type: "video-resume",
-          videoId: getVideoId(),
-          src: video.src,
-          timestamp: new Date().toISOString()
-        });
+        saveEvent({ type: "video-resume", videoId: getVideoId(), src: video.src, timestamp: new Date().toISOString() });
       }
       startTime = Date.now();
     });
@@ -176,7 +155,6 @@ function attachVideoTracking() {
     video.addEventListener("pause", () => {
       if (startTime) watchedTime += (Date.now() - startTime) / 1000;
       startTime = null;
-
       saveEvent({
         type: "video-paused",
         videoId: getVideoId(),
@@ -210,7 +188,6 @@ function attachVideoTracking() {
     video.addEventListener("ended", () => {
       if (startTime) watchedTime += (Date.now() - startTime) / 1000;
       startTime = null;
-
       saveEvent({
         type: "video-stopped",
         videoId: getVideoId(),
@@ -220,25 +197,17 @@ function attachVideoTracking() {
         duration: prevDuration.toFixed(2),
         percent: prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100).toFixed(1) : 0
       });
-
-      watched100Fired = true;
       watchedTime = 0;
+      watched100Fired = true;
     });
 
-    // ================== SEEK / JUMP / REWATCH ==================
     video.addEventListener("seeked", () => {
       const to = video.currentTime;
       const from = lastSeekTime;
       lastSeekTime = to;
 
       if (from > 1 && to < 1) {
-        // Rewatch
-        saveEvent({
-          type: "video-rewatch",
-          videoId: getVideoId(),
-          src: video.src,
-          timestamp: new Date().toISOString()
-        });
+        saveEvent({ type: "video-rewatch", videoId: getVideoId(), src: video.src, timestamp: new Date().toISOString() });
         saveEvent({
           type: "video-watched-100",
           videoId: getVideoId(),
@@ -251,14 +220,7 @@ function attachVideoTracking() {
         watched100Fired = true;
         watchedTime = 0;
       } else if (Math.abs(to - from) > 1) {
-        // Normal jump
-        saveEvent({
-          type: "video-jump",
-          videoId: getVideoId(),
-          src: video.src,
-          timestamp: new Date().toISOString(),
-          extra: { from, to }
-        });
+        saveEvent({ type: "video-jump", videoId: getVideoId(), src: video.src, timestamp: new Date().toISOString(), extra: { from, to } });
       }
     });
   }
@@ -271,7 +233,7 @@ function attachVideoTracking() {
         watchedTime += (Date.now() - startTime) / 1000;
         saveEvent({
           type: "video-stopped",
-          videoId: getVideoId(),
+          videoId: getVideoId(currentVideo.src),
           src: currentVideo.src,
           timestamp: new Date().toISOString(),
           watchedTime: watchedTime.toFixed(2),
@@ -283,7 +245,7 @@ function attachVideoTracking() {
       if (lastSrc) {
         saveEvent({
           type: "swiped-to-new-video",
-          videoId: getVideoId(),
+          videoId: getVideoId(video.src),
           src: video.src,
           timestamp: new Date().toISOString(),
           extra: { previous: lastSrc }
