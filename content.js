@@ -167,14 +167,11 @@ function attachVideoEvents(video) {
     }
   });
 
-  let justEnded = false; // flag to detect autoplay replays
-
   video.addEventListener("ended", () => {
     if (startTime) watchedTime += (Date.now() - startTime) / 1000;
     startTime = null;
     const videoId = getVideoId();
     const watchPercent = prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100) : 0;
-
     saveEvent({
       type: "video-ended",
       videoId,
@@ -184,25 +181,11 @@ function attachVideoEvents(video) {
       duration: prevDuration.toFixed(2),
       percent: watchPercent.toFixed(1),
     });
-
-    // mark that the video just ended
-    justEnded = true;
     watchedTime = 0;
   });
 
   video.addEventListener("seeked", () => {
     const videoId = getVideoId();
-
-    // Special case: autoplay restart at 0s → not a jump
-    if (justEnded && Math.floor(video.currentTime) === 0) {
-      saveEvent({ type: "video-watched-100", videoId, src: video.src, timestamp: new Date().toISOString() });
-      saveEvent({ type: "video-rewatch", videoId, src: video.src, timestamp: new Date().toISOString() });
-      console.log(`[SwipeExtension] ✅ Autoplay rewatch detected for ${videoId}`);
-      justEnded = false;
-      return;
-    }
-
-    // Normal jump
     saveEvent({
       type: "video-jump",
       videoId,
@@ -211,10 +194,7 @@ function attachVideoEvents(video) {
       extra: { jumpTo: video.currentTime.toFixed(2) },
     });
     console.log(`[SwipeExtension] video-jump ⏭️ ${video.src} (ID: ${videoId}) - Jumped to ${video.currentTime.toFixed(2)}s`);
-
-    justEnded = false; // reset flag
   });
-
 }
 
 // ================== OBSERVE VIDEO CHANGES ==================
