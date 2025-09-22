@@ -175,15 +175,36 @@ function attachVideoTracking() {
       });
     });
 
-    // --- Ended ---
-    video.addEventListener("ended", () => {
-      if (startTime) videoState.watchedTime += (Date.now() - startTime) / 1000;
-      startTime = null;
-
+    // --- Seek / Jump ---
+    video.addEventListener("seeked", () => {
       const videoId = getVideoId();
+      const to = video.currentTime;
 
-      // If fully watched but not yet flagged
+      if (videoState.suppressJump) {
+        videoState.suppressJump = false;
+        videoState.lastSeek = to;
+        return;
+      }
+
+      const from = videoState.lastSeek;
+      videoState.lastSeek = to;
+
+      saveEvent({
+        type: "video-jump",
+        videoId,
+        src: video.src,
+        timestamp: new Date().toISOString(),
+        extra: { from: from.toFixed(2), to: to.toFixed(2) }
+      });
+    });
+
+    // --- Timeupdate for watched-100 and rewatch ---
+    video.addEventListener("timeupdate", () => {
+      if (startTime) videoState.watchedTime += (Date.now() - startTime) / 1000;
+      startTime = Date.now();
+
       if (!videoState.watched100 && videoState.prevDuration && videoState.watchedTime >= videoState.prevDuration) {
+        const videoId = getVideoId();
         saveEvent({
           type: "video-watched-100",
           videoId,
@@ -202,27 +223,34 @@ function attachVideoTracking() {
         });
 
         videoState.watched100 = true;
+        videoState.watchedTime = 0;
+        videoState.suppressJump = true; // prevent false jump immediately after rewatch
       }
-
-      // Video ended event
-      saveEvent({
-        type: "video-ended",
-        videoId,
-        src: video.src,
-        timestamp: new Date().toISOString(),
-        watchedTime: videoState.watchedTime.toFixed(2),
-        duration: videoState.prevDuration.toFixed(2),
-        percent: videoState.prevDuration ? Math.min((videoState.watchedTime / videoState.prevDuration) * 100, 100).toFixed(1) : 0
-      });
-
-      videoState.stopped = true;
-      videoState.watchedTime = 0;
-
-      // Prepare for rewatch/autoplay
-      videoState.watched100 = false;
-      videoState.lastSeek = 0;
     });
 
+    // --- Ended ---
+    video.addEventListener("ended", () => {
+      if (startTime) videoState.watchedTime += (Date.now() - startTime) / 1000;
+      startTime = null;
+
+      if (!videoState.stopped) {
+        const videoId = getVideoId();
+        const percent = videoState.prevDuration ? Math.min((videoState.watchedTime / videoState.prevDuration) * 100, 100).toFixed(1) : 0;
+
+        saveEvent({
+          type: "video-ended",
+          videoId,
+          src: video.src,
+          timestamp: new Date().toISOString(),
+          watchedTime: videoState.watchedTime.toFixed(2),
+          duration: videoState.prevDuration.toFixed(2),
+          percent
+        });
+
+        videoState.stopped = true;
+        videoState.watchedTime = 0;
+      }
+    });
   }
 
   // --- Observe video changes ---
