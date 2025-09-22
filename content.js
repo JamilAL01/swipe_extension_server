@@ -181,10 +181,10 @@ function attachVideoTracking() {
       const to = video.currentTime;
       const from = videoState.lastSeek;
 
-      const isManualJump = !videoState.suppressJump && Math.abs(from - to) > 0.1;
+      // Detect manual jump: only fire jump if difference > 0.1s and not suppressed
+      const isManualJump = !videoState.suppressJump && Math.abs(to - from) > 0.1;
 
       if (isManualJump) {
-        // Only real user-initiated jumps are sent
         saveEvent({
           type: "video-jump",
           videoId,
@@ -194,10 +194,7 @@ function attachVideoTracking() {
         });
       }
 
-      // After first autoplay / rewatch, allow jumps again
-      if (videoState.suppressJump) videoState.suppressJump = false;
-
-      // Always update lastSeek to current position
+      // Update lastSeek correctly for both manual and autoplay
       videoState.lastSeek = to;
     });
 
@@ -206,11 +203,10 @@ function attachVideoTracking() {
       if (startTime) videoState.watchedTime += (Date.now() - startTime) / 1000;
       startTime = Date.now();
 
-      // Check if we reached 100% of the video
       if (!videoState.watched100 && videoState.prevDuration && videoState.watchedTime >= videoState.prevDuration) {
         const videoId = getVideoId();
 
-        // Fire watched-100 + rewatch
+        // Video fully watched
         saveEvent({
           type: "video-watched-100",
           videoId,
@@ -221,6 +217,7 @@ function attachVideoTracking() {
           percent: 100
         });
 
+        // Video replayed (autoplay)
         saveEvent({
           type: "video-rewatch",
           videoId,
@@ -228,18 +225,17 @@ function attachVideoTracking() {
           timestamp: new Date().toISOString()
         });
 
-        // ✅ Prevent jump from being triggered at start of rewatch
+        // Prevent next seek being misclassified as jump
         videoState.suppressJump = true;
 
-        // Reset counters for rewatch
-        videoState.watched100 = true;
+        // Reset counters
         videoState.watchedTime = 0;
+        videoState.watched100 = true;
 
-        // **Update lastSeek to actual start of rewatch**, not 0
+        // ✅ Critical: set lastSeek to current video position at rewatch start
         videoState.lastSeek = video.currentTime;
       }
     });
-
 
     // --- Ended ---
     video.addEventListener("ended", () => {
