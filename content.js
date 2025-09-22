@@ -175,29 +175,6 @@ function attachVideoTracking() {
       });
     });
 
-    // --- Seek / Jump ---
-    video.addEventListener("seeked", () => {
-      const videoId = getVideoId();
-      const to = video.currentTime;
-      const from = videoState.lastSeek;
-
-      // Detect manual jump: only fire jump if difference > 0.1s and not suppressed
-      const isManualJump = !videoState.suppressJump && Math.abs(to - from) > 0.1;
-
-      if (isManualJump) {
-        saveEvent({
-          type: "video-jump",
-          videoId,
-          src: video.src,
-          timestamp: new Date().toISOString(),
-          extra: { from: from.toFixed(2), to: to.toFixed(2) }
-        });
-      }
-
-      // Update lastSeek correctly for both manual and autoplay
-      videoState.lastSeek = to;
-    });
-
     // --- Timeupdate for watched-100 and rewatch ---
     video.addEventListener("timeupdate", () => {
       if (startTime) videoState.watchedTime += (Date.now() - startTime) / 1000;
@@ -225,17 +202,15 @@ function attachVideoTracking() {
           timestamp: new Date().toISOString()
         });
 
-        // Prevent next seek being misclassified as jump
-        videoState.suppressJump = true;
-
-        // Reset counters
+        // Reset counters for rewatch
         videoState.watchedTime = 0;
         videoState.watched100 = true;
 
-        // ✅ Critical: set lastSeek to current video position at rewatch start
+        // Important: set lastSeek to currentTime to prevent miscount
         videoState.lastSeek = video.currentTime;
       }
     });
+
 
     // --- Ended ---
     video.addEventListener("ended", () => {
