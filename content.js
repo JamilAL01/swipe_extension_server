@@ -182,7 +182,15 @@ function attachVideoEvents(video) {
 }
 
 // ================== OBSERVE VIDEO CHANGES ==================
-const observer = new MutationObserver(() => {
+const observer = new MutationObserver((mutations) => {
+  // Ignore changes caused by our GDPR popup
+  if (document.getElementById("swipe-consent-popup")) {
+    const onlyPopup = mutations.every(m => 
+      m.target.closest("#swipe-consent-popup")
+    );
+    if (onlyPopup) return; // don't re-run logic if only popup changed
+  }
+
   const video = document.querySelector("video");
   if (video && video.src !== lastSrc) {
     const videoId = getVideoId();
@@ -222,6 +230,7 @@ const observer = new MutationObserver(() => {
 });
 
 observer.observe(document.body, { childList: true, subtree: true });
+
 
 // ================== RE-HOOK ON URL CHANGE ==================
 setInterval(() => {
