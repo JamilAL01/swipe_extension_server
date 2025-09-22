@@ -178,12 +178,12 @@ function attachVideoTracking() {
 
     // --- Timeupdate for watched-100 and rewatch ---
     video.addEventListener("timeupdate", () => {
-      if (startTime) videoState.watchedTime += (Date.now() - startTime) / 1000;
-      startTime = Date.now();
+      const videoId = getVideoId();
+      const percent = videoState.prevDuration
+        ? Math.min((video.currentTime / videoState.prevDuration) * 100, 100)
+        : 0;
 
-      if (!videoState.watched100 && videoState.prevDuration && videoState.watchedTime >= videoState.prevDuration) {
-        const videoId = getVideoId();
-
+      if (!videoState.watched100 && percent >= 100) {
         saveEvent({
           type: "video-watched-100",
           videoId,
@@ -202,31 +202,6 @@ function attachVideoTracking() {
         });
 
         videoState.watched100 = true;
-        videoState.watchedTime = 0;
-      }
-    });
-
-    // --- Ended ---
-    video.addEventListener("ended", () => {
-      if (startTime) videoState.watchedTime += (Date.now() - startTime) / 1000;
-      startTime = null;
-
-      if (!videoState.stopped) {
-        const videoId = getVideoId();
-        const percent = videoState.prevDuration ? Math.min((videoState.watchedTime / videoState.prevDuration) * 100, 100).toFixed(1) : 0;
-
-        saveEvent({
-          type: "video-ended",
-          videoId,
-          src: video.src,
-          timestamp: new Date().toISOString(),
-          watchedTime: videoState.watchedTime.toFixed(2),
-          duration: videoState.prevDuration.toFixed(2),
-          percent
-        });
-
-        videoState.stopped = true;
-        videoState.watchedTime = 0;
       }
     });
   }
