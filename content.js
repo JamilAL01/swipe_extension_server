@@ -2,7 +2,7 @@ console.log("[SwipeExtension] Content script injected ✅");
 
 // ================== GDPR CONSENT ==================
 function showConsentPopup() {
-  if (document.getElementById("swipe-consent-popup")) return;
+  if (document.getElementById("swipe-consent-popup")) return; // prevent duplicates
 
   const popup = document.createElement("div");
   popup.id = "swipe-consent-popup";
@@ -35,7 +35,7 @@ function showConsentPopup() {
   document.getElementById("consent-yes").onclick = () => {
     localStorage.setItem("swipeConsent", "true");
     popup.remove();
-    initExtension(true);
+    initExtension(true); // persistent tracking
   };
 
   document.getElementById("consent-no").onclick = () => {
@@ -49,6 +49,7 @@ function showConsentPopup() {
 function initExtension(persistent = true) {
   console.log("[SwipeExtension] Initializing extension...");
 
+  // ---------- USER ID ----------
   let userId;
   if (persistent) {
     userId = localStorage.getItem("swipeUserId");
@@ -65,6 +66,7 @@ function initExtension(persistent = true) {
   }
   window._swipeUserId = userId;
 
+  // ---------- SESSION ID ----------
   let sessionId = sessionStorage.getItem("swipeSessionId");
   if (!sessionId) {
     sessionId = crypto.randomUUID();
@@ -72,6 +74,7 @@ function initExtension(persistent = true) {
   }
   window._swipeSessionId = sessionId;
 
+  // ---------- VIDEO EVENT LOGIC ----------
   attachVideoTracking();
 }
 
@@ -81,263 +84,184 @@ function checkConsent() {
   if (consent === "true") initExtension(true);
   else if (consent === "false") {
     console.log("[SwipeExtension] User declined tracking ❌");
-    return;
+    return; // do nothing
   } else {
     showConsentPopup();
   }
 }
 
-// ================== VIDEO TRACKING ==================
+// ================== VIDEO TRACKING FUNCTION ==================
 function attachVideoTracking() {
   let currentVideo = null;
   let lastSrc = null;
-  let videoState = {};
-
-  // === SPA re-hook
+  let startTime = null;
+  let watchedTime = 0;
+  let prevDuration = 0;
+  let hasPlayed = false;
   let lastUrl = window.location.href;
 
-  function makeVideoState() {
-    return {
-      videoId: null,
-      src: null,
-      duration: 0,
-      lastCurrentTime: null,
-      watchedTime: 0,
-      started: false,
-      ended: false,
-      emitted: new Set(),
-      lastEventTs: {},
-      hookedAt: Date.now(),
-      endedAt: 0,
-      playAt: 0
-    };
-  }
-
-  videoState = makeVideoState();
-
-  const DEDUPE_MS = 500;
-  const HOOK_GRACE_MS = 1200;
-  const AUTOPLAY_REWATCH_MS = 2500;
-  const JUMP_MIN_DELTA_SEC = 0.9;
-  const SINGLE_SHOT = new Set([
-    "video-start", "video-stopped", "video-watched-100", "video-rewatch", "swiped-to-new-video"
-  ]);
-
+  // Helper to get YouTube Shorts video ID
   function getVideoId() {
     const match = window.location.href.match(/\/shorts\/([a-zA-Z0-9_-]{11})/);
     return match ? match[1] : null;
   }
 
-  function sendEventToServer(payload) {
-    payload.sessionId = window._swipeSessionId;
-    payload.userId = window._swipeUserId;
-    console.log("[SwipeExtension] Event ->", payload);
+  function saveEvent(eventData) {
+    eventData.sessionId = window._swipeSessionId;
+    eventData.userId = window._swipeUserId;
+    console.log("[SwipeExtension] Event saved:", eventData);
+
     fetch("https://swipe-extension-server-2.onrender.com/api/events", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    }).then(res => {
-      if (!res.ok) console.error("[SwipeExtension] Server error", res.statusText);
-    }).catch(err => console.error("[SwipeExtension] Fetch error ❌", err));
-  }
-
-  function dispatchEvent(type, extra = {}) {
-    const now = Date.now();
-    if (videoState.lastEventTs[type] && now - videoState.lastEventTs[type] < DEDUPE_MS) return;
-    if (SINGLE_SHOT.has(type) && videoState.emitted.has(type)) return;
-
-    videoState.lastEventTs[type] = now;
-    if (SINGLE_SHOT.has(type)) videoState.emitted.add(type);
-
-    if (!videoState.started && !["video-start"].includes(type)) {
-      videoState.started = true;
-      videoState.emitted.add("video-start");
-      sendEventToServer({
-        type: "video-start",
-        videoId: videoState.videoId,
-        src: videoState.src,
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    const payload = {
-      type,
-      videoId: videoState.videoId,
-      src: videoState.src,
-      timestamp: new Date().toISOString(),
-      ...extra
-    };
-    sendEventToServer(payload);
+      body: JSON.stringify(eventData),
+    })
+      .then((res) => {
+        if (res.ok) console.log("[SwipeExtension] Sent to server ✅");
+        else console.error("[SwipeExtension] Server error ❌", res.statusText);
+      })
+      .catch((err) => console.error("[SwipeExtension] Fetch error ❌", err));
   }
 
   function attachVideoEvents(video) {
     if (!video || video._hooked) return;
     video._hooked = true;
-    videoState.hookedAt = Date.now();
-    videoState.videoId = getVideoId();
-    videoState.src = video.src || null;
-    videoState.duration = video.duration || 0;
-    videoState.lastCurrentTime = null;
-    videoState.watchedTime = 0;
-    videoState.started = false;
-    videoState.ended = false;
-    videoState.emitted = new Set();
-    videoState.lastEventTs = {};
 
-    video.addEventListener("loadedmetadata", () => {
-      videoState.duration = video.duration || videoState.duration || 0;
-    });
+    console.log(`[SwipeExtension] 🎥 Hooking into video: ${video.src} (ID: ${getVideoId()})`);
+
+    video.addEventListener("loadedmetadata", () => { prevDuration = video.duration; });
 
     video.addEventListener("play", () => {
-      videoState.playAt = Date.now();
-      videoState.lastCurrentTime = video.currentTime || 0;
-      if (!videoState.started) {
-        dispatchEvent("video-start");
-        videoState.started = true;
-      } else {
-        dispatchEvent("video-resume");
-      }
-    });
-
-    video.addEventListener("timeupdate", () => {
-      const t = Number(video.currentTime || 0);
-      if (typeof videoState.lastCurrentTime === "number") {
-        const delta = t - videoState.lastCurrentTime;
-        if (delta > 0 && delta < 60) videoState.watchedTime += delta;
-      }
-      videoState.lastCurrentTime = t;
-
-      if (!videoState.emitted.has("video-watched-100") && videoState.duration && videoState.watchedTime >= (videoState.duration - 0.15)) {
-        dispatchEvent("video-watched-100", {
-          watchedTime: Number(videoState.duration.toFixed(2)),
-          duration: Number(videoState.duration.toFixed(2)),
-          percent: 100
-        });
-      }
+      setTimeout(() => {
+        const videoId = getVideoId();
+        if (!hasPlayed) {
+          saveEvent({ type: "video-start", videoId, src: video.src, timestamp: new Date().toISOString() });
+          hasPlayed = true;
+        } else {
+          saveEvent({ type: "video-resume", videoId, src: video.src, timestamp: new Date().toISOString() });
+        }
+      }, 100);
+      startTime = Date.now();
     });
 
     video.addEventListener("pause", () => {
-      const t = Number(video.currentTime || 0);
-      if (typeof videoState.lastCurrentTime === "number") {
-        const delta = t - videoState.lastCurrentTime;
-        if (delta > 0 && delta < 60) videoState.watchedTime += delta;
-      }
-      videoState.lastCurrentTime = null;
-
-      dispatchEvent("video-paused", {
-        watchedTime: Number(videoState.watchedTime.toFixed(2)),
-        duration: Number((videoState.duration || 0).toFixed(2)),
-        percent: videoState.duration ? Number(Math.min((videoState.watchedTime / videoState.duration) * 100, 100).toFixed(1)) : 0
+      if (startTime) watchedTime += (Date.now() - startTime) / 1000;
+      startTime = null;
+      const videoId = getVideoId();
+      const watchPercent = prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100) : 0;
+      saveEvent({
+        type: "video-paused",
+        videoId,
+        src: video.src,
+        timestamp: new Date().toISOString(),
+        watchedTime: watchedTime.toFixed(2),
+        duration: prevDuration.toFixed(2),
+        percent: watchPercent.toFixed(1),
       });
+    });
+
+    video.addEventListener("timeupdate", () => {
+      if (startTime) watchedTime += (Date.now() - startTime) / 1000;
+      startTime = Date.now();
+
+      if (prevDuration && watchedTime >= prevDuration) {
+        const videoId = getVideoId();
+        saveEvent({
+          type: "video-watched-100",
+          videoId,
+          src: video.src,
+          timestamp: new Date().toISOString(),
+          watchedTime: prevDuration.toFixed(2),
+          duration: prevDuration.toFixed(2),
+          percent: 100,
+        });
+        saveEvent({ type: "video-rewatch", videoId, src: video.src, timestamp: new Date().toISOString() });
+        watchedTime = 0;
+      }
     });
 
     video.addEventListener("ended", () => {
-      const t = Number(video.currentTime || 0);
-      if (typeof videoState.lastCurrentTime === "number") {
-        const delta = t - videoState.lastCurrentTime;
-        if (delta > 0 && delta < 60) videoState.watchedTime += delta;
-      }
-      videoState.lastCurrentTime = null;
-
-      if (!videoState.emitted.has("video-watched-100")) {
-        dispatchEvent("video-watched-100", {
-          watchedTime: Number((videoState.duration || videoState.watchedTime).toFixed(2)),
-          duration: Number((videoState.duration || 0).toFixed(2)),
-          percent: 100
-        });
-      }
-
-      dispatchEvent("video-ended", {
-        watchedTime: Number((videoState.duration || videoState.watchedTime).toFixed(2)),
-        duration: Number((videoState.duration || 0).toFixed(2)),
-        percent: 100
+      if (startTime) watchedTime += (Date.now() - startTime) / 1000;
+      startTime = null;
+      const videoId = getVideoId();
+      const watchPercent = prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100) : 0;
+      saveEvent({
+        type: "video-ended",
+        videoId,
+        src: video.src,
+        timestamp: new Date().toISOString(),
+        watchedTime: watchedTime.toFixed(2),
+        duration: prevDuration.toFixed(2),
+        percent: watchPercent.toFixed(1),
       });
-
-      videoState.ended = true;
-      videoState.endedAt = Date.now();
+      watchedTime = 0;
     });
 
+    // ================== JUMP / SEEK EVENT ==================
     video.addEventListener("seeked", () => {
-      const to = Number((video.currentTime || 0).toFixed(3));
-      const prev = (typeof videoState.lastCurrentTime === "number") ? videoState.lastCurrentTime : 0;
-      const delta = Math.abs(to - prev);
-      const now = Date.now();
-
-      if (videoState.ended && (now - videoState.endedAt) <= 2500 && to <= 0.5) {
-        if (!videoState.emitted.has("video-watched-100")) {
-          dispatchEvent("video-watched-100", {
-            watchedTime: Number((videoState.duration || videoState.watchedTime).toFixed(2)),
-            duration: Number((videoState.duration || 0).toFixed(2)),
-            percent: 100
-          });
-        }
-        dispatchEvent("video-rewatch");
-        videoState.watchedTime = 0;
-        videoState.lastCurrentTime = to;
-        videoState.started = true;
-        videoState.emitted = new Set();
-        return;
-      }
-
-      if ((now - videoState.hookedAt) <= 1200 && to <= 0.5 && prev <= 0.5) {
-        videoState.lastCurrentTime = to;
-        return;
-      }
-
-      if (delta >= 0.9) {
-        dispatchEvent("video-jump", { extra: { from: Number(prev.toFixed(2)), to: Number(to.toFixed(2)) } });
-      } else {
-        videoState.lastCurrentTime = to;
-      }
+      const videoId = getVideoId();
+      const to = video.currentTime;
+      console.log(`[SwipeExtension] video-jump 🔀 ${video.src} (ID: ${videoId}) - to ${to.toFixed(2)}s`);
+      saveEvent({
+        type: "video-jump",
+        videoId,
+        src: video.src,
+        timestamp: new Date().toISOString(),
+        extra: { from: watchedTime.toFixed(2), to }
+      });
     });
   }
 
+  // ================== OBSERVE VIDEO CHANGES ==================
   const observer = new MutationObserver(() => {
     const video = document.querySelector("video");
-    const vidId = getVideoId();
-    const srcChanged = video && video.src !== lastSrc;
-    const idChanged = vidId && vidId !== videoState.videoId;
+    if (video && video.src !== lastSrc) {
+      const videoId = getVideoId();
 
-    if (video && (srcChanged || idChanged)) {
-      if (currentVideo) {
-        if (typeof videoState.lastCurrentTime === "number" && currentVideo.currentTime) {
-          const t = Number(currentVideo.currentTime || 0);
-          const delta = t - videoState.lastCurrentTime;
-          if (delta > 0 && delta < 60) videoState.watchedTime += delta;
-        }
-
-        dispatchEvent("video-stopped", {
-          watchedTime: Number(videoState.watchedTime.toFixed(2)),
-          duration: Number((videoState.duration || 0).toFixed(2)),
-          percent: videoState.duration ? Number(Math.min((videoState.watchedTime / videoState.duration) * 100, 100).toFixed(1)) : 0
+      if (currentVideo && startTime) {
+        watchedTime += (Date.now() - startTime) / 1000;
+        saveEvent({
+          type: "video-stopped",
+          videoId: getVideoId(),
+          src: currentVideo.src,
+          timestamp: new Date().toISOString(),
+          watchedTime: watchedTime.toFixed(2),
+          duration: prevDuration.toFixed(2),
+          percent: prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100).toFixed(1) : 0,
         });
       }
 
       if (lastSrc) {
-        dispatchEvent("swiped-to-new-video", { extra: { previous: lastSrc } });
+        saveEvent({
+          type: "swiped-to-new-video",
+          videoId,
+          src: video.src,
+          timestamp: new Date().toISOString(),
+          extra: { previous: lastSrc },
+        });
       }
 
       currentVideo = video;
-      lastSrc = video ? video.src : null;
+      lastSrc = video.src;
+      startTime = Date.now();
+      watchedTime = 0;
+      prevDuration = video.duration || 0;
+      hasPlayed = false;
 
-      videoState = makeVideoState();
-      videoState.videoId = vidId;
-      videoState.src = lastSrc;
-      videoState.duration = video ? (video.duration || 0) : 0;
-      videoState.hookedAt = Date.now();
       attachVideoEvents(video);
     }
   });
 
   observer.observe(document.body, { childList: true, subtree: true });
 
+  // ================== RE-HOOK ON URL CHANGE ==================
   setInterval(() => {
     if (window.location.href !== lastUrl) {
       lastUrl = window.location.href;
       const video = document.querySelector("video");
       if (video) attachVideoEvents(video);
     }
-  }, 300);
+  }, 100);
 }
 
 // ================== SPA NAVIGATION CHECK ==================
