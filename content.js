@@ -175,25 +175,51 @@ function attachVideoTracking() {
       });
     });
 
-    // --- Timeupdate for watched-100 and rewatch ---
-    let lastSeekTime = 0;
-    let suppressNextJump = false; // ignore the first seek after watched-100
+    // --- Seek / Jump ---
+    video.addEventListener("seeked", () => {
+      const videoId = getVideoId();
+      const to = video.currentTime;
+      const from = videoState.lastSeek;
 
+      // Only fire jump if:
+      // 1️⃣ Not suppressed by rewatch
+      // 2️⃣ User actually jumped forward/backward
+      // 3️⃣ Not a jump at the very start of autoplay rewatch
+      const isRealJump = !videoState.suppressJump && Math.abs(from - to) > 0.1;
+
+      if (isRealJump) {
+        saveEvent({
+          type: "video-jump",
+          videoId,
+          src: video.src,
+          timestamp: new Date().toISOString(),
+          extra: { from: from.toFixed(2), to: to.toFixed(2) }
+        });
+      }
+
+      // Reset suppressJump only after first seek after rewatch
+      if (videoState.suppressJump) videoState.suppressJump = false;
+
+      // Always update lastSeek to current position
+      videoState.lastSeek = to;
+    });
+
+    // --- Timeupdate for watched-100 and rewatch ---
     video.addEventListener("timeupdate", () => {
-      if (startTime) watchedTime += (Date.now() - startTime) / 1000;
+      if (startTime) videoState.watchedTime += (Date.now() - startTime) / 1000;
       startTime = Date.now();
 
-      // Fire watched-100 and rewatch only once
-      if (!suppressNextJump && prevDuration && watchedTime >= prevDuration) {
+      if (!videoState.watched100 && videoState.prevDuration && videoState.watchedTime >= videoState.prevDuration) {
         const videoId = getVideoId();
 
+        // Fire watched-100 + rewatch
         saveEvent({
           type: "video-watched-100",
           videoId,
           src: video.src,
           timestamp: new Date().toISOString(),
-          watchedTime: prevDuration.toFixed(2),
-          duration: prevDuration.toFixed(2),
+          watchedTime: videoState.prevDuration.toFixed(2),
+          duration: videoState.prevDuration.toFixed(2),
           percent: 100
         });
 
@@ -204,39 +230,17 @@ function attachVideoTracking() {
           timestamp: new Date().toISOString()
         });
 
-        suppressNextJump = true;  // ✅ ignore the next false jump
-        watchedTime = 0;
-        return;
+        // Reset state for next round
+        videoState.watched100 = true;
+        videoState.watchedTime = 0;
+
+        // ✅ Mark that the next automatic jump (from 0 to X) should be ignored
+        videoState.suppressJump = true;
+
+        // Update lastSeek to the start of the rewatch video
+        videoState.lastSeek = video.currentTime;
       }
     });
-
-    // --- Seek / Jump ---
-    video.addEventListener("seeked", () => {
-      const videoId = getVideoId();
-      const to = video.currentTime;
-
-      if (suppressNextJump) {
-        // This seek is caused by rewatch after video ended → ignore it
-        suppressNextJump = false;
-        lastSeekTime = to; // update to real position
-        return;
-      }
-
-      // Normal jump
-      const from = lastSeekTime;
-      lastSeekTime = to;
-
-      if (from !== to) { // avoid firing jump if no real change
-        saveEvent({
-          type: "video-jump",
-          videoId,
-          src: video.src,
-          timestamp: new Date().toISOString(),
-          extra: { from: from.toFixed(2), to: to.toFixed(2) }
-        });
-      }
-    });
-
 
     // --- Ended ---
     video.addEventListener("ended", () => {
