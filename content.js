@@ -22,15 +22,12 @@ function showConsentPopup() {
   popup.style.textAlign = "center";
 
   popup.innerHTML = `
-    <h2 style="margin-top:0; font-size:20px;">🔒 Data Collection Notice</h2>
-    <p style="line-height:1.5;">
-      This extension collects your video interaction events 
-      (<b>play, pause, jumps, watch time</b>, etc.) for research purposes.  
-      A random user ID will be stored locally to recognize you across sessions.
-    </p>
-    <p><b>Do you agree?</b></p>
-    <button id="consent-yes" style="margin:10px; padding:10px 20px; font-size:16px;">✅ Yes</button>
-    <button id="consent-no" style="margin:10px; padding:10px 20px; font-size:16px;">❌ No</button>
+    <p><b>Data Collection Notice</b></p>
+    <p>This extension collects your video interaction events (play, pause, watch time, etc.) 
+       for research purposes. A random user ID will be stored locally to recognize you across sessions.</p>
+    <p>Do you agree?</p>
+    <button id="consent-yes" style="margin: 10px; padding:5px 15px;">Yes</button>
+    <button id="consent-no" style="margin: 10px; padding:5px 15px;">No</button>
   `;
 
   document.body.appendChild(popup);
