@@ -2,17 +2,20 @@ console.log("[SwipeExtension] Content script injected ✅");
 
 // ================== GDPR CONSENT ==================
 function showConsentPopup() {
+  if (document.getElementById("swipe-consent-popup")) return; // prevent duplicates
+
   const popup = document.createElement("div");
+  popup.id = "swipe-consent-popup";
   popup.style.position = "fixed";
   popup.style.top = "50%";
   popup.style.left = "50%";
   popup.style.transform = "translate(-50%, -50%)";
-  popup.style.width = "500px";
-  popup.style.padding = "25px";
+  popup.style.width = "400px";
+  popup.style.padding = "20px";
   popup.style.background = "white";
-  popup.style.border = "2px solid #444";
-  popup.style.borderRadius = "12px";
-  popup.style.boxShadow = "0 4px 20px rgba(0,0,0,0.3)";
+  popup.style.border = "1px solid #ccc";
+  popup.style.borderRadius = "8px";
+  popup.style.boxShadow = "0 2px 10px rgba(0,0,0,0.3)";
   popup.style.zIndex = "9999";
   popup.style.fontSize = "16px";
   popup.style.fontFamily = "Arial, sans-serif";
@@ -35,14 +38,13 @@ function showConsentPopup() {
   document.getElementById("consent-yes").onclick = () => {
     localStorage.setItem("swipeConsent", "true");
     popup.remove();
-    initExtension(true); // ✅ start tracking
+    initExtension(true); // persistent tracking
   };
 
   document.getElementById("consent-no").onclick = () => {
     localStorage.setItem("swipeConsent", "false");
     popup.remove();
-    console.log("[SwipeExtension] User denied consent ❌. Events will not be collected.");
-    // Do NOT call initExtension()
+    console.log("[SwipeExtension] User declined tracking ❌");
   };
 }
 
