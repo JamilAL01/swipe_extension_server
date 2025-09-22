@@ -100,18 +100,9 @@ function attachVideoTracking() {
   let hasPlayed = false;
   let lastUrl = window.location.href;
 
+  // === Fix: state for duplicates & autoplay detection ===
   let emittedEvents = new Set();
   let endedAt = 0;
-
-  // Wrap saveEvent to suppress duplicates
-  function emitOnce(event) {
-    const singleShot = ["video-start","video-stopped","video-watched-100","video-rewatch","swiped-to-new-video"];
-    if (singleShot.includes(event.type)) {
-      if (emittedEvents.has(event.type)) return;
-      emittedEvents.add(event.type);
-    }
-    saveEvent(event);
-  }
 
   function resetVideoState() {
     emittedEvents = new Set();
@@ -143,6 +134,16 @@ function attachVideoTracking() {
       .catch((err) => console.error("[SwipeExtension] Fetch error ❌", err));
   }
 
+  // === Wrapper to suppress duplicates ===
+  function emitOnce(event) {
+    const singleShot = ["video-start","video-stopped","video-watched-100","video-rewatch","swiped-to-new-video"];
+    if (singleShot.includes(event.type)) {
+      if (emittedEvents.has(event.type)) return;
+      emittedEvents.add(event.type);
+    }
+    saveEvent(event);
+  }
+
   function attachVideoEvents(video) {
     if (!video || video._hooked) return;
     video._hooked = true;
@@ -164,7 +165,6 @@ function attachVideoTracking() {
       startTime = Date.now();
     });
 
-
     video.addEventListener("pause", () => {
       if (startTime) watchedTime += (Date.now() - startTime) / 1000;
       startTime = null;
@@ -184,29 +184,12 @@ function attachVideoTracking() {
     video.addEventListener("timeupdate", () => {
       if (startTime) watchedTime += (Date.now() - startTime) / 1000;
       startTime = Date.now();
-
-  
-      if (prevDuration && watchedTime >= prevDuration) {
-        const videoId = getVideoId();
-        saveEvent({
-          type: "video-watched-100",
-          videoId,
-          src: video.src,
-          timestamp: new Date().toISOString(),
-          watchedTime: prevDuration.toFixed(2),
-          duration: prevDuration.toFixed(2),
-          percent: 100,
-        });
-        saveEvent({ type: "video-rewatch", videoId, src: video.src, timestamp: new Date().toISOString() });
-        watchedTime = 0;
-      }
     });
 
     video.addEventListener("ended", () => {
       if (startTime) watchedTime += (Date.now() - startTime) / 1000;
       startTime = null;
       const videoId = getVideoId();
-      const watchPercent = prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100) : 0;
       emitOnce({
         type: "video-watched-100",
         videoId,
@@ -216,19 +199,18 @@ function attachVideoTracking() {
         duration: prevDuration.toFixed(2),
         percent: 100
       });
-      endedAt = Date.now(); // mark so autoplay seek is recognized
+      endedAt = Date.now(); // mark for autoplay detection
     });
-
 
     // ================== JUMP / SEEK EVENT ==================
     video.addEventListener("seeked", () => {
       const videoId = getVideoId();
       const to = video.currentTime;
 
-      // Suppress jump if autoplay rewatch (seek ~0 right after ended)
+      // Fix: suppress jump if autoplay rewatch (seek to 0 after ended)
       if (endedAt && (Date.now() - endedAt < 3000) && to < 0.5) {
         emitOnce({ type: "video-rewatch", videoId, src: video.src, timestamp: new Date().toISOString() });
-        resetVideoState(); // prepare for fresh rewatch
+        resetVideoState(); // new view of same video
         return;
       }
 
@@ -247,11 +229,10 @@ function attachVideoTracking() {
     const video = document.querySelector("video");
     if (video && video.src !== lastSrc) {
       const videoId = getVideoId();
-      resetVideoState(); // clear emitted events for new video
-      
+
       if (currentVideo && startTime) {
         watchedTime += (Date.now() - startTime) / 1000;
-        saveEvent({
+        emitOnce({
           type: "video-stopped",
           videoId: getVideoId(),
           src: currentVideo.src,
@@ -263,7 +244,7 @@ function attachVideoTracking() {
       }
 
       if (lastSrc) {
-        saveEvent({
+        emitOnce({
           type: "swiped-to-new-video",
           videoId,
           src: video.src,
@@ -275,10 +256,9 @@ function attachVideoTracking() {
       currentVideo = video;
       lastSrc = video.src;
       startTime = Date.now();
-      watchedTime = 0;
       prevDuration = video.duration || 0;
-      hasPlayed = false;
 
+      resetVideoState(); // clear for new video
       attachVideoEvents(video);
     }
   });
