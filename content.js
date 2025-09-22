@@ -8,34 +8,50 @@ function showConsentPopup() {
 
   const popup = document.createElement("div");
   popup.id = "swipe-consent-popup";
+  popup.style.position = "fixed";
+  popup.style.top = "50%";
+  popup.style.left = "50%";
+  popup.style.transform = "translate(-50%, -50%)";
+  popup.style.width = "500px";
+  popup.style.padding = "25px";
+  popup.style.background = "white";
+  popup.style.border = "2px solid #444";
+  popup.style.borderRadius = "12px";
+  popup.style.boxShadow = "0 4px 20px rgba(0,0,0,0.3)";
+  popup.style.zIndex = "9999";
+  popup.style.fontSize = "16px";
+  popup.style.fontFamily = "Arial, sans-serif";
+  popup.style.textAlign = "center";
+
   popup.innerHTML = `
-    <div style="
-      position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
-      background:#222; color:white; padding:15px; border-radius:10px;
-      box-shadow:0 4px 10px rgba(0,0,0,0.3); z-index:999999;
-      font-family:sans-serif; max-width:300px; text-align:center;
-    ">
-      <p style="margin-bottom:10px;">Allow anonymous tracking to improve the extension?</p>
-      <button id="swipe-consent-yes" style="margin-right:10px; padding:5px 12px; border:none; border-radius:6px; cursor:pointer; background:#4caf50; color:white;">Yes</button>
-      <button id="swipe-consent-no" style="padding:5px 12px; border:none; border-radius:6px; cursor:pointer; background:#f44336; color:white;">No</button>
-    </div>
+    <h2 style="margin-top:0; font-size:20px;">🔒 Data Collection Notice</h2>
+    <p style="line-height:1.5;">
+      This extension collects your video interaction events 
+      (<b>play, pause, jumps, watch time</b>, etc.) for research purposes.<br>
+      A random user ID will be stored locally to recognize you across sessions.
+    </p>
+    <p><b>Do you agree?</b></p>
+    <button id="consent-yes" style="margin:10px; padding:10px 20px; font-size:16px; cursor:pointer;">✅ Yes</button>
+    <button id="consent-no" style="margin:10px; padding:10px 20px; font-size:16px; cursor:pointer;">❌ No</button>
   `;
+
   document.body.appendChild(popup);
 
-  document.getElementById("swipe-consent-yes").onclick = () => {
+  document.getElementById("consent-yes").onclick = () => {
     localStorage.setItem("swipeConsent", "yes");
     consent = "yes";
     popup.remove();
     console.log("[SwipeExtension] User consented ✅");
   };
 
-  document.getElementById("swipe-consent-no").onclick = () => {
+  document.getElementById("consent-no").onclick = () => {
     localStorage.setItem("swipeConsent", "no");
     consent = "no";
     popup.remove();
     console.log("[SwipeExtension] User declined ❌");
   };
 }
+
 
 // Show popup if no choice made yet
 if (!consent) {
