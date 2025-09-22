@@ -1,5 +1,47 @@
 console.log("[SwipeExtension] Content script injected ✅");
 
+// ================== GDPR CONSENT ==================
+let consent = localStorage.getItem("swipeConsent");
+
+function showConsentPopup() {
+  if (document.getElementById("swipe-consent-popup")) return;
+
+  const popup = document.createElement("div");
+  popup.id = "swipe-consent-popup";
+  popup.innerHTML = `
+    <div style="
+      position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+      background:#222; color:white; padding:15px; border-radius:10px;
+      box-shadow:0 4px 10px rgba(0,0,0,0.3); z-index:999999;
+      font-family:sans-serif; max-width:300px; text-align:center;
+    ">
+      <p style="margin-bottom:10px;">Allow anonymous tracking to improve the extension?</p>
+      <button id="swipe-consent-yes" style="margin-right:10px; padding:5px 12px; border:none; border-radius:6px; cursor:pointer; background:#4caf50; color:white;">Yes</button>
+      <button id="swipe-consent-no" style="padding:5px 12px; border:none; border-radius:6px; cursor:pointer; background:#f44336; color:white;">No</button>
+    </div>
+  `;
+  document.body.appendChild(popup);
+
+  document.getElementById("swipe-consent-yes").onclick = () => {
+    localStorage.setItem("swipeConsent", "yes");
+    consent = "yes";
+    popup.remove();
+    console.log("[SwipeExtension] User consented ✅");
+  };
+
+  document.getElementById("swipe-consent-no").onclick = () => {
+    localStorage.setItem("swipeConsent", "no");
+    consent = "no";
+    popup.remove();
+    console.log("[SwipeExtension] User declined ❌");
+  };
+}
+
+// Show popup if no choice made yet
+if (!consent) {
+  showConsentPopup();
+}
+
 // ================== USER & SESSION SETUP ==================
 let userId = localStorage.getItem("swipeUserId");
 if (!userId) {
@@ -28,8 +70,13 @@ function getVideoId() {
 }
 
 function saveEvent(eventData) {
+  if (consent !== "yes") {
+    console.log("[SwipeExtension] Tracking disabled by GDPR ❌");
+    return; // do not send events
+  }
+
   eventData.sessionId = sessionId;
-  eventData.userId = userId; // add user ID
+  eventData.userId = userId;
   console.log("[SwipeExtension] Event saved:", eventData);
 
   fetch("https://swipe-extension-server-2.onrender.com/api/events", {
@@ -121,7 +168,6 @@ function attachVideoEvents(video) {
     watchedTime = 0;
   });
 
-  // ================== NEW: JUMP / SEEK EVENT ==================
   video.addEventListener("seeked", () => {
     const videoId = getVideoId();
     saveEvent({
@@ -185,5 +231,3 @@ setInterval(() => {
     if (video) attachVideoEvents(video);
   }
 }, 100);
-
-
