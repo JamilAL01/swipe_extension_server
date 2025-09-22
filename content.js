@@ -36,6 +36,7 @@ function showConsentPopup() {
     popup.remove();
     initExtension();
   };
+
   document.getElementById("consent-no").onclick = () => {
     localStorage.setItem("swipeConsent", "false");
     popup.remove();
@@ -94,8 +95,6 @@ function saveEvent(eventData) {
 function attachVideoEvents(video) {
   if (!video || video._hooked) return;
   video._hooked = true;
-
-  console.log(`[SwipeExtension] 🎥 Hooking into video: ${video.src} (ID: ${getVideoId()})`);
 
   video.addEventListener("loadedmetadata", () => {
     prevDuration = video.duration;
@@ -233,6 +232,5 @@ if (consent === null) {
 // ================== INIT FUNCTION ==================
 function initExtension() {
   if (!trackingEnabled) return;
-  // setup userId/sessionId (already done above)
   console.log("[SwipeExtension] Tracking enabled ✅ UserID:", userId, "SessionID:", sessionId);
 }
