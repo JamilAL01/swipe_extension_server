@@ -181,13 +181,10 @@ function attachVideoTracking() {
       const to = video.currentTime;
       const from = videoState.lastSeek;
 
-      // Only fire jump if:
-      // 1️⃣ Not suppressed by rewatch
-      // 2️⃣ User actually jumped forward/backward
-      // 3️⃣ Not a jump at the very start of autoplay rewatch
-      const isRealJump = !videoState.suppressJump && Math.abs(from - to) > 0.1;
+      const isManualJump = !videoState.suppressJump && Math.abs(from - to) > 0.1;
 
-      if (isRealJump) {
+      if (isManualJump) {
+        // Only real user-initiated jumps are sent
         saveEvent({
           type: "video-jump",
           videoId,
@@ -197,7 +194,7 @@ function attachVideoTracking() {
         });
       }
 
-      // Reset suppressJump only after first seek after rewatch
+      // After first autoplay / rewatch, allow jumps again
       if (videoState.suppressJump) videoState.suppressJump = false;
 
       // Always update lastSeek to current position
@@ -209,6 +206,7 @@ function attachVideoTracking() {
       if (startTime) videoState.watchedTime += (Date.now() - startTime) / 1000;
       startTime = Date.now();
 
+      // Check if we reached 100% of the video
       if (!videoState.watched100 && videoState.prevDuration && videoState.watchedTime >= videoState.prevDuration) {
         const videoId = getVideoId();
 
@@ -230,17 +228,18 @@ function attachVideoTracking() {
           timestamp: new Date().toISOString()
         });
 
-        // Reset state for next round
+        // ✅ Prevent jump from being triggered at start of rewatch
+        videoState.suppressJump = true;
+
+        // Reset counters for rewatch
         videoState.watched100 = true;
         videoState.watchedTime = 0;
 
-        // ✅ Mark that the next automatic jump (from 0 to X) should be ignored
-        videoState.suppressJump = true;
-
-        // Update lastSeek to the start of the rewatch video
+        // **Update lastSeek to actual start of rewatch**, not 0
         videoState.lastSeek = video.currentTime;
       }
     });
+
 
     // --- Ended ---
     video.addEventListener("ended", () => {
