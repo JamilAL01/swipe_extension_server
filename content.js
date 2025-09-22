@@ -128,130 +128,106 @@ function attachVideoTracking() {
     }).catch(err => console.error("[SwipeExtension] Fetch error ❌", err));
   }
 
-  function hookVideo(video) {
-    if (!video || video._hooked) return;
-    video._hooked = true;
+    function hookVideo(video) {
+      if (!video || video._hooked) return;
+      video._hooked = true;
 
-    videoState.prevDuration = video.duration || 0;
-    videoState.watchedTime = 0;
-    videoState.lastSeek = 0;
-    videoState.started = false;
-    videoState.paused = false;
-    videoState.watched100 = false;
-    videoState.stopped = false;
-    videoState.swiped = false;
-    videoState.suppressJump = false;
+      // Get the video ID ONCE when hooking
+      const videoId = getVideoId(); // store it now
+      videoState.prevDuration = video.duration || 0;
+      videoState.watchedTime = 0;
+      videoState.lastSeek = 0;
+      videoState.started = false;
+      videoState.paused = false;
+      videoState.watched100 = false;
+      videoState.stopped = false;
+      videoState.swiped = false;
+      videoState.suppressJump = false;
 
-    let startTime = null;
+      let startTime = null;
 
-    // --- Play / Resume ---
-    video.addEventListener("play", () => {
-      startTime = Date.now();
-      const videoId = getVideoId();
+      // --- Play / Resume ---
+      video.addEventListener("play", () => {
+        startTime = Date.now();
 
-      if (!videoState.started) {
-        saveEvent({ type: "video-start", videoId, src: video.src, timestamp: new Date().toISOString() });
-        videoState.started = true;
-      } else {
-        saveEvent({ type: "video-resume", videoId, src: video.src, timestamp: new Date().toISOString() });
-      }
-    });
-
-    // --- Pause ---
-    video.addEventListener("pause", () => {
-      if (startTime) videoState.watchedTime += (Date.now() - startTime) / 1000;
-      startTime = null;
-      const videoId = getVideoId();
-      const percent = videoState.prevDuration ? Math.min((videoState.watchedTime / videoState.prevDuration) * 100, 100).toFixed(1) : 0;
-
-      saveEvent({
-        type: "video-paused",
-        videoId,
-        src: video.src,
-        timestamp: new Date().toISOString(),
-        watchedTime: videoState.watchedTime.toFixed(2),
-        duration: videoState.prevDuration.toFixed(2),
-        percent
+        if (!videoState.started) {
+          saveEvent({ type: "video-start", videoId, src: video.src, timestamp: new Date().toISOString() });
+          videoState.started = true;
+        } else {
+          saveEvent({ type: "video-resume", videoId, src: video.src, timestamp: new Date().toISOString() });
+        }
       });
-    });
 
-    // --- Seek / Jump ---
-    video.addEventListener("seeked", () => {
-      const videoId = getVideoId();
-      const to = video.currentTime;
-
-      if (videoState.suppressJump) {
-        videoState.suppressJump = false;
-        videoState.lastSeek = to;
-        return;
-      }
-
-      const from = videoState.lastSeek;
-      videoState.lastSeek = to;
-
-      saveEvent({
-        type: "video-jump",
-        videoId,
-        src: video.src,
-        timestamp: new Date().toISOString(),
-        extra: { from: from.toFixed(2), to: to.toFixed(2) }
-      });
-    });
-
-    // --- Timeupdate for watched-100 and rewatch ---
-    video.addEventListener("timeupdate", () => {
-      if (startTime) videoState.watchedTime += (Date.now() - startTime) / 1000;
-      startTime = Date.now();
-
-      if (!videoState.watched100 && videoState.prevDuration && videoState.watchedTime >= videoState.prevDuration) {
-        const videoId = getVideoId();
-        saveEvent({
-          type: "video-watched-100",
-          videoId,
-          src: video.src,
-          timestamp: new Date().toISOString(),
-          watchedTime: videoState.prevDuration.toFixed(2),
-          duration: videoState.prevDuration.toFixed(2),
-          percent: 100
-        });
-
-        saveEvent({
-          type: "video-rewatch",
-          videoId,
-          src: video.src,
-          timestamp: new Date().toISOString()
-        });
-
-        videoState.watched100 = true;
-        videoState.watchedTime = 0;
-        videoState.suppressJump = true; // prevent false jump immediately after rewatch
-      }
-    });
-
-    // --- Ended ---
-    video.addEventListener("ended", () => {
-      if (startTime) videoState.watchedTime += (Date.now() - startTime) / 1000;
-      startTime = null;
-
-      if (!videoState.stopped) {
-        const videoId = getVideoId();
+      // --- Pause ---
+      video.addEventListener("pause", () => {
+        if (startTime) videoState.watchedTime += (Date.now() - startTime) / 1000;
+        startTime = null;
         const percent = videoState.prevDuration ? Math.min((videoState.watchedTime / videoState.prevDuration) * 100, 100).toFixed(1) : 0;
 
         saveEvent({
-          type: "video-ended",
-          videoId,
+          type: "video-paused",
+          videoId,  // use stored videoId
           src: video.src,
           timestamp: new Date().toISOString(),
           watchedTime: videoState.watchedTime.toFixed(2),
           duration: videoState.prevDuration.toFixed(2),
           percent
         });
+      });
 
-        videoState.stopped = true;
-        videoState.watchedTime = 0;
-      }
-    });
-  }
+      // --- Timeupdate for watched-100 and rewatch ---
+      video.addEventListener("timeupdate", () => {
+        if (startTime) videoState.watchedTime += (Date.now() - startTime) / 1000;
+        startTime = Date.now();
+
+        if (!videoState.watched100 && videoState.prevDuration && videoState.watchedTime >= videoState.prevDuration) {
+          saveEvent({
+            type: "video-watched-100",
+            videoId, // use stored videoId
+            src: video.src,
+            timestamp: new Date().toISOString(),
+            watchedTime: videoState.prevDuration.toFixed(2),
+            duration: videoState.prevDuration.toFixed(2),
+            percent: 100
+          });
+
+          saveEvent({
+            type: "video-rewatch",
+            videoId, // use stored videoId
+            src: video.src,
+            timestamp: new Date().toISOString()
+          });
+
+          videoState.watched100 = true;
+          videoState.watchedTime = 0;
+          videoState.suppressJump = true; // prevent false jump immediately after rewatch
+        }
+      });
+
+      // --- Ended ---
+      video.addEventListener("ended", () => {
+        if (startTime) videoState.watchedTime += (Date.now() - startTime) / 1000;
+        startTime = null;
+
+        if (!videoState.stopped) {
+          const percent = videoState.prevDuration ? Math.min((videoState.watchedTime / videoState.prevDuration) * 100, 100).toFixed(1) : 0;
+
+          saveEvent({
+            type: "video-ended",
+            videoId, // use stored videoId
+            src: video.src,
+            timestamp: new Date().toISOString(),
+            watchedTime: videoState.watchedTime.toFixed(2),
+            duration: videoState.prevDuration.toFixed(2),
+            percent
+          });
+
+          videoState.stopped = true;
+          videoState.watchedTime = 0;
+        }
+      });
+    }
+
 
   // --- Observe video changes ---
   const observer = new MutationObserver(() => {
