@@ -136,10 +136,19 @@ function attachVideoTracking() {
 
     let startTime = null;
 
+    video.addEventListener("loadedmetadata", () => {
+      videoState.prevDuration = video.duration || videoState.prevDuration;
+    });
+
     // --- Play / Resume ---
     video.addEventListener("play", () => {
       startTime = Date.now();
       const videoId = getVideoId();
+
+      // Handle autoplay replays
+      if (videoState.watched100 && video.currentTime < 0.5) {
+        videoState.watched100 = false;
+      }
 
       if (!videoState.started) {
         saveEvent({ type: "video-start", videoId, src: video.src, timestamp: new Date().toISOString() });
@@ -174,6 +183,7 @@ function attachVideoTracking() {
 
       if (!videoState.watched100 && videoState.prevDuration && videoState.watchedTime >= videoState.prevDuration) {
         const videoId = getVideoId();
+
         saveEvent({
           type: "video-watched-100",
           videoId,
