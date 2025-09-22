@@ -175,40 +175,16 @@ function attachVideoTracking() {
       });
     });
 
-    // --- Seek / Jump ---
-    video.addEventListener("seeked", () => {
-      const videoId = getVideoId();
-      const to = video.currentTime;
-
-      if (videoState.suppressJump) {
-        console.log("[SwipeExtension] Ignored jump after watched-100 ✅");
-        videoState.suppressJump = false;
-        videoState.lastSeek = to; // update lastSeek to correct value
-        return;
-      }
-
-      const from = videoState.lastSeek;
-      videoState.lastSeek = to;
-
-      // Only fire jump if from ≠ to (prevents false events)
-      if (from !== to) {
-        saveEvent({
-          type: "video-jump",
-          videoId,
-          src: video.src,
-          timestamp: new Date().toISOString(),
-          extra: { from: from.toFixed(2), to: to.toFixed(2) }
-        });
-      }
-    });
-
-
     // --- Timeupdate for watched-100 and rewatch ---
+    let lastSeekTime = 0;
+    let suppressNextJump = false; // ignore the first seek after watched-100
+
     video.addEventListener("timeupdate", () => {
-      if (startTime) videoState.watchedTime += (Date.now() - startTime) / 1000;
+      if (startTime) watchedTime += (Date.now() - startTime) / 1000;
       startTime = Date.now();
 
-      if (!videoState.watched100 && videoState.prevDuration && videoState.watchedTime >= videoState.prevDuration) {
+      // Fire watched-100 and rewatch only once
+      if (!suppressNextJump && prevDuration && watchedTime >= prevDuration) {
         const videoId = getVideoId();
 
         saveEvent({
@@ -216,8 +192,8 @@ function attachVideoTracking() {
           videoId,
           src: video.src,
           timestamp: new Date().toISOString(),
-          watchedTime: videoState.prevDuration.toFixed(2),
-          duration: videoState.prevDuration.toFixed(2),
+          watchedTime: prevDuration.toFixed(2),
+          duration: prevDuration.toFixed(2),
           percent: 100
         });
 
@@ -228,13 +204,39 @@ function attachVideoTracking() {
           timestamp: new Date().toISOString()
         });
 
-        videoState.watched100 = true;
-        videoState.suppressJump = true;  // ✅ suppress next false jump
-        videoState.watchedTime = 0;
-        // Do NOT reset lastSeek here! Keep lastSeek as the real previous position
+        suppressNextJump = true;  // ✅ ignore the next false jump
+        watchedTime = 0;
+        return;
+      }
+    });
+
+    // --- Seek / Jump ---
+    video.addEventListener("seeked", () => {
+      const videoId = getVideoId();
+      const to = video.currentTime;
+
+      if (suppressNextJump) {
+        // This seek is caused by rewatch after video ended → ignore it
+        suppressNextJump = false;
+        lastSeekTime = to; // update to real position
+        return;
       }
 
+      // Normal jump
+      const from = lastSeekTime;
+      lastSeekTime = to;
+
+      if (from !== to) { // avoid firing jump if no real change
+        saveEvent({
+          type: "video-jump",
+          videoId,
+          src: video.src,
+          timestamp: new Date().toISOString(),
+          extra: { from: from.toFixed(2), to: to.toFixed(2) }
+        });
+      }
     });
+
 
     // --- Ended ---
     video.addEventListener("ended", () => {
