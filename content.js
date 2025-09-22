@@ -2,7 +2,7 @@ console.log("[SwipeExtension] Content script injected ✅");
 
 // ================== GDPR CONSENT ==================
 function showConsentPopup() {
-  if (document.getElementById("swipe-consent-popup")) return;
+  if (document.getElementById("swipe-consent-popup")) return; // prevent duplicates
 
   const popup = document.createElement("div");
   popup.id = "swipe-consent-popup";
@@ -35,7 +35,7 @@ function showConsentPopup() {
   document.getElementById("consent-yes").onclick = () => {
     localStorage.setItem("swipeConsent", "true");
     popup.remove();
-    initExtension(true);
+    initExtension(true); // persistent tracking
   };
 
   document.getElementById("consent-no").onclick = () => {
@@ -49,6 +49,7 @@ function showConsentPopup() {
 function initExtension(persistent = true) {
   console.log("[SwipeExtension] Initializing extension...");
 
+  // ---------- USER ID ----------
   let userId;
   if (persistent) {
     userId = localStorage.getItem("swipeUserId");
@@ -65,6 +66,7 @@ function initExtension(persistent = true) {
   }
   window._swipeUserId = userId;
 
+  // ---------- SESSION ID ----------
   let sessionId = sessionStorage.getItem("swipeSessionId");
   if (!sessionId) {
     sessionId = crypto.randomUUID();
@@ -72,6 +74,7 @@ function initExtension(persistent = true) {
   }
   window._swipeSessionId = sessionId;
 
+  // ---------- VIDEO EVENT LOGIC ----------
   attachVideoTracking();
 }
 
@@ -81,7 +84,7 @@ function checkConsent() {
   if (consent === "true") initExtension(true);
   else if (consent === "false") {
     console.log("[SwipeExtension] User declined tracking ❌");
-    return;
+    return; // do nothing
   } else {
     showConsentPopup();
   }
@@ -93,12 +96,17 @@ function attachVideoTracking() {
   let lastSrc = null;
   let lastUrl = window.location.href;
 
+  // Track video state per video
   const videoState = {
     started: false,
     paused: false,
     watched100: false,
     stopped: false,
-    swiped: false
+    swiped: false,
+    lastSeek: 0,
+    suppressJump: false,
+    watchedTime: 0,
+    prevDuration: 0
   };
 
   function getVideoId() {
@@ -124,19 +132,21 @@ function attachVideoTracking() {
     if (!video || video._hooked) return;
     video._hooked = true;
 
+    videoState.prevDuration = video.duration || 0;
+    videoState.watchedTime = 0;
+    videoState.lastSeek = 0;
     videoState.started = false;
     videoState.paused = false;
     videoState.watched100 = false;
     videoState.stopped = false;
     videoState.swiped = false;
+    videoState.suppressJump = false;
 
-    let prevDuration = video.duration || 0;
+    let startTime = null;
 
-    video.addEventListener("loadedmetadata", () => {
-      prevDuration = video.duration || prevDuration;
-    });
-
+    // --- Play / Resume ---
     video.addEventListener("play", () => {
+      startTime = Date.now();
       const videoId = getVideoId();
 
       if (!videoState.started) {
@@ -147,31 +157,61 @@ function attachVideoTracking() {
       }
     });
 
+    // --- Pause ---
     video.addEventListener("pause", () => {
+      if (startTime) videoState.watchedTime += (Date.now() - startTime) / 1000;
+      startTime = null;
       const videoId = getVideoId();
+      const percent = videoState.prevDuration ? Math.min((videoState.watchedTime / videoState.prevDuration) * 100, 100).toFixed(1) : 0;
+
       saveEvent({
         type: "video-paused",
         videoId,
         src: video.src,
         timestamp: new Date().toISOString(),
-        watchedTime: video.currentTime.toFixed(2),
-        duration: prevDuration.toFixed(2),
-        percent: prevDuration ? Math.min((video.currentTime / prevDuration) * 100, 100).toFixed(1) : 0
+        watchedTime: videoState.watchedTime.toFixed(2),
+        duration: videoState.prevDuration.toFixed(2),
+        percent
       });
     });
 
-    video.addEventListener("timeupdate", () => {
+    // --- Seek / Jump ---
+    video.addEventListener("seeked", () => {
       const videoId = getVideoId();
-      const percent = prevDuration ? Math.min((video.currentTime / prevDuration) * 100, 100) : 0;
+      const to = video.currentTime;
 
-      if (!videoState.watched100 && percent >= 100) {
+      if (videoState.suppressJump) {
+        videoState.suppressJump = false;
+        videoState.lastSeek = to;
+        return;
+      }
+
+      const from = videoState.lastSeek;
+      videoState.lastSeek = to;
+
+      saveEvent({
+        type: "video-jump",
+        videoId,
+        src: video.src,
+        timestamp: new Date().toISOString(),
+        extra: { from: from.toFixed(2), to: to.toFixed(2) }
+      });
+    });
+
+    // --- Timeupdate for watched-100 and rewatch ---
+    video.addEventListener("timeupdate", () => {
+      if (startTime) videoState.watchedTime += (Date.now() - startTime) / 1000;
+      startTime = Date.now();
+
+      if (!videoState.watched100 && videoState.prevDuration && videoState.watchedTime >= videoState.prevDuration) {
+        const videoId = getVideoId();
         saveEvent({
           type: "video-watched-100",
           videoId,
           src: video.src,
           timestamp: new Date().toISOString(),
-          watchedTime: prevDuration.toFixed(2),
-          duration: prevDuration.toFixed(2),
+          watchedTime: videoState.prevDuration.toFixed(2),
+          duration: videoState.prevDuration.toFixed(2),
           percent: 100
         });
 
@@ -183,38 +223,52 @@ function attachVideoTracking() {
         });
 
         videoState.watched100 = true;
+        videoState.watchedTime = 0;
+        videoState.suppressJump = true; // prevent false jump immediately after rewatch
       }
     });
 
+    // --- Ended ---
     video.addEventListener("ended", () => {
-      const videoId = getVideoId();
-      saveEvent({
-        type: "video-ended",
-        videoId,
-        src: video.src,
-        timestamp: new Date().toISOString(),
-        watchedTime: prevDuration.toFixed(2),
-        duration: prevDuration.toFixed(2),
-        percent: 100
-      });
-      videoState.stopped = true;
+      if (startTime) videoState.watchedTime += (Date.now() - startTime) / 1000;
+      startTime = null;
+
+      if (!videoState.stopped) {
+        const videoId = getVideoId();
+        const percent = videoState.prevDuration ? Math.min((videoState.watchedTime / videoState.prevDuration) * 100, 100).toFixed(1) : 0;
+
+        saveEvent({
+          type: "video-ended",
+          videoId,
+          src: video.src,
+          timestamp: new Date().toISOString(),
+          watchedTime: videoState.watchedTime.toFixed(2),
+          duration: videoState.prevDuration.toFixed(2),
+          percent
+        });
+
+        videoState.stopped = true;
+        videoState.watchedTime = 0;
+      }
     });
   }
 
-  // Observe video changes
+  // --- Observe video changes ---
   const observer = new MutationObserver(() => {
     const video = document.querySelector("video");
     if (video && video.src !== lastSrc) {
       if (currentVideo && !videoState.stopped) {
         const videoId = getVideoId();
+        const percent = videoState.prevDuration ? Math.min((videoState.watchedTime / videoState.prevDuration) * 100, 100).toFixed(1) : 0;
+
         saveEvent({
           type: "video-stopped",
           videoId,
           src: currentVideo.src,
           timestamp: new Date().toISOString(),
-          watchedTime: currentVideo.currentTime.toFixed(2),
-          duration: currentVideo.duration.toFixed(2),
-          percent: currentVideo.duration ? Math.min((currentVideo.currentTime / currentVideo.duration) * 100, 100).toFixed(1) : 0
+          watchedTime: videoState.watchedTime.toFixed(2),
+          duration: videoState.prevDuration.toFixed(2),
+          percent
         });
       }
 
@@ -232,11 +286,16 @@ function attachVideoTracking() {
       currentVideo = video;
       lastSrc = video.src;
 
+      // Reset state for new video
       videoState.started = false;
       videoState.paused = false;
       videoState.watched100 = false;
       videoState.stopped = false;
       videoState.swiped = false;
+      videoState.suppressJump = false;
+      videoState.lastSeek = 0;
+      videoState.watchedTime = 0;
+      videoState.prevDuration = video.duration || 0;
 
       hookVideo(video);
     }
@@ -244,7 +303,7 @@ function attachVideoTracking() {
 
   observer.observe(document.body, { childList: true, subtree: true });
 
-  // SPA URL change
+  // --- SPA URL change ---
   setInterval(() => {
     if (window.location.href !== lastUrl) {
       lastUrl = window.location.href;
