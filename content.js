@@ -217,24 +217,49 @@ function attachVideoTracking() {
       if (startTime) videoState.watchedTime += (Date.now() - startTime) / 1000;
       startTime = null;
 
-      if (!videoState.stopped) {
-        const videoId = getVideoId();
-        const percent = videoState.prevDuration ? Math.min((videoState.watchedTime / videoState.prevDuration) * 100, 100).toFixed(1) : 0;
+      const videoId = getVideoId();
 
+      // If fully watched but not yet flagged
+      if (!videoState.watched100 && videoState.prevDuration && videoState.watchedTime >= videoState.prevDuration) {
         saveEvent({
-          type: "video-ended",
+          type: "video-watched-100",
           videoId,
           src: video.src,
           timestamp: new Date().toISOString(),
-          watchedTime: videoState.watchedTime.toFixed(2),
+          watchedTime: videoState.prevDuration.toFixed(2),
           duration: videoState.prevDuration.toFixed(2),
-          percent
+          percent: 100
         });
 
-        videoState.stopped = true;
-        videoState.watchedTime = 0;
+        saveEvent({
+          type: "video-rewatch",
+          videoId,
+          src: video.src,
+          timestamp: new Date().toISOString()
+        });
+
+        videoState.watched100 = true;
       }
+
+      // Video ended event
+      saveEvent({
+        type: "video-ended",
+        videoId,
+        src: video.src,
+        timestamp: new Date().toISOString(),
+        watchedTime: videoState.watchedTime.toFixed(2),
+        duration: videoState.prevDuration.toFixed(2),
+        percent: videoState.prevDuration ? Math.min((videoState.watchedTime / videoState.prevDuration) * 100, 100).toFixed(1) : 0
+      });
+
+      videoState.stopped = true;
+      videoState.watchedTime = 0;
+
+      // Prepare for rewatch/autoplay
+      videoState.watched100 = false;
+      videoState.lastSeek = 0;
     });
+
   }
 
   // --- Observe video changes ---
