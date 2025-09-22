@@ -92,24 +92,27 @@ function checkConsent() {
 
 // ================== VIDEO TRACKING FUNCTION ==================
 function attachVideoTracking() {
+  // high-level state
   let currentVideo = null;
   let lastSrc = null;
-  let startTime = null;
-  let watchedTime = 0;
+  let lastVideoTime = null; // last known currentTime (seconds)
+  let watchedTime = 0; // accumulated seconds for the current view
   let prevDuration = 0;
   let hasPlayed = false;
-  let lastUrl = window.location.href;
 
-  // === Fix: state for duplicates & autoplay detection ===
+  // robust detection & suppression config
+  const DUPLICATE_SUPPRESSION_MS = 800;            // suppress same event fired rapidly
+  const AUTOPLAY_REWATCH_WINDOW_MS = 3000;        // ended -> quick restart => rewatch
+  const JUMP_MIN_DELTA_SEC = 1.0;                 // only treat seek as jump if >= 1s change
+  const HOOK_GRACE_PERIOD_MS = 2000;              // ignore small seeks during initial hook
+  const singleShot = new Set(["video-start","video-stopped","video-watched-100","video-rewatch","swiped-to-new-video"]);
+
+  // per-video runtime state
   let emittedEvents = new Set();
-  let endedAt = 0;
-
-  function resetVideoState() {
-    emittedEvents = new Set();
-    endedAt = 0;
-    watchedTime = 0;
-    hasPlayed = false;
-  }
+  let lastEventTs = {};     // eventType -> timestamp
+  let endedAt = 0;          // ms when ended fired
+  let hookedAt = 0;         // ms when attachVideoEvents ran
+  let lastVideoId = null;   // to detect video changes (use id, not only src)
 
   // Helper to get YouTube Shorts video ID
   function getVideoId() {
@@ -117,10 +120,12 @@ function attachVideoTracking() {
     return match ? match[1] : null;
   }
 
-  function saveEvent(eventData) {
+  // send event to server (keeps your original payload keys)
+  function sendEventToServer(eventData) {
     eventData.sessionId = window._swipeSessionId;
     eventData.userId = window._swipeUserId;
-    console.log("[SwipeExtension] Event saved:", eventData);
+    // keep logging for debugging
+    console.log("[SwipeExtension] Event:", eventData);
 
     fetch("https://swipe-extension-server-2.onrender.com/api/events", {
       method: "POST",
@@ -134,152 +139,264 @@ function attachVideoTracking() {
       .catch((err) => console.error("[SwipeExtension] Fetch error ❌", err));
   }
 
-  // === Wrapper to suppress duplicates ===
-  function emitOnce(event) {
-    const singleShot = ["video-start","video-stopped","video-watched-100","video-rewatch","swiped-to-new-video"];
-    if (singleShot.includes(event.type)) {
-      if (emittedEvents.has(event.type)) return;
+  // decide whether to emit (dedupe & single-shot)
+  function maybeEmit(event) {
+    const nowMs = Date.now();
+    // time-based duplicate suppression for any event
+    const lastTs = lastEventTs[event.type] || 0;
+    if (nowMs - lastTs < DUPLICATE_SUPPRESSION_MS) {
+      // suppress very rapid duplicates
+      console.debug("[tracker] suppressed rapid duplicate", event.type);
+      return;
+    }
+
+    // single-shot per video
+    if (singleShot.has(event.type)) {
+      if (emittedEvents.has(event.type)) {
+        console.debug("[tracker] already emitted single-shot", event.type);
+        return;
+      }
       emittedEvents.add(event.type);
     }
-    saveEvent(event);
+
+    lastEventTs[event.type] = nowMs;
+    sendEventToServer(event);
+  }
+
+  function resetVideoStateForNewView() {
+    emittedEvents = new Set();
+    lastEventTs = {};
+    endedAt = 0;
+    lastVideoTime = null;
+    watchedTime = 0;
+    hasPlayed = false;
+    hookedAt = Date.now();
   }
 
   function attachVideoEvents(video) {
     if (!video || video._hooked) return;
     video._hooked = true;
+    hookedAt = Date.now();
+    lastVideoId = getVideoId();
 
-    console.log(`[SwipeExtension] 🎥 Hooking into video: ${video.src} (ID: ${getVideoId()})`);
+    console.log(`[SwipeExtension] 🎥 Hooking into video: ${video.src} (ID: ${lastVideoId})`);
 
-    video.addEventListener("loadedmetadata", () => { prevDuration = video.duration; });
+    video.addEventListener("loadedmetadata", () => {
+      prevDuration = video.duration || 0;
+    });
 
     video.addEventListener("play", () => {
+      // small delay to allow currentTime to stabilize sometimes
       setTimeout(() => {
         const videoId = getVideoId();
         if (!hasPlayed) {
-          emitOnce({ type: "video-start", videoId, src: video.src, timestamp: new Date().toISOString() });
+          maybeEmit({ type: "video-start", videoId, src: video.src, timestamp: new Date().toISOString() });
           hasPlayed = true;
         } else {
-          saveEvent({ type: "video-resume", videoId, src: video.src, timestamp: new Date().toISOString() });
+          maybeEmit({ type: "video-resume", videoId, src: video.src, timestamp: new Date().toISOString() });
         }
-      }, 100);
-      startTime = Date.now();
+      }, 80);
+      // set lastVideoTime to the current playback position
+      lastVideoTime = video.currentTime || 0;
+    });
+
+    video.addEventListener("timeupdate", () => {
+      const t = video.currentTime || 0;
+      if (lastVideoTime !== null && typeof lastVideoTime === "number") {
+        const delta = t - lastVideoTime;
+        // accumulate only forward (positive) deltas and ignore absurd jumps
+        if (delta > 0 && delta < 60) {
+          watchedTime += delta;
+        }
+      }
+      lastVideoTime = t;
+
+      // defensive early watched-100 detection (if user reaches near full length)
+      if (!emittedEvents.has("video-watched-100") && prevDuration && watchedTime >= (prevDuration - 0.15)) {
+        maybeEmit({
+          type: "video-watched-100",
+          videoId: getVideoId(),
+          src: video.src,
+          timestamp: new Date().toISOString(),
+          watchedTime: prevDuration.toFixed(2),
+          duration: prevDuration.toFixed(2),
+          percent: 100
+        });
+      }
     });
 
     video.addEventListener("pause", () => {
-      if (startTime) watchedTime += (Date.now() - startTime) / 1000;
-      startTime = null;
+      // ensure we capture any outstanding progress (in case no recent timeupdate)
+      const t = video.currentTime || 0;
+      if (lastVideoTime !== null) {
+        const delta = t - lastVideoTime;
+        if (delta > 0 && delta < 60) watchedTime += delta;
+      }
+      lastVideoTime = null;
+
       const videoId = getVideoId();
       const watchPercent = prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100) : 0;
-      saveEvent({
+      maybeEmit({
         type: "video-paused",
         videoId,
         src: video.src,
         timestamp: new Date().toISOString(),
         watchedTime: watchedTime.toFixed(2),
-        duration: prevDuration.toFixed(2),
-        percent: watchPercent.toFixed(1),
+        duration: prevDuration ? prevDuration.toFixed(2) : 0,
+        percent: Number(watchPercent.toFixed(1))
       });
-    });
-
-    video.addEventListener("timeupdate", () => {
-      if (startTime) watchedTime += (Date.now() - startTime) / 1000;
-      startTime = Date.now();
     });
 
     video.addEventListener("ended", () => {
-      if (startTime) watchedTime += (Date.now() - startTime) / 1000;
-      startTime = null;
-      const videoId = getVideoId();
-      emitOnce({
+      // finalize watchedTime
+      const t = video.currentTime || 0;
+      if (lastVideoTime !== null) {
+        const delta = t - lastVideoTime;
+        if (delta > 0 && delta < 60) watchedTime += delta;
+      }
+      lastVideoTime = null;
+
+      // emit watched-100 once
+      maybeEmit({
         type: "video-watched-100",
-        videoId,
+        videoId: getVideoId(),
         src: video.src,
         timestamp: new Date().toISOString(),
-        watchedTime: prevDuration.toFixed(2),
-        duration: prevDuration.toFixed(2),
+        watchedTime: prevDuration ? prevDuration.toFixed(2) : watchedTime.toFixed(2),
+        duration: prevDuration ? prevDuration.toFixed(2) : 0,
         percent: 100
       });
-      endedAt = Date.now(); // mark for autoplay detection
+
+      endedAt = Date.now();
+      // do NOT emit rewatch here - wait for a subsequent play/seek detection
     });
 
-    // ================== JUMP / SEEK EVENT ==================
     video.addEventListener("seeked", () => {
       const videoId = getVideoId();
-      const to = video.currentTime;
+      const to = Number((video.currentTime || 0).toFixed(3));
+      const prev = (lastVideoTime !== null && typeof lastVideoTime === "number") ? lastVideoTime : 0;
+      const delta = Math.abs(to - prev);
+      const nowMs = Date.now();
 
-      // Fix: suppress jump if autoplay rewatch (seek to 0 after ended)
-      if (endedAt && (Date.now() - endedAt < 3000) && to < 0.5) {
-        emitOnce({ type: "video-rewatch", videoId, src: video.src, timestamp: new Date().toISOString() });
-        resetVideoState(); // new view of same video
+      // 1) Autoplay rewatch: ended recently and we seek back near start -> rewatch (not jump)
+      if (endedAt && (nowMs - endedAt) <= AUTOPLAY_REWATCH_WINDOW_MS && to <= 0.5) {
+        // ensure watched-100 was emitted (ended handler does that, but be defensive)
+        if (!emittedEvents.has("video-watched-100")) {
+          maybeEmit({
+            type: "video-watched-100",
+            videoId,
+            src: video.src,
+            timestamp: new Date().toISOString(),
+            watchedTime: prevDuration ? prevDuration.toFixed(2) : watchedTime.toFixed(2),
+            duration: prevDuration ? prevDuration.toFixed(2) : 0,
+            percent: 100
+          });
+        }
+        // emit rewatch (single-shot)
+        maybeEmit({ type: "video-rewatch", videoId, src: video.src, timestamp: new Date().toISOString() });
+        // reset counters — new view of same video
+        resetVideoStateForNewView();
         return;
       }
 
-      saveEvent({
+      // 2) Initialization noise: hooking/early play can trigger a seek->0; suppress small seeks during grace window
+      if ((nowMs - hookedAt) <= HOOK_GRACE_PERIOD_MS && to <= 0.5 && prev <= 0.5) {
+        console.debug("[tracker] suppressed init-seek noise (not a user jump)");
+        lastVideoTime = to; // keep time pointer in sync
+        return;
+      }
+
+      // 3) Only treat as a real user jump when the change is meaningful (>= JUMP_MIN_DELTA_SEC)
+      if (delta < JUMP_MIN_DELTA_SEC) {
+        console.debug("[tracker] suppressed tiny seek (delta < JUMP_MIN_DELTA_SEC)", delta);
+        lastVideoTime = to;
+        return;
+      }
+
+      // Otherwise it's a real jump/seek
+      maybeEmit({
         type: "video-jump",
         videoId,
         src: video.src,
         timestamp: new Date().toISOString(),
-        extra: { to: to.toFixed(2) }
+        extra: { from: Number(prev.toFixed(2)), to: Number(to.toFixed(2)) }
       });
+
+      // update pointer
+      lastVideoTime = to;
     });
   }
 
   // ================== OBSERVE VIDEO CHANGES ==================
   const observer = new MutationObserver(() => {
     const video = document.querySelector("video");
-    if (video && video.src !== lastSrc) {
-      const videoId = getVideoId();
+    const vidId = getVideoId();
 
-      if (currentVideo && startTime) {
-        watchedTime += (Date.now() - startTime) / 1000;
-        emitOnce({
+    // video change detection:
+    const changedBySrc = video && video.src !== lastSrc;
+    const changedById = vidId && vidId !== lastVideoId;
+
+    if (video && (changedBySrc || changedById)) {
+      // previous video stopped -> emit once
+      if (currentVideo) {
+        // make sure to account for outstanding time
+        if (lastVideoTime !== null) {
+          const t = currentVideo.currentTime || 0;
+          const delta = t - lastVideoTime;
+          if (delta > 0 && delta < 60) watchedTime += delta;
+        }
+        maybeEmit({
           type: "video-stopped",
-          videoId: getVideoId(),
+          videoId: lastVideoId || getVideoId(),
           src: currentVideo.src,
           timestamp: new Date().toISOString(),
           watchedTime: watchedTime.toFixed(2),
-          duration: prevDuration.toFixed(2),
-          percent: prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100).toFixed(1) : 0,
+          duration: prevDuration ? prevDuration.toFixed(2) : 0,
+          percent: prevDuration ? Number(Math.min((watchedTime / prevDuration) * 100, 100).toFixed(1)) : 0
         });
       }
 
-      if (lastSrc) {
-        emitOnce({
+      // if there was a previous src, emit swiped-to-new-video (single-shot)
+      if (lastSrc || lastVideoId) {
+        maybeEmit({
           type: "swiped-to-new-video",
-          videoId,
-          src: video.src,
+          videoId: vidId,
+          src: video ? video.src : null,
           timestamp: new Date().toISOString(),
-          extra: { previous: lastSrc },
+          extra: { previousSrc: lastSrc, previousVideoId: lastVideoId }
         });
       }
 
+      // switch to the new one
       currentVideo = video;
-      lastSrc = video.src;
-      startTime = Date.now();
-      prevDuration = video.duration || 0;
-
-      resetVideoState(); // clear for new video
-      attachVideoEvents(video);
+      lastSrc = video ? video.src : null;
+      prevDuration = video ? (video.duration || 0) : 0;
+      resetVideoStateForNewView();
+      if (video) attachVideoEvents(video);
     }
   });
 
   observer.observe(document.body, { childList: true, subtree: true });
 
-  // ================== RE-HOOK ON URL CHANGE ==================
+  // ================== RE-HOOK ON URL / SPA CHANGE ==================
+  let lastUrl = window.location.href;
   setInterval(() => {
     if (window.location.href !== lastUrl) {
       lastUrl = window.location.href;
       const video = document.querySelector("video");
-      if (video) attachVideoEvents(video);
+      if (video) {
+        // attempt re-hook — attachVideoEvents guards by video._hooked
+        attachVideoEvents(video);
+      }
     }
-  }, 100);
+  }, 300);
 }
 
 // ================== SPA NAVIGATION CHECK ==================
-let lastUrl = window.location.href;
+let lastUrlGlobal = window.location.href;
 setInterval(() => {
-  if (window.location.href !== lastUrl) {
-    lastUrl = window.location.href;
+  if (window.location.href !== lastUrlGlobal) {
+    lastUrlGlobal = window.location.href;
     checkConsent();
   }
 }, 1000);
