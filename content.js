@@ -98,9 +98,7 @@ function attachVideoTracking() {
     paused: false,
     watched100: false,
     stopped: false,
-    swiped: false,
-    watchedTime: 0,
-    prevDuration: 0
+    swiped: false
   };
 
   function getVideoId() {
@@ -126,29 +124,20 @@ function attachVideoTracking() {
     if (!video || video._hooked) return;
     video._hooked = true;
 
-    videoState.prevDuration = video.duration || 0;
-    videoState.watchedTime = 0;
     videoState.started = false;
     videoState.paused = false;
     videoState.watched100 = false;
     videoState.stopped = false;
     videoState.swiped = false;
 
-    let startTime = null;
+    let prevDuration = video.duration || 0;
 
     video.addEventListener("loadedmetadata", () => {
-      videoState.prevDuration = video.duration || videoState.prevDuration;
+      prevDuration = video.duration || prevDuration;
     });
 
-    // --- Play / Resume ---
     video.addEventListener("play", () => {
-      startTime = Date.now();
       const videoId = getVideoId();
-
-      // Handle autoplay replays
-      if (videoState.watched100 && video.currentTime < 0.5) {
-        videoState.watched100 = false;
-      }
 
       if (!videoState.started) {
         saveEvent({ type: "video-start", videoId, src: video.src, timestamp: new Date().toISOString() });
@@ -158,30 +147,22 @@ function attachVideoTracking() {
       }
     });
 
-    // --- Pause ---
     video.addEventListener("pause", () => {
-      if (startTime) videoState.watchedTime += (Date.now() - startTime) / 1000;
-      startTime = null;
       const videoId = getVideoId();
-      const percent = videoState.prevDuration ? Math.min((videoState.watchedTime / videoState.prevDuration) * 100, 100).toFixed(1) : 0;
-
       saveEvent({
         type: "video-paused",
         videoId,
         src: video.src,
         timestamp: new Date().toISOString(),
-        watchedTime: videoState.watchedTime.toFixed(2),
-        duration: videoState.prevDuration.toFixed(2),
-        percent
+        watchedTime: video.currentTime.toFixed(2),
+        duration: prevDuration.toFixed(2),
+        percent: prevDuration ? Math.min((video.currentTime / prevDuration) * 100, 100).toFixed(1) : 0
       });
     });
 
-    // --- Timeupdate for watched-100 and rewatch ---
     video.addEventListener("timeupdate", () => {
       const videoId = getVideoId();
-      const percent = videoState.prevDuration
-        ? Math.min((video.currentTime / videoState.prevDuration) * 100, 100)
-        : 0;
+      const percent = prevDuration ? Math.min((video.currentTime / prevDuration) * 100, 100) : 0;
 
       if (!videoState.watched100 && percent >= 100) {
         saveEvent({
@@ -189,8 +170,8 @@ function attachVideoTracking() {
           videoId,
           src: video.src,
           timestamp: new Date().toISOString(),
-          watchedTime: videoState.prevDuration.toFixed(2),
-          duration: videoState.prevDuration.toFixed(2),
+          watchedTime: prevDuration.toFixed(2),
+          duration: prevDuration.toFixed(2),
           percent: 100
         });
 
@@ -204,24 +185,36 @@ function attachVideoTracking() {
         videoState.watched100 = true;
       }
     });
+
+    video.addEventListener("ended", () => {
+      const videoId = getVideoId();
+      saveEvent({
+        type: "video-ended",
+        videoId,
+        src: video.src,
+        timestamp: new Date().toISOString(),
+        watchedTime: prevDuration.toFixed(2),
+        duration: prevDuration.toFixed(2),
+        percent: 100
+      });
+      videoState.stopped = true;
+    });
   }
 
-  // --- Observe video changes ---
+  // Observe video changes
   const observer = new MutationObserver(() => {
     const video = document.querySelector("video");
     if (video && video.src !== lastSrc) {
       if (currentVideo && !videoState.stopped) {
         const videoId = getVideoId();
-        const percent = videoState.prevDuration ? Math.min((videoState.watchedTime / videoState.prevDuration) * 100, 100).toFixed(1) : 0;
-
         saveEvent({
           type: "video-stopped",
           videoId,
           src: currentVideo.src,
           timestamp: new Date().toISOString(),
-          watchedTime: videoState.watchedTime.toFixed(2),
-          duration: videoState.prevDuration.toFixed(2),
-          percent
+          watchedTime: currentVideo.currentTime.toFixed(2),
+          duration: currentVideo.duration.toFixed(2),
+          percent: currentVideo.duration ? Math.min((currentVideo.currentTime / currentVideo.duration) * 100, 100).toFixed(1) : 0
         });
       }
 
@@ -244,8 +237,6 @@ function attachVideoTracking() {
       videoState.watched100 = false;
       videoState.stopped = false;
       videoState.swiped = false;
-      videoState.watchedTime = 0;
-      videoState.prevDuration = video.duration || 0;
 
       hookVideo(video);
     }
@@ -253,7 +244,7 @@ function attachVideoTracking() {
 
   observer.observe(document.body, { childList: true, subtree: true });
 
-  // --- SPA URL change ---
+  // SPA URL change
   setInterval(() => {
     if (window.location.href !== lastUrl) {
       lastUrl = window.location.href;
