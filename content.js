@@ -175,43 +175,6 @@ function attachVideoTracking() {
       });
     });
 
-    // --- Timeupdate for watched-100 and rewatch ---
-    video.addEventListener("timeupdate", () => {
-      if (startTime) videoState.watchedTime += (Date.now() - startTime) / 1000;
-      startTime = Date.now();
-
-      if (!videoState.watched100 && videoState.prevDuration && videoState.watchedTime >= videoState.prevDuration) {
-        const videoId = getVideoId();
-
-        // Video fully watched
-        saveEvent({
-          type: "video-watched-100",
-          videoId,
-          src: video.src,
-          timestamp: new Date().toISOString(),
-          watchedTime: videoState.prevDuration.toFixed(2),
-          duration: videoState.prevDuration.toFixed(2),
-          percent: 100
-        });
-
-        // Video replayed (autoplay)
-        saveEvent({
-          type: "video-rewatch",
-          videoId,
-          src: video.src,
-          timestamp: new Date().toISOString()
-        });
-
-        // Reset counters for rewatch
-        videoState.watchedTime = 0;
-        videoState.watched100 = true;
-
-        // Important: set lastSeek to currentTime to prevent miscount
-        videoState.lastSeek = video.currentTime;
-      }
-    });
-
-
     // --- Ended ---
     video.addEventListener("ended", () => {
       if (startTime) videoState.watchedTime += (Date.now() - startTime) / 1000;
