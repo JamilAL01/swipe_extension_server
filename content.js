@@ -86,12 +86,55 @@ function showSurveyPopup() {
   popup.innerHTML = `
     <h2 style="margin-top:0; font-size:20px;">📝 Quick Survey</h2>
     <p>Please answer a few short questions:</p>
-    <label>1. How often do you watch YouTube Shorts?<br><input id="q1"></label><br><br>
-    <label>2. What device do you usually use?<br><input id="q2"></label><br><br>
-    <label>3. What type of content do you prefer?<br><input id="q3"></label><br><br>
-    <label>4. Your age group?<br><input id="q4"></label><br><br>
-    <label>5. Do you often interact (like/dislike/share)?<br><input id="q5"></label><br><br>
-    <label>6. Any other comments?<br><textarea id="q6" rows="3" style="width:100%;"></textarea></label><br><br>
+
+    <label>1. How often do you watch YouTube Shorts?</label><br>
+    <select id="q1" style="width:100%; padding:5px; margin:5px 0;">
+      <option value="">-- Select --</option>
+      <option value="Everyday">Everyday</option>
+      <option value="Sometimes">Sometimes</option>
+      <option value="Not at all">Not at all</option>
+    </select><br><br>
+
+    <label>2. What device do you usually use?</label><br>
+    <select id="q2" style="width:100%; padding:5px; margin:5px 0;">
+      <option value="">-- Select --</option>
+      <option value="Desktop">Desktop</option>
+      <option value="Laptop">Laptop</option>
+      <option value="Mobile Phone">Mobile Phone</option>
+      <option value="iPad">iPad</option>
+    </select><br><br>
+
+    <label>3. What type of content do you prefer?</label><br>
+    <select id="q3" style="width:100%; padding:5px; margin:5px 0;">
+      <option value="">-- Select --</option>
+      <option value="Comedy">Comedy</option>
+      <option value="Style & Fashion">Style & Fashion</option>
+      <option value="Film & Animations">Film & Animations</option>
+      <option value="Science & Technology">Science & Technology</option>
+      <option value="Gaming">Gaming</option>
+    </select><br><br>
+
+    <label>4. Your age group?</label><br>
+    <select id="q4" style="width:100%; padding:5px; margin:5px 0;">
+      <option value="">-- Select --</option>
+      <option value="Under 18">Under 18</option>
+      <option value="18-26">18-26</option>
+      <option value="26+">26+</option>
+    </select><br><br>
+
+    <label>5. Do you often interact with Shorts?</label><br>
+    <select id="q5" style="width:100%; padding:5px; margin:5px 0;">
+      <option value="">-- Select --</option>
+      <option value="Like/Dislike">Like/Dislike</option>
+      <option value="Comment">Comment</option>
+      <option value="Share with others">Share with others</option>
+      <option value="All of them">All of them</option>
+      <option value="None just watching">None just watching</option>
+    </select><br><br>
+
+    <label>6. Any other comments?</label><br>
+    <textarea id="q6" rows="3" style="width:100%;"></textarea><br><br>
+
     <button id="survey-submit" style="padding:10px 20px; font-size:16px; cursor:pointer;">Submit ✅</button>
   `;
 
@@ -106,6 +149,11 @@ function showSurveyPopup() {
       q5: document.getElementById("q5").value,
       q6: document.getElementById("q6").value,
     };
+
+    if (!answers.q1 || !answers.q2 || !answers.q3 || !answers.q4 || !answers.q5) {
+      alert("⚠️ Please answer all required questions before submitting.");
+      return;
+    }
 
     fetch("https://swipe-extension-server-2.onrender.com/api/surveys", {
       method: "POST",
@@ -126,6 +174,7 @@ function showSurveyPopup() {
       .catch(err => console.error("[SwipeExtension] Survey error ❌", err));
   };
 }
+
 
 // ================== USER & SESSION SETUP ==================
 let userId = localStorage.getItem("swipeUserId");
