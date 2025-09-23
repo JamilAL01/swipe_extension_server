@@ -170,21 +170,25 @@ function attachVideoEvents(video) {
   });
 
 
-  let justEnded = false; // flag to detect natural video completion
+  let justEnded = false; // flag for natural completion
+
+  video.addEventListener("timeupdate", () => {
+    if (prevDuration && video.currentTime >= prevDuration - 0.5) {
+      justEnded = true; // mark as ending soon
+    }
+  });
 
   video.addEventListener("ended", () => {
     if (startTime) watchedTime += (Date.now() - startTime) / 1000;
     startTime = null;
-
-    // mark that the video really finished
-    justEnded = true;
     watchedTime = 0;
+    // we no longer log video-ended, just flag the rewatch
   });
 
   video.addEventListener("seeked", () => {
     const videoId = getVideoId();
 
-    // ✅ handle autoplay/manual restart after completion
+    // ✅ handle autoplay/manual restart after natural end
     if (justEnded && Math.floor(video.currentTime) === 0) {
       saveEvent({
         type: "video-watched-100",
@@ -202,8 +206,8 @@ function attachVideoEvents(video) {
         timestamp: new Date().toISOString(),
       });
       console.log(`[SwipeExtension] ✅ Autoplay rewatch detected for ${videoId}`);
-      justEnded = false; // consume the flag
-      return; // ⛔ skip video-jump
+      justEnded = false; // consume flag
+      return; // ⛔ prevent video-jump
     }
 
     // normal seek/jump
@@ -216,6 +220,7 @@ function attachVideoEvents(video) {
     });
     console.log(`[SwipeExtension] video-jump ⏭️ ${video.src} (ID: ${videoId}) - Jumped to ${video.currentTime.toFixed(2)}s`);
   });
+
 
 
 }
