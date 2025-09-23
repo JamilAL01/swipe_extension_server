@@ -169,11 +169,14 @@ function attachVideoEvents(video) {
     }
   });
 
+  let justEnded = false; // flag to detect autoplay restarts
+
   video.addEventListener("ended", () => {
     if (startTime) watchedTime += (Date.now() - startTime) / 1000;
     startTime = null;
     const videoId = getVideoId();
     const watchPercent = prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100) : 0;
+
     saveEvent({
       type: "video-ended",
       videoId,
@@ -183,11 +186,35 @@ function attachVideoEvents(video) {
       duration: prevDuration.toFixed(2),
       percent: watchPercent.toFixed(1),
     });
+
+    // mark that video just ended → next seek to 0 should mean rewatch
+    justEnded = true;
     watchedTime = 0;
   });
 
   video.addEventListener("seeked", () => {
     const videoId = getVideoId();
+
+    // ✅ special case: autoplay or manual restart at 0s after ending
+    if (justEnded && Math.floor(video.currentTime) === 0) {
+      saveEvent({
+        type: "video-watched-100",
+        videoId,
+        src: video.src,
+        timestamp: new Date().toISOString(),
+      });
+      saveEvent({
+        type: "video-rewatch",
+        videoId,
+        src: video.src,
+        timestamp: new Date().toISOString(),
+      });
+      console.log(`[SwipeExtension] ✅ Detected autoplay/manual rewatch for ${videoId}`);
+      justEnded = false;
+      return;
+    }
+
+    // normal jump
     saveEvent({
       type: "video-jump",
       videoId,
@@ -196,6 +223,8 @@ function attachVideoEvents(video) {
       extra: { jumpTo: video.currentTime.toFixed(2) },
     });
     console.log(`[SwipeExtension] video-jump ⏭️ ${video.src} (ID: ${videoId}) - Jumped to ${video.currentTime.toFixed(2)}s`);
+
+    justEnded = false; // reset flag if it's any other seek
   });
 }
 
