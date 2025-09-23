@@ -24,7 +24,7 @@ function showConsentPopup() {
   popup.style.textAlign = "center";
 
   popup.innerHTML = `
-    <h2 style="margin-top:0; font-size:20px;">🔒 Data Collection Notice</h2>
+    <h2 style="margin-top:0; font-size:20px;">🔒 Data Collection Notice</h2> 
     <p style="line-height:1.5;">
       This extension collects your video interaction events 
       (<b>play, pause, jumps, watch time, likes, shares</b>, etc.) for research purposes.<br>
@@ -42,7 +42,7 @@ function showConsentPopup() {
     consent = "yes";
     popup.remove();
     console.log("[SwipeExtension] User consented ✅");
-    showSurveyPopup(); // 👉 show survey only after consent
+    showSurveyPopup(); 
   };
 
   document.getElementById("consent-no").onclick = () => {
