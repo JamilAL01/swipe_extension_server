@@ -221,9 +221,41 @@ function attachVideoEvents(video) {
     console.log(`[SwipeExtension] video-jump ⏭️ ${video.src} (ID: ${videoId}) - Jumped to ${video.currentTime.toFixed(2)}s`);
   });
 
-
-
 }
+ // Like, Dislike Buttons
+function attachLikeDislikeEvents() {
+  const likeBtn = document.querySelector('ytd-toggle-button-renderer:nth-of-type(1) button'); 
+  const dislikeBtn = document.querySelector('ytd-toggle-button-renderer:nth-of-type(2) button');
+
+  if (likeBtn && !likeBtn._hooked) {
+    likeBtn._hooked = true;
+    likeBtn.addEventListener("click", () => {
+      const videoId = getVideoId();
+      saveEvent({
+        type: "video-like",
+        videoId,
+        src: currentVideo ? currentVideo.src : null,
+        timestamp: new Date().toISOString(),
+      });
+      console.log(`[SwipeExtension] 👍 Like event for ${videoId}`);
+    });
+  }
+
+  if (dislikeBtn && !dislikeBtn._hooked) {
+    dislikeBtn._hooked = true;
+    dislikeBtn.addEventListener("click", () => {
+      const videoId = getVideoId();
+      saveEvent({
+        type: "video-dislike",
+        videoId,
+        src: currentVideo ? currentVideo.src : null,
+        timestamp: new Date().toISOString(),
+      });
+      console.log(`[SwipeExtension] 👎 Dislike event for ${videoId}`);
+    });
+  }
+}
+
 
 // ================== OBSERVE VIDEO CHANGES ==================
 const observer = new MutationObserver((mutations) => {
@@ -269,6 +301,10 @@ const observer = new MutationObserver((mutations) => {
 
 
 observer.observe(document.body, { childList: true, subtree: true });
+observer.observe(document.body, { childList: true, subtree: true });
+
+
+
 
 
 // ================== RE-HOOK ON URL CHANGE ==================
@@ -279,3 +315,8 @@ setInterval(() => {
     if (video) attachVideoEvents(video);
   }
 }, 100);
+
+// also hook buttons on DOM changes
+setInterval(() => {
+  attachLikeDislikeEvents();
+}, 1000);
