@@ -19,6 +19,8 @@ app.use(bodyParser.json());
 app.use(cors());
 
 // ================== API ROUTES ==================
+
+// 🎥 Save video events
 app.post("/api/events", async (req, res) => {
   try {
     const {
@@ -35,16 +37,14 @@ app.post("/api/events", async (req, res) => {
       channelName = null, // ✅ NEW
     } = req.body;
 
-    // Validate required fields
     if (!userId || !sessionId || !videoId || !type || !timestamp) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // Insert into database
     await pool.query(
       `INSERT INTO video_events 
-      (user_id, session_id, video_id, src, event_type, ts, extra, watched_time, duration, percent, channel_name)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+       (user_id, session_id, video_id, src, event_type, ts, extra, watched_time, duration, percent, channel_name)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
       [
         userId,
         sessionId,
@@ -56,7 +56,7 @@ app.post("/api/events", async (req, res) => {
         watchedTime,
         duration,
         percent,
-        channelName, // ✅ NEW
+        channelName,
       ]
     );
 
@@ -67,8 +67,33 @@ app.post("/api/events", async (req, res) => {
   }
 });
 
+// 📝 Save survey responses
+app.post("/api/surveys", async (req, res) => {
+  try {
+    const { userId, sessionId, answers, timestamp } = req.body;
 
-// Health check
+    if (!userId || !sessionId || !answers) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO survey_responses (user_id, session_id, answers, created_at)
+       VALUES ($1, $2, $3, $4)
+       RETURNING *;`,
+      [userId, sessionId, answers, timestamp || new Date()]
+    );
+
+    res.status(201).json({
+      status: "ok",
+      saved: result.rows[0],
+    });
+  } catch (err) {
+    console.error("Survey DB error:", err);
+    res.status(500).json({ error: "Database error", details: err.message });
+  }
+});
+
+// ================== HEALTH CHECK ==================
 app.get("/", (req, res) => {
   res.send("Server is running 🚀");
 });
@@ -77,5 +102,3 @@ app.get("/", (req, res) => {
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });
-
-

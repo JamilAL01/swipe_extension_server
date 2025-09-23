@@ -71,6 +71,196 @@ if (!sessionId) {
   sessionStorage.setItem("swipeSessionId", sessionId);
 }
 
+
+// ------------------ SURVEY (STEP 1) ------------------
+const SURVEY_KEY = "swipeSurveyCompleted";       // set to "yes" when answered
+const SURVEY_ANSWERS_KEY = "swipeSurveyAnswers"; // optional local backup
+const SURVEY_ENDPOINT = "https://swipe-extension-server-2.onrender.com/api/surveys";
+
+// Call this to show survey (only shows if not already present)
+function showSurveyPopup() {
+  if (document.getElementById("swipe-survey-popup")) return;
+  if (localStorage.getItem(SURVEY_KEY) === "yes") return; // already answered
+
+  const popup = document.createElement("div");
+  popup.id = "swipe-survey-popup";
+  popup.style.position = "fixed";
+  popup.style.top = "50%";
+  popup.style.left = "50%";
+  popup.style.transform = "translate(-50%, -50%)";
+  popup.style.width = "600px";
+  popup.style.maxHeight = "80vh";
+  popup.style.overflowY = "auto";
+  popup.style.padding = "20px";
+  popup.style.background = "white";
+  popup.style.border = "2px solid #444";
+  popup.style.borderRadius = "12px";
+  popup.style.boxShadow = "0 6px 30px rgba(0,0,0,0.35)";
+  popup.style.zIndex = "100000";
+  popup.style.fontSize = "15px";
+  popup.style.fontFamily = "Arial, sans-serif";
+  popup.style.textAlign = "left";
+
+  popup.innerHTML = `
+    <h2 style="margin-top:0; font-size:20px; text-align:center;">📋 Quick Questions</h2>
+    <p style="text-align:center; margin-top:0.2rem; margin-bottom:1rem;">Please answer these 6 quick, general questions. Your answers help research. (Required)</p>
+
+    <form id="swipe-survey-form">
+      <label>1) How often do you watch Shorts?</label><br>
+      <select name="q1" required style="width:100%; margin-bottom:10px;">
+        <option value="">-- pick one --</option>
+        <option value="daily">Daily</option>
+        <option value="several_times_week">Several times / week</option>
+        <option value="weekly">Weekly</option>
+        <option value="monthly">Monthly</option>
+        <option value="rarely">Rarely</option>
+      </select>
+
+      <label>2) Primary device you watch on:</label><br>
+      <select name="q2" required style="width:100%; margin-bottom:10px;">
+        <option value="">-- pick one --</option>
+        <option value="mobile">Mobile phone</option>
+        <option value="desktop">Desktop / Laptop</option>
+        <option value="tablet">Tablet</option>
+        <option value="other">Other</option>
+      </select>
+
+      <label>3) What content do you prefer? (one or two words)</label><br>
+      <input name="q3" required style="width:100%; margin-bottom:10px;" placeholder="e.g. comedy, reviews, music" />
+
+      <label>4) Age range:</label><br>
+      <select name="q4" required style="width:100%; margin-bottom:10px;">
+        <option value="">-- pick one --</option>
+        <option value="under_18">Under 18</option>
+        <option value="18_24">18-24</option>
+        <option value="25_34">25-34</option>
+        <option value="35_44">35-44</option>
+        <option value="45_plus">45+</option>
+        <option value="prefer_not">Prefer not to say</option>
+      </select>
+
+      <label>5) Do you follow creators you like?</label><br>
+      <select name="q5" required style="width:100%; margin-bottom:10px;">
+        <option value="">-- pick one --</option>
+        <option value="yes">Yes</option>
+        <option value="sometimes">Sometimes</option>
+        <option value="no">No</option>
+      </select>
+
+      <label>6) Any other comments? (optional)</label><br>
+      <textarea name="q6" rows="3" style="width:100%; margin-bottom:12px;" placeholder="Optional free text"></textarea>
+
+      <div style="text-align:center; margin-top:8px;">
+        <button type="button" id="swipe-survey-submit" style="margin-right:12px; padding:10px 18px; font-size:15px; cursor:pointer;">Submit</button>
+        <button type="button" id="swipe-survey-cancel" style="padding:10px 18px; font-size:15px; cursor:pointer;">Cancel</button>
+      </div>
+      <p id="swipe-survey-msg" style="color:#a00; text-align:center; margin-top:8px; display:none;"></p>
+    </form>
+  `;
+
+  document.body.appendChild(popup);
+
+  // Cancel: just close but don't mark completed (user must answer later)
+  document.getElementById("swipe-survey-cancel").onclick = () => {
+    popup.remove();
+    console.log("[SwipeExtension] Survey cancelled (user can be asked later).");
+  };
+
+  document.getElementById("swipe-survey-submit").onclick = async () => {
+    const form = document.getElementById("swipe-survey-form");
+    const fd = new FormData(form);
+    // required fields
+    const required = ["q1","q2","q3","q4","q5"];
+    for (let k of required) {
+      if (!fd.get(k) || fd.get(k).trim() === "") {
+        const msg = document.getElementById("swipe-survey-msg");
+        msg.textContent = "Please answer all required questions (1-5).";
+        msg.style.display = "block";
+        return;
+      }
+    }
+
+    // gather answers
+    const answers = {
+      q1: fd.get("q1"),
+      q2: fd.get("q2"),
+      q3: fd.get("q3"),
+      q4: fd.get("q4"),
+      q5: fd.get("q5"),
+      q6: fd.get("q6") || ""
+    };
+
+    const payload = {
+      userId: userId || null,
+      sessionId: sessionId || null,
+      answers,
+      timestamp: new Date().toISOString()
+    };
+
+    // mark completed locally immediately to avoid duplicate prompts
+    localStorage.setItem(SURVEY_KEY, "yes");
+    localStorage.setItem(SURVEY_ANSWERS_KEY, JSON.stringify(payload)); // backup
+
+    // Only send to server if consented to tracking
+    const consentChoice = localStorage.getItem("swipeConsent");
+    if (consentChoice === "yes") {
+      try {
+        const res = await fetch(SURVEY_ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+          console.error("[SwipeExtension] Survey save error", await res.text());
+          // we still keep local backup; you can implement retry on server side
+        } else {
+          console.log("[SwipeExtension] Survey saved to server ✅");
+        }
+      } catch (err) {
+        console.error("[SwipeExtension] Survey fetch error", err);
+      }
+    } else {
+      console.log("[SwipeExtension] Survey saved locally (user hasn't consented to server).");
+    }
+
+    // remove popup
+    popup.remove();
+    console.log("[SwipeExtension] Survey completed:", answers);
+  };
+}
+
+// show survey automatically if user already consented and hasn't answered
+if (localStorage.getItem("swipeConsent") === "yes" && localStorage.getItem(SURVEY_KEY) !== "yes") {
+  // small timeout so it doesn't fight initial DOM construction
+  setTimeout(showSurveyPopup, 500);
+}
+
+// when user clicks consent yes (if you set consent in code), also trigger survey
+// (this assumes your consent-yes handler sets localStorage already)
+const origConsentYesBtn = document.getElementById("consent-yes");
+if (origConsentYesBtn) {
+  origConsentYesBtn.addEventListener("click", () => {
+    // If they just consented, show survey (if not answered)
+    setTimeout(() => {
+      if (localStorage.getItem(SURVEY_KEY) !== "yes") showSurveyPopup();
+    }, 250);
+  });
+}
+
+// -------------- Make MutationObserver ignore survey popup (update your existing check) --------------
+// In your MutationObserver callback, replace the popup-ignore check with something like this:
+function mutationIsOnlyOurPopups(mutations) {
+  const popupIds = ["swipe-consent-popup", "swipe-survey-popup"];
+  return mutations.every((m) => {
+    if (!m.target || m.target.nodeType !== 1) return false;
+    return popupIds.some(id => m.target.closest && m.target.closest(`#${id}`));
+  });
+}
+// then at top of your observer callback:
+if (document.getElementById("swipe-consent-popup") || document.getElementById("swipe-survey-popup")) {
+  if (mutationIsOnlyOurPopups(mutations)) return;
+}
+
 let currentVideo = null;
 let lastSrc = null;
 let startTime = null;
