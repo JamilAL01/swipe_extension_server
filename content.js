@@ -222,10 +222,11 @@ function attachVideoEvents(video) {
   });
 
 }
- // Like, Dislike Buttons
-function attachLikeDislikeEvents() {
+ // Like, Dislike and Share Buttons
+function attachActionEvents() {
   const likeBtn = document.querySelector('ytd-toggle-button-renderer:nth-of-type(1) button'); 
   const dislikeBtn = document.querySelector('ytd-toggle-button-renderer:nth-of-type(2) button');
+  const shareBtn = document.querySelector('ytd-button-renderer[button-renderer][is-icon-button] button, #share-button button');
 
   if (likeBtn && !likeBtn._hooked) {
     likeBtn._hooked = true;
@@ -254,7 +255,22 @@ function attachLikeDislikeEvents() {
       console.log(`[SwipeExtension] 👎 Dislike event for ${videoId}`);
     });
   }
+
+  if (shareBtn && !shareBtn._hooked) {
+    shareBtn._hooked = true;
+    shareBtn.addEventListener("click", () => {
+      const videoId = getVideoId();
+      saveEvent({
+        type: "video-share",
+        videoId,
+        src: currentVideo ? currentVideo.src : null,
+        timestamp: new Date().toISOString(),
+      });
+      console.log(`[SwipeExtension] 🔗 Share event for ${videoId}`);
+    });
+  }
 }
+
 
 
 // ================== OBSERVE VIDEO CHANGES ==================
@@ -304,9 +320,6 @@ observer.observe(document.body, { childList: true, subtree: true });
 observer.observe(document.body, { childList: true, subtree: true });
 
 
-
-
-
 // ================== RE-HOOK ON URL CHANGE ==================
 setInterval(() => {
   if (window.location.href !== lastUrl) {
@@ -318,5 +331,6 @@ setInterval(() => {
 
 // also hook buttons on DOM changes
 setInterval(() => {
-  attachLikeDislikeEvents();
+  attachActionEvents();
 }, 1000);
+
