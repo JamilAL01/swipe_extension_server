@@ -227,23 +227,16 @@ function attachVideoEvents(video) {
 
 // ================== OBSERVE VIDEO CHANGES ==================
 const observer = new MutationObserver((mutations) => {
-  // Ignore changes caused by our GDPR popup
-  if (document.getElementById("swipe-consent-popup")) {
-    const onlyPopup = mutations.every(m => 
-      m.target.closest("#swipe-consent-popup")
-    );
-    if (onlyPopup) return; // don't re-run logic if only popup changed
-  }
-
   const video = document.querySelector("video");
   if (video && video.src !== lastSrc) {
-    const videoId = getVideoId();
+    const videoId = getVideoId();   // ✅ always fetch fresh ID here
 
+    // Save the stop event for the previous video
     if (currentVideo && startTime) {
       watchedTime += (Date.now() - startTime) / 1000;
       saveEvent({
         type: "video-stopped",
-        videoId: getVideoId(),
+        videoId: getVideoId(), // ⚠️ this was wrong before
         src: currentVideo.src,
         timestamp: new Date().toISOString(),
         watchedTime: watchedTime.toFixed(2),
@@ -252,10 +245,11 @@ const observer = new MutationObserver((mutations) => {
       });
     }
 
+    // Log the swipe event
     if (lastSrc) {
       saveEvent({
         type: "swiped-to-new-video",
-        videoId,
+        videoId,   // ✅ new correct ID
         src: video.src,
         timestamp: new Date().toISOString(),
         extra: { previous: lastSrc },
@@ -272,6 +266,7 @@ const observer = new MutationObserver((mutations) => {
     attachVideoEvents(video);
   }
 });
+
 
 observer.observe(document.body, { childList: true, subtree: true });
 
