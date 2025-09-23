@@ -86,9 +86,10 @@ function getVideoId() {
 }
 
 function saveEvent(eventData) {
+  // Block tracking until user explicitly consents
   if (consent !== "yes") {
-    console.log("[SwipeExtension] Tracking disabled by GDPR ❌");
-    return; // do not send events
+    console.log("[SwipeExtension] Tracking disabled or waiting for GDPR consent ❌");
+    return;
   }
 
   eventData.sessionId = sessionId;
@@ -106,6 +107,7 @@ function saveEvent(eventData) {
     })
     .catch((err) => console.error("[SwipeExtension] Fetch error ❌", err));
 }
+
 
 // ================== VIDEO EVENT HOOK ==================
 function attachVideoEvents(video) {
