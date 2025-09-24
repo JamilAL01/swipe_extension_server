@@ -90,26 +90,27 @@ function showSurveyPopup() {
     <label>1. How often do you watch YouTube Shorts?</label><br>
     <select id="q1" style="width:100%; padding:5px; margin:5px 0;">
       <option value="">-- Select --</option>
-      <option value="Everyday">Everyday</option>
-      <option value="Sometimes">Sometimes</option>
-      <option value="Not at all">Not at all</option>
+      <option value="Daily">Daily</option>
+      <option value="Several times per week">Several times per week</option>
+      <option value="Rarely">Rarely</option>
+      <option value="Never">Never</option>
     </select><br><br>
 
     <label>2. What device do you usually use?</label><br>
     <select id="q2" style="width:100%; padding:5px; margin:5px 0;">
       <option value="">-- Select --</option>
-      <option value="Desktop">Desktop</option>
+      <option value="Desktop computer">Desktop computer</option>
       <option value="Laptop">Laptop</option>
-      <option value="Mobile Phone">Mobile Phone</option>
-      <option value="iPad">iPad</option>
+      <option value="Smartphone">Smartphone</option>
+      <option value="Tablet">Tablet</option>
     </select><br><br>
 
     <label>3. What type of content do you prefer?</label><br>
     <select id="q3" style="width:100%; padding:5px; margin:5px 0;">
       <option value="">-- Select --</option>
-      <option value="Comedy">Comedy</option>
-      <option value="Style & Fashion">Style & Fashion</option>
-      <option value="Film & Animations">Film & Animations</option>
+      <option value="Comedy & Entertainment">Comedy & Entertainment</option>
+      <option value="Fashion & Lifestyle">Fashion & Lifestyle</option>
+      <option value="Movies & Animation">Movies & Animation</option>
       <option value="Science & Technology">Science & Technology</option>
       <option value="Gaming">Gaming</option>
     </select><br><br>
@@ -118,18 +119,19 @@ function showSurveyPopup() {
     <select id="q4" style="width:100%; padding:5px; margin:5px 0;">
       <option value="">-- Select --</option>
       <option value="Under 18">Under 18</option>
-      <option value="18-26">18-26</option>
-      <option value="26+">26+</option>
+      <option value="18-25">18-25</option>
+      <option value="26-35">26-35</option>
+      <option value="36 and above">36 and above</option>
     </select><br><br>
 
     <label>5. Do you often interact with Shorts?</label><br>
     <select id="q5" style="width:100%; padding:5px; margin:5px 0;">
       <option value="">-- Select --</option>
-      <option value="Like/Dislike">Like/Dislike</option>
-      <option value="Comment">Comment</option>
+      <option value="Like or dislike">Like or dislike</option>
+      <option value="Comment on videos">Comment on videos</option>
       <option value="Share with others">Share with others</option>
-      <option value="All of them">All of them</option>
-      <option value="None just watching">None just watching</option>
+      <option value="All of the above">All of the above</option>
+      <option value="I usually just watch without engaging">I usually just watch without engaging</option>
     </select><br><br>
 
     <label>6. Any other comments?</label><br>
