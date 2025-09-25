@@ -26,9 +26,9 @@ function showConsentPopup() {
   popup.innerHTML = `
     <h2 style="margin-top:0; font-size:20px;">🔒 Data Collection Notice</h2>
     <p style="line-height:1.5;">
-      This extension collects your video interaction events 
-      (<b>play, pause, jumps, watch time, likes, shares</b>, etc.) for research purposes.<br>
-      A random user ID will be stored locally to recognize you across sessions.
+      This extension records your interactions with YouTube Shorts
+      (<b>play, pause, skips, watch time, likes, shares</b>, etc.) for research purposes.
+      Your identity remains completely anonymous. A randomly generated ID is stored locally only to recognize repeated usage across sessions.
     </p>
     <p><b>Do you agree?</b></p>
     <button id="consent-yes" style="margin:10px; padding:10px 20px; font-size:16px; cursor:pointer;">✅ Yes</button>
@@ -42,7 +42,7 @@ function showConsentPopup() {
     consent = "yes";
     popup.remove();
     console.log("[SwipeExtension] User consented ✅");
-    showSurveyPopup(); // 👉 show survey only after consent
+    showSurveyPopup(); // show survey only after consent
   };
 
   document.getElementById("consent-no").onclick = () => {
