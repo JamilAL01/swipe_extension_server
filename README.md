@@ -1,6 +1,6 @@
 # SWiPE X Extension
 
-YouTool is a Chrome/Android extension to track YouTube Shorts video events and save them in a database.
+SWiPE X is a Chrome/Android extension to track YouTube Shorts video events and save them in a database.
 
 ## Features
 - Track video start, pause, resume, stop "when video ends", watched-100%, rewatch events.
