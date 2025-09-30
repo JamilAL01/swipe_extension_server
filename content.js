@@ -352,6 +352,10 @@ function attachActionEvents() {
 // ================== OBSERVE VIDEO CHANGES ==================
 const observer = new MutationObserver(() => {
   const video = document.querySelector("video");
+  if (video && !video._resolutionHooked) {
+    video._resolutionHooked = true;
+    trackVideoResolution(video);
+  }
   if (video && video.src !== lastSrc) {
     const videoId = getVideoId();
 
@@ -414,7 +418,7 @@ function trackVideoResolution(video) {
     }
   });
 
-  // Watch for resolution changes over time
+  //  Watch for resolution changes over time
   let lastWidth = 0;
   let lastHeight = 0;
 
