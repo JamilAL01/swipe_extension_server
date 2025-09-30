@@ -394,27 +394,52 @@ observer.observe(document.body, { childList: true, subtree: true });
 
 // ================== VIDEO RESOLUTION ======================
 
-function trackResolutionChanges(video) {
-  let lastWidth = video.videoWidth;
-  let lastHeight = video.videoHeight;
+function trackVideoResolution(video) {
+  if (!video) return;
 
-  setInterval(() => {
+  // Log initial resolution once metadata is ready
+  video.addEventListener('loadedmetadata', () => {
+    const width = video.videoWidth;
+    const height = video.videoHeight;
+
+    if (width && height) {
+      console.log(`[SwipeExtension] Initial resolution: ${width}x${height}`);
+      saveEvent({
+        type: 'video-resolution',
+        videoId: getVideoId(),
+        src: video.src,
+        timestamp: new Date().toISOString(),
+        extra: { width, height }
+      });
+    }
+  });
+
+  // Watch for resolution changes over time
+  let lastWidth = 0;
+  let lastHeight = 0;
+
+  const resolutionInterval = setInterval(() => {
     if (video.videoWidth !== lastWidth || video.videoHeight !== lastHeight) {
       lastWidth = video.videoWidth;
       lastHeight = video.videoHeight;
 
-      console.log(`[SwipeExtension] Resolution changed to ${lastWidth}x${lastHeight}`);
-
-      saveEvent({
-        type: 'video-resolution-change',
-        videoId: getVideoId(),
-        src: video.src,
-        timestamp: new Date().toISOString(),
-        extra: { width: lastWidth, height: lastHeight }
-      });
+      if (lastWidth && lastHeight) {
+        console.log(`[SwipeExtension] Resolution changed to: ${lastWidth}x${lastHeight}`);
+        saveEvent({
+          type: 'video-resolution-change',
+          videoId: getVideoId(),
+          src: video.src,
+          timestamp: new Date().toISOString(),
+          extra: { width: lastWidth, height: lastHeight }
+        });
+      }
     }
-  }, 1000); // check every 1 second
+  }, 1000); // check every second
+
+  // Optional cleanup if needed when video is removed/switched
+  video.addEventListener('ended', () => clearInterval(resolutionInterval));
 }
+
 
 
 // ================== RE-HOOK ON URL CHANGE ==================
