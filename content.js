@@ -392,6 +392,31 @@ const observer = new MutationObserver(() => {
 
 observer.observe(document.body, { childList: true, subtree: true });
 
+// ================== VIDEO RESOLUTION ======================
+
+function trackResolutionChanges(video) {
+  let lastWidth = video.videoWidth;
+  let lastHeight = video.videoHeight;
+
+  setInterval(() => {
+    if (video.videoWidth !== lastWidth || video.videoHeight !== lastHeight) {
+      lastWidth = video.videoWidth;
+      lastHeight = video.videoHeight;
+
+      console.log(`[SwipeExtension] Resolution changed to ${lastWidth}x${lastHeight}`);
+
+      saveEvent({
+        type: 'video-resolution-change',
+        videoId: getVideoId(),
+        src: video.src,
+        timestamp: new Date().toISOString(),
+        extra: { width: lastWidth, height: lastHeight }
+      });
+    }
+  }, 1000); // check every 1 second
+}
+
+
 // ================== RE-HOOK ON URL CHANGE ==================
 setInterval(() => {
   if (window.location.href !== lastUrl) {
