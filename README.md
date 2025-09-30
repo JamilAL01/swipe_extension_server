@@ -1,4 +1,4 @@
-# YouTrack Extension
+# SWiPE X Extension
 
 YouTool is a Chrome/Android extension to track YouTube Shorts video events and save them in a database.
 
@@ -13,13 +13,13 @@ YouTool is a Chrome/Android extension to track YouTube Shorts video events and s
 1. Clone the repository or download as ZIP.
 2. Open Chrome → Extensions "chrome://extensions" → Enable Developer Mode.
 3. Click "Load unpacked" → select the folder.
-4. Enjoy YouTrack on YouTube Shorts.
+4. Enjoy SWiPE X on YouTube Shorts.
 
 ### Mobile (Android - Kiwi Browser)
 1. Download repo as ZIP from GitHub.
 2. Open Kiwi → Extensions "chrome://extensions" → Enable Developer Mode.
 3. Click "Load" → select the ZIP/folder.
-4. Use YouTrack while browsing YouTube Shorts.
+4. Use SWiPE X while browsing YouTube Shorts.
 
 Kiwi's link: "https://kiwi-browser.en.uptodown.com/android"
 ## License
