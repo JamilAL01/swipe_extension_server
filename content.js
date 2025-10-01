@@ -3,8 +3,46 @@ console.log("[SwipeExtension] Content script injected ✅");
 // ================== GDPR CONSENT ==================
 let consent = localStorage.getItem("swipeConsent");
 
+const translations = {
+  en: {
+    consentTitle: "🔒 Data Collection Notice",
+    consentText: `This extension records your interactions with YouTube Shorts
+      (<b>play, pause, skips, watch time, likes, shares</b>, etc.) for research purposes.
+      Your identity remains completely anonymous. A randomly generated ID is stored locally only to recognize repeated usage across sessions.`,
+    consentQuestion: "Do you agree?",
+    yes: "✅ Yes",
+    no: "❌ No",
+    surveyTitle: "📝 Quick Survey",
+    surveyText: "Please answer a few short questions:",
+    submit: "Submit ✅",
+    alertIncomplete: "⚠️ Please answer all required questions before submitting."
+  },
+  fr: {
+    consentTitle: "🔒 Avis de collecte de données",
+    consentText: `Cette extension enregistre vos interactions avec YouTube Shorts
+      (<b>lecture, pause, saut, temps de visionnage, likes, partages</b>, etc.) à des fins de recherche.
+      Votre identité reste complètement anonyme. Un ID aléatoire est stocké localement uniquement pour reconnaître les utilisations répétées.`,
+    consentQuestion: "Êtes-vous d'accord ?",
+    yes: "✅ Oui",
+    no: "❌ Non",
+    surveyTitle: "📝 Questionnaire rapide",
+    surveyText: "Veuillez répondre à quelques questions courtes :",
+    submit: "Envoyer ✅",
+    alertIncomplete: "⚠️ Veuillez répondre à toutes les questions obligatoires avant de soumettre."
+  }
+};
+
+function getUserLang() {
+  const lang = navigator.language || navigator.userLanguage; // e.g., "en-US" or "fr-FR"
+  if (lang.startsWith("fr")) return "fr";
+  return "en";
+}
+
 function showConsentPopup() {
   if (document.getElementById("swipe-consent-popup")) return;
+
+  const lang = getUserLang();
+  const t = translations[lang];
 
   const popup = document.createElement("div");
   popup.id = "swipe-consent-popup";
@@ -24,15 +62,11 @@ function showConsentPopup() {
   popup.style.textAlign = "center";
 
   popup.innerHTML = `
-    <h2 style="margin-top:0; font-size:20px;">🔒 Data Collection Notice</h2>
-    <p style="line-height:1.5;">
-      This extension records your interactions with YouTube Shorts
-      (<b>play, pause, skips, watch time, likes, shares</b>, etc.) for research purposes.
-      Your identity remains completely anonymous. A randomly generated ID is stored locally only to recognize repeated usage across sessions.
-    </p>
-    <p><b>Do you agree?</b></p>
-    <button id="consent-yes" style="margin:10px; padding:10px 20px; font-size:16px; cursor:pointer;">✅ Yes</button>
-    <button id="consent-no" style="margin:10px; padding:10px 20px; font-size:16px; cursor:pointer;">❌ No</button>
+    <h2 style="margin-top:0; font-size:20px;">${t.consentTitle}</h2>
+    <p style="line-height:1.5;">${t.consentText}</p>
+    <p><b>${t.consentQuestion}</b></p>
+    <button id="consent-yes" style="margin:10px; padding:10px 20px; font-size:16px; cursor:pointer;">${t.yes}</button>
+    <button id="consent-no" style="margin:10px; padding:10px 20px; font-size:16px; cursor:pointer;">${t.no}</button>
   `;
 
   document.body.appendChild(popup);
