@@ -403,61 +403,69 @@ function trackVideoResolution(video) {
 
   let lastWidth = 0;
   let lastHeight = 0;
-  let allowChanges = false; // to control when change events start
+  let allowChanges = false; // control when change events start
 
-  // Log initial resolution as soon as metadata is loaded
+  // Log initial resolution once metadata is loaded
   video.addEventListener('loadedmetadata', () => {
-    const width = video.videoWidth;
-    const height = video.videoHeight;
+    const currentWidth = video.videoWidth;
+    const currentHeight = video.videoHeight;
 
-    if (width && height) {
-      lastWidth = width;
-      lastHeight = height;
+    // Estimate maximum resolution after a short delay (adaptive bitrate might upgrade)
+    let maxWidth = currentWidth;
+    let maxHeight = currentHeight;
 
-      console.log(`[SwipeExtension] Initial resolution: ${width}x${height}`);
+    setTimeout(() => {
+      const maybeW = video.videoWidth;
+      const maybeH = video.videoHeight;
+      if (maybeW > maxWidth || maybeH > maxHeight) {
+        maxWidth = maybeW;
+        maxHeight = maybeH;
+      }
+
+      console.log(`[SwipeExtension] Initial resolution: ${currentWidth}x${currentHeight}, max: ${maxWidth}x${maxHeight}`);
       saveEvent({
         type: 'video-resolution',
         videoId: getVideoId(),
         src: video.src,
         timestamp: new Date().toISOString(),
-        extra: { width, height }
+        extra: {
+          current: `${currentWidth}x${currentHeight}`,
+          max: `${maxWidth}x${maxHeight}`
+        }
       });
 
-      // Small delay before starting to track changes
-      setTimeout(() => {
-        allowChanges = true;
-      }, 200); // 200 ms or more
-    }
+      // Enable resolution change tracking after initial event
+      allowChanges = true;
+      lastWidth = video.videoWidth;
+      lastHeight = video.videoHeight;
+    }, 2000); // wait 2s to stabilize resolution
   });
 
-  // Watch for resolution changes
+  // Track resolution changes over time
   const resolutionInterval = setInterval(() => {
-    if (!allowChanges) return; // Ignore early mutations
+    if (!allowChanges) return;
 
-    const currentWidth = video.videoWidth;
-    const currentHeight = video.videoHeight;
+    const w = video.videoWidth;
+    const h = video.videoHeight;
+    if ((w !== lastWidth || h !== lastHeight) && w && h) {
+      lastWidth = w;
+      lastHeight = h;
 
-    if (currentWidth && currentHeight &&
-        (currentWidth !== lastWidth || currentHeight !== lastHeight)) {
-
-      lastWidth = currentWidth;
-      lastHeight = currentHeight;
-
-      console.log(`[SwipeExtension] Resolution changed to: ${currentWidth}x${currentHeight}`);
+      console.log(`[SwipeExtension] Resolution changed to: ${w}x${h}`);
       saveEvent({
         type: 'video-resolution-change',
         videoId: getVideoId(),
         src: video.src,
         timestamp: new Date().toISOString(),
-        extra: { width: currentWidth, height: currentHeight }
+        extra: { width: w, height: h }
       });
     }
   }, 1000);
 
-  // Cleanup interval on video end or removal
+  // Cleanup interval on video end
   video.addEventListener('ended', () => clearInterval(resolutionInterval));
-  video.addEventListener('emptied', () => clearInterval(resolutionInterval));
 }
+
 
 
 // ================== RE-HOOK ON URL CHANGE ==================
