@@ -15,7 +15,18 @@ const translations = {
     surveyTitle: "📝 Quick Survey",
     surveyText: "Please answer a few short questions:",
     submit: "Submit ✅",
-    alertIncomplete: "⚠️ Please answer all required questions before submitting."
+    alertIncomplete: "⚠️ Please answer all required questions before submitting.",
+    q1: "1. How often do you watch YouTube Shorts?",
+    q1Options: ["-- Select --","Daily","Several times per week","Rarely","Never"],
+    q2: "2. What device do you usually use?",
+    q2Options: ["-- Select --","Desktop computer","Laptop","Smartphone","Tablet"],
+    q3: "3. What type of content do you prefer?",
+    q3Options: ["-- Select --","Comedy & Entertainment","Fashion & Lifestyle","Movies & Animation","Science & Technology","Gaming"],
+    q4: "4. Your age group?",
+    q4Options: ["-- Select --","Under 18","18-25","26-35","36 and above"],
+    q5: "5. Do you often interact with Shorts?",
+    q5Options: ["-- Select --","Like or dislike","Comment on videos","Share with others","All of the above","I usually just watch without engaging"],
+    q6: "6. Any other comments?"
   },
   fr: {
     consentTitle: "🔒 Avis de collecte de données",
@@ -28,15 +39,27 @@ const translations = {
     surveyTitle: "📝 Questionnaire rapide",
     surveyText: "Veuillez répondre à quelques questions courtes :",
     submit: "Envoyer ✅",
-    alertIncomplete: "⚠️ Veuillez répondre à toutes les questions obligatoires avant de soumettre."
+    alertIncomplete: "⚠️ Veuillez répondre à toutes les questions obligatoires avant de soumettre.",
+    q1: "1. À quelle fréquence regardez-vous les Shorts YouTube ?",
+    q1Options: ["-- Sélectionner --","Quotidien","Plusieurs fois par semaine","Rarement","Jamais"],
+    q2: "2. Quel appareil utilisez-vous habituellement ?",
+    q2Options: ["-- Sélectionner --","Ordinateur de bureau","Ordinateur portable","Smartphone","Tablette"],
+    q3: "3. Quel type de contenu préférez-vous ?",
+    q3Options: ["-- Sélectionner --","Comédie & Divertissement","Mode & Style de vie","Films & Animation","Science & Technologie","Jeux vidéo"],
+    q4: "4. Votre tranche d'âge ?",
+    q4Options: ["-- Sélectionner --","Moins de 18 ans","18-25","26-35","36 ans et plus"],
+    q5: "5. Interagissez-vous souvent avec les Shorts ?",
+    q5Options: ["-- Sélectionner --","Aimer ou ne pas aimer","Commenter les vidéos","Partager avec d'autres","Toutes les réponses ci-dessus","Je regarde généralement sans interagir"],
+    q6: "6. Autres commentaires ?"
   }
 };
 
+
 function getUserLang() {
-  const lang = navigator.language || navigator.userLanguage; // e.g., "en-US" or "fr-FR"
-  if (lang.startsWith("fr")) return "fr";
-  return "en";
+  const lang = navigator.language || navigator.userLanguage;
+  return lang.startsWith("fr") ? "fr" : "en";
 }
+
 
 function showConsentPopup() {
   if (document.getElementById("swipe-consent-popup")) return;
@@ -96,7 +119,10 @@ if (!consent) {
 
 // ================== SURVEY POPUP ==================
 function showSurveyPopup() {
-  if (localStorage.getItem("surveyDone")) return; // only once per user
+  if (localStorage.getItem("surveyDone")) return;
+
+  const lang = getUserLang();
+  const t = translations[lang];
 
   const popup = document.createElement("div");
   popup.id = "survey-popup";
@@ -118,60 +144,38 @@ function showSurveyPopup() {
   popup.style.overflowY = "auto";
 
   popup.innerHTML = `
-    <h2 style="margin-top:0; font-size:20px;">📝 Quick Survey</h2>
-    <p>Please answer a few short questions:</p>
+    <h2 style="margin-top:0; font-size:20px;">${t.surveyTitle}</h2>
+    <p>${t.surveyText}</p>
 
-    <label>1. How often do you watch YouTube Shorts?</label><br>
+    <label>${t.q1}</label><br>
     <select id="q1" style="width:100%; padding:5px; margin:5px 0;">
-      <option value="">-- Select --</option>
-      <option value="Daily">Daily</option>
-      <option value="Several times per week">Several times per week</option>
-      <option value="Rarely">Rarely</option>
-      <option value="Never">Never</option>
+      ${t.q1Options.map(opt => `<option value="${opt}">${opt}</option>`).join('')}
     </select><br><br>
 
-    <label>2. What device do you usually use?</label><br>
+    <label>${t.q2}</label><br>
     <select id="q2" style="width:100%; padding:5px; margin:5px 0;">
-      <option value="">-- Select --</option>
-      <option value="Desktop computer">Desktop computer</option>
-      <option value="Laptop">Laptop</option>
-      <option value="Smartphone">Smartphone</option>
-      <option value="Tablet">Tablet</option>
+      ${t.q2Options.map(opt => `<option value="${opt}">${opt}</option>`).join('')}
     </select><br><br>
 
-    <label>3. What type of content do you prefer?</label><br>
+    <label>${t.q3}</label><br>
     <select id="q3" style="width:100%; padding:5px; margin:5px 0;">
-      <option value="">-- Select --</option>
-      <option value="Comedy & Entertainment">Comedy & Entertainment</option>
-      <option value="Fashion & Lifestyle">Fashion & Lifestyle</option>
-      <option value="Movies & Animation">Movies & Animation</option>
-      <option value="Science & Technology">Science & Technology</option>
-      <option value="Gaming">Gaming</option>
+      ${t.q3Options.map(opt => `<option value="${opt}">${opt}</option>`).join('')}
     </select><br><br>
 
-    <label>4. Your age group?</label><br>
+    <label>${t.q4}</label><br>
     <select id="q4" style="width:100%; padding:5px; margin:5px 0;">
-      <option value="">-- Select --</option>
-      <option value="Under 18">Under 18</option>
-      <option value="18-25">18-25</option>
-      <option value="26-35">26-35</option>
-      <option value="36 and above">36 and above</option>
+      ${t.q4Options.map(opt => `<option value="${opt}">${opt}</option>`).join('')}
     </select><br><br>
 
-    <label>5. Do you often interact with Shorts?</label><br>
+    <label>${t.q5}</label><br>
     <select id="q5" style="width:100%; padding:5px; margin:5px 0;">
-      <option value="">-- Select --</option>
-      <option value="Like or dislike">Like or dislike</option>
-      <option value="Comment on videos">Comment on videos</option>
-      <option value="Share with others">Share with others</option>
-      <option value="All of the above">All of the above</option>
-      <option value="I usually just watch without engaging">I usually just watch without engaging</option>
+      ${t.q5Options.map(opt => `<option value="${opt}">${opt}</option>`).join('')}
     </select><br><br>
 
-    <label>6. Any other comments?</label><br>
+    <label>${t.q6}</label><br>
     <textarea id="q6" rows="3" style="width:100%;"></textarea><br><br>
 
-    <button id="survey-submit" style="padding:10px 20px; font-size:16px; cursor:pointer;">Submit ✅</button>
+    <button id="survey-submit" style="padding:10px 20px; font-size:16px; cursor:pointer;">${t.submit}</button>
   `;
 
   document.body.appendChild(popup);
@@ -183,11 +187,11 @@ function showSurveyPopup() {
       q3: document.getElementById("q3").value,
       q4: document.getElementById("q4").value,
       q5: document.getElementById("q5").value,
-      q6: document.getElementById("q6").value,
+      q6: document.getElementById("q6").value
     };
 
     if (!answers.q1 || !answers.q2 || !answers.q3 || !answers.q4 || !answers.q5) {
-      alert("⚠️ Please answer all required questions before submitting.");
+      alert(t.alertIncomplete);
       return;
     }
 
@@ -198,8 +202,8 @@ function showSurveyPopup() {
         userId,
         sessionId,
         answers,
-        timestamp: new Date().toISOString(),
-      }),
+        timestamp: new Date().toISOString()
+      })
     })
       .then(res => res.json())
       .then(() => {
