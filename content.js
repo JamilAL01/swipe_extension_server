@@ -94,35 +94,35 @@ function showConsentPopup() {
 
   document.body.appendChild(popup);
 
-  // Set initial language in dropdown
-  const langSelect = document.getElementById("lang-select");
-  langSelect.value = selectedLang;
-
-  langSelect.onchange = (e) => {
-    selectedLang = e.target.value;
-    localStorage.setItem("swipeLang", selectedLang);
-    popup.remove();
-    showConsentPopup(); // re-render popup in new language
-  };
-
   document.getElementById("consent-yes").onclick = () => {
     localStorage.setItem("swipeConsent", "yes");
+    consent = "yes";
     popup.remove();
     console.log("[SwipeExtension] User consented ✅");
 
-    // Start tracking immediately
-    initExtension(true); // <-- starts video tracking
+    // START TRACKING IMMEDIATELY
+    initExtension(true);  // <-- this will attach video tracking
 
-    // Then show survey
+    // THEN SHOW SURVEY
     showSurveyPopup();
-};
-
+  };
 
   document.getElementById("consent-no").onclick = () => {
     localStorage.setItem("swipeConsent", "no");
+    consent = "no";
     popup.remove();
     console.log("[SwipeExtension] User declined ❌");
   };
+
+  // Show popup if no choice made yet
+  if (!consent) {
+    showConsentPopup();
+  } else if (consent === "yes") {
+    // user already consented, start tracking and survey
+    initExtension(true);       // <-- ensure tracking starts
+    showSurveyPopup();
+  }
+
 }
 
 // ================== SURVEY POPUP ==================
