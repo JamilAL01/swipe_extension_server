@@ -177,6 +177,13 @@ function showSurveyPopup() {
       return;
     }
 
+    // ✅ Ensure IDs are ready before sending
+    if (!window._swipeUserId || !window._swipeSessionId) {
+      console.warn("[SwipeExtension] ❌ Survey submission delayed — user/session not initialized yet");
+      setTimeout(() => document.getElementById("survey-submit").click(), 500);
+      return;
+    }
+
     fetch("https://swipe-extension-server-2.onrender.com/api/surveys", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -186,19 +193,22 @@ function showSurveyPopup() {
         answers,
         timestamp: new Date().toISOString()
       })
-    }).then(()=> {
+    }).then(res => {
+      if (!res.ok) throw new Error("Survey save failed");
       console.log("[SwipeExtension] Survey saved ✅", answers);
       localStorage.setItem("surveyDone","true");
       popup.remove();
     }).catch(err=>console.error("[SwipeExtension] Survey error ❌",err));
   };
+
 }
 
 // ================== CONSENT CHECK ==================
 if (!consent) showConsentPopup();
 else if (consent==="yes") {
+  initExtension(true);
   showSurveyPopup();
-  initExtension(true); // start tracking
+
 }
 
 
