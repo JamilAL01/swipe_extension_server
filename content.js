@@ -197,11 +197,13 @@ function showSurveyPopup() {
 }
 
 // ================== CONSENT CHECK ==================
-if (!consent) showConsentPopup();
-else if (consent==="yes") {
+if (!consent) {
+  showConsentPopup();
+} else if (consent === "yes") {
   showSurveyPopup();
-  initExtension(true); // start tracking
+  initExtension(true);
 }
+
 
 
 
