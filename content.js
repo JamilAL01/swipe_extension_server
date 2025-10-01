@@ -1,6 +1,5 @@
 console.log("[SwipeExtension] Content script injected ✅");
 
-// ================== GDPR CONSENT ==================
 // ================== TRANSLATIONS ==================
 const translations = {
   en: {
@@ -55,6 +54,7 @@ const translations = {
 
 // ================== LANGUAGE DETECTION ==================
 let selectedLang = localStorage.getItem("swipeLang") || (navigator.language.startsWith("fr") ? "fr" : "en");
+let consent = localStorage.getItem("swipeConsent");
 
 // ================== CONSENT POPUP ==================
 function showConsentPopup() {
@@ -64,65 +64,71 @@ function showConsentPopup() {
 
   const popup = document.createElement("div");
   popup.id = "swipe-consent-popup";
-  popup.style.position = "fixed";
-  popup.style.top = "50%";
-  popup.style.left = "50%";
-  popup.style.transform = "translate(-50%, -50%)";
-  popup.style.width = "500px";
-  popup.style.padding = "25px";
-  popup.style.background = "white";
-  popup.style.border = "2px solid #444";
-  popup.style.borderRadius = "12px";
-  popup.style.boxShadow = "0 4px 20px rgba(0,0,0,0.3)";
-  popup.style.zIndex = "9999";
-  popup.style.fontSize = "16px";
-  popup.style.fontFamily = "Arial, sans-serif";
-  popup.style.textAlign = "center";
+  popup.style = `
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 500px;
+    padding: 25px;
+    background: white;
+    border: 2px solid #444;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    z-index: 9999;
+    font-size: 16px;
+    font-family: Arial, sans-serif;
+    text-align: center;
+  `;
 
   popup.innerHTML = `
     <h2 style="margin-top:0; font-size:20px;">${t.consentTitle}</h2>
     <p style="margin-bottom: 10px; margin-top: 15px;">Select language / Choisir la langue:</p>
     <select id="lang-select" style="margin-bottom: 20px; padding: 8px 10px;">
-      <option value="en">English</option>
-      <option value="fr">Français</option>
+      <option value="en" ${selectedLang==="en"?"selected":""}>English</option>
+      <option value="fr" ${selectedLang==="fr"?"selected":""}>Français</option>
     </select>
     <p style="line-height:1.5;">${t.consentText}</p>
     <p><b>${t.consentQuestion}</b></p>
-    <button id="consent-yes" style="margin:10px; padding:10px 20px; font-size:16px; cursor:pointer;">${t.yes}</button>
-    <button id="consent-no" style="margin:10px; padding:10px 20px; font-size:16px; cursor:pointer;">${t.no}</button>
+    <button id="consent-yes" style="margin:10px; padding:10px 20px; cursor:pointer;">${t.yes}</button>
+    <button id="consent-no" style="margin:10px; padding:10px 20px; cursor:pointer;">${t.no}</button>
   `;
 
   document.body.appendChild(popup);
 
+  // --- Language change ---
+  document.getElementById("lang-select").onchange = (e) => {
+    selectedLang = e.target.value;
+    localStorage.setItem("swipeLang", selectedLang);
+    popup.remove();
+    showConsentPopup(); // re-render in new language
+  };
+
+  // --- Yes button ---
   document.getElementById("consent-yes").onclick = () => {
     localStorage.setItem("swipeConsent", "yes");
     consent = "yes";
     popup.remove();
     console.log("[SwipeExtension] User consented ✅");
-
-    // START TRACKING IMMEDIATELY
-    initExtension(true);  // <-- this will attach video tracking
-
-    // THEN SHOW SURVEY
+    initExtension(true);
     showSurveyPopup();
   };
 
+  // --- No button ---
   document.getElementById("consent-no").onclick = () => {
     localStorage.setItem("swipeConsent", "no");
     consent = "no";
     popup.remove();
     console.log("[SwipeExtension] User declined ❌");
   };
+}
 
-  // Show popup if no choice made yet
-  if (!consent) {
-    showConsentPopup();
-  } else if (consent === "yes") {
-    // user already consented, start tracking and survey
-    initExtension(true);       // <-- ensure tracking starts
-    showSurveyPopup();
-  }
-
+// ================== RUN CONSENT LOGIC ==================
+if (!consent) {
+  showConsentPopup();
+} else if (consent === "yes") {
+  initExtension(true);
+  showSurveyPopup();
 }
 
 // ================== SURVEY POPUP ==================
@@ -133,22 +139,24 @@ function showSurveyPopup() {
 
   const popup = document.createElement("div");
   popup.id = "survey-popup";
-  popup.style.position = "fixed";
-  popup.style.top = "50%";
-  popup.style.left = "50%";
-  popup.style.transform = "translate(-50%, -50%)";
-  popup.style.width = "500px";
-  popup.style.padding = "25px";
-  popup.style.background = "white";
-  popup.style.border = "2px solid #444";
-  popup.style.borderRadius = "12px";
-  popup.style.boxShadow = "0 4px 20px rgba(0,0,0,0.3)";
-  popup.style.zIndex = "10000";
-  popup.style.fontSize = "16px";
-  popup.style.fontFamily = "Arial, sans-serif";
-  popup.style.textAlign = "left";
-  popup.style.maxHeight = "80vh";
-  popup.style.overflowY = "auto";
+  popup.style = `
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 500px;
+    padding: 25px;
+    background: white;
+    border: 2px solid #444;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    z-index: 10000;
+    font-size: 16px;
+    font-family: Arial, sans-serif;
+    text-align: left;
+    max-height: 80vh;
+    overflow-y: auto;
+  `;
 
   popup.innerHTML = `
     <h2 style="margin-top:0; font-size:20px;">${t.surveyTitle}</h2>
@@ -156,27 +164,27 @@ function showSurveyPopup() {
 
     <label>${t.q1}</label><br>
     <select id="q1" style="width:100%; padding:5px; margin:5px 0;">
-      ${t.q1Options.map(opt => `<option value="${opt}">${opt}</option>`).join('')}
+      ${t.q1Options.map(opt=>`<option value="${opt}">${opt}</option>`).join('')}
     </select><br><br>
 
     <label>${t.q2}</label><br>
     <select id="q2" style="width:100%; padding:5px; margin:5px 0;">
-      ${t.q2Options.map(opt => `<option value="${opt}">${opt}</option>`).join('')}
+      ${t.q2Options.map(opt=>`<option value="${opt}">${opt}</option>`).join('')}
     </select><br><br>
 
     <label>${t.q3}</label><br>
     <select id="q3" style="width:100%; padding:5px; margin:5px 0;">
-      ${t.q3Options.map(opt => `<option value="${opt}">${opt}</option>`).join('')}
+      ${t.q3Options.map(opt=>`<option value="${opt}">${opt}</option>`).join('')}
     </select><br><br>
 
     <label>${t.q4}</label><br>
     <select id="q4" style="width:100%; padding:5px; margin:5px 0;">
-      ${t.q4Options.map(opt => `<option value="${opt}">${opt}</option>`).join('')}
+      ${t.q4Options.map(opt=>`<option value="${opt}">${opt}</option>`).join('')}
     </select><br><br>
 
     <label>${t.q5}</label><br>
     <select id="q5" style="width:100%; padding:5px; margin:5px 0;">
-      ${t.q5Options.map(opt => `<option value="${opt}">${opt}</option>`).join('')}
+      ${t.q5Options.map(opt=>`<option value="${opt}">${opt}</option>`).join('')}
     </select><br><br>
 
     <label>${t.q6}</label><br>
@@ -212,21 +220,15 @@ function showSurveyPopup() {
         timestamp: new Date().toISOString(),
       }),
     })
-      .then(res => res.json())
-      .then(() => {
-        console.log("[SwipeExtension] Survey saved ✅", answers);
-        localStorage.setItem("surveyDone", "true");
-        popup.remove();
-      })
-      .catch(err => console.error("[SwipeExtension] Survey error ❌", err));
+    .then(res=>res.json())
+    .then(()=> {
+      console.log("[SwipeExtension] Survey saved ✅", answers);
+      localStorage.setItem("surveyDone","true");
+      popup.remove();
+    })
+    .catch(err=>console.error("[SwipeExtension] Survey error ❌",err));
   };
 }
-
-// ================== INITIAL RUN ==================
-const consent = localStorage.getItem("swipeConsent");
-if (!consent) showConsentPopup();
-else if (consent === "yes") showSurveyPopup();
-
 
 
 // ================== USER & SESSION SETUP ==================
