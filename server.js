@@ -70,15 +70,16 @@ app.post("/api/events", async (req, res) => {
 // 📝 Save survey responses
 app.post("/api/surveys", async (req, res) => {
   try {
-    const { userId, sessionId, answers, timestamp, screen_size } = req.body;
+    const { userId, sessionId, answers, timestamp, screen_size, device_type } = req.body;
 
     if (!userId || !sessionId || !answers) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
     const result = await pool.query(
-      `INSERT INTO survey_responses (user_id, session_id, answers, created_at, screen_size)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO survey_responses 
+       (user_id, session_id, answers, created_at, screen_size, device_type)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *;`,
       [userId, sessionId, answers, timestamp || new Date(), screen_size || null, device_type || null]
     );
