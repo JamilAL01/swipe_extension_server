@@ -197,8 +197,8 @@ function showSurveyPopup() {
 // ================== CONSENT CHECK ==================
 if (!consent) showConsentPopup();
 else if (consent==="yes") {
-  initExtension(true); // start tracking
   showSurveyPopup();
+  initExtension(true); // start tracking
 }
 
 
