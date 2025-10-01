@@ -56,14 +56,18 @@ const translations = {
 let selectedLang = localStorage.getItem("swipeLang") || (navigator.language.startsWith("fr") ? "fr" : "en");
 let consent = localStorage.getItem("swipeConsent");
 
-// Generate or load swipe user ID early
-if (!localStorage.getItem("_swipeUserId")) {
-  localStorage.setItem("_swipeUserId", crypto.randomUUID());
+// ================== GLOBAL USER & SESSION ID ==================
+let userId = localStorage.getItem("swipeUserId");
+if (!userId) {
+  userId = crypto.randomUUID();
+  localStorage.setItem("swipeUserId", userId);
 }
-window._swipeUserId = localStorage.getItem("_swipeUserId");
+let sessionId = crypto.randomUUID();
 
-// Always generate a new session ID when page loads
-window._swipeSessionId = crypto.randomUUID();
+// For backward compatibility (some parts may use window._swipeUserId)
+window._swipeUserId = userId;
+window._swipeSessionId = sessionId;
+
 
 // ================== CONSENT POPUP ==================
 function showConsentPopup() {
@@ -196,8 +200,8 @@ function showSurveyPopup() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        userId: window._swipeUserId,
-        sessionId: window._swipeSessionId,
+        userId,
+        sessionId,
         answers,
         timestamp: new Date().toISOString()
       })
@@ -219,17 +223,6 @@ else if (consent==="yes") {
 
 
 // ================== USER & SESSION SETUP ==================
-let userId = localStorage.getItem("swipeUserId");
-if (!userId) {
-  userId = crypto.randomUUID();
-  localStorage.setItem("swipeUserId", userId);
-}
-
-let sessionId = sessionStorage.getItem("swipeSessionId");
-if (!sessionId) {
-  sessionId = crypto.randomUUID();
-  sessionStorage.setItem("swipeSessionId", sessionId);
-}
 
 let currentVideo = null;
 let lastSrc = null;
