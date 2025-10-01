@@ -81,8 +81,8 @@ function showConsentPopup() {
 
   popup.innerHTML = `
     <h2 style="margin-top:0; font-size:20px;">${t.consentTitle}</h2>
-    <p>Select language / Choisir la langue:</p>
-    <select id="lang-select" style="margin-bottom:10px; padding:5px;">
+    <p style="margin-bottom: 10px; margin-top: 15px;">Select language / Choisir la langue:</p>
+    <select id="lang-select" style="margin-bottom: 20px; padding: 8px 10px;">
       <option value="en">English</option>
       <option value="fr">Français</option>
     </select>
