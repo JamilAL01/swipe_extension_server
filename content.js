@@ -56,6 +56,15 @@ const translations = {
 let selectedLang = localStorage.getItem("swipeLang") || (navigator.language.startsWith("fr") ? "fr" : "en");
 let consent = localStorage.getItem("swipeConsent");
 
+// Generate or load swipe user ID early
+if (!localStorage.getItem("_swipeUserId")) {
+  localStorage.setItem("_swipeUserId", crypto.randomUUID());
+}
+window._swipeUserId = localStorage.getItem("_swipeUserId");
+
+// Always generate a new session ID when page loads
+window._swipeSessionId = crypto.randomUUID();
+
 // ================== CONSENT POPUP ==================
 function showConsentPopup() {
   const t = translations[selectedLang];
