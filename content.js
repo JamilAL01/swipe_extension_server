@@ -401,12 +401,19 @@ observer.observe(document.body, { childList: true, subtree: true });
 function trackVideoResolution(video) {
   if (!video) return;
 
-  // Log initial resolution once metadata is ready
+  let lastWidth = 0;
+  let lastHeight = 0;
+  let allowChanges = false; // to control when change events start
+
+  // Log initial resolution as soon as metadata is loaded
   video.addEventListener('loadedmetadata', () => {
     const width = video.videoWidth;
     const height = video.videoHeight;
 
     if (width && height) {
+      lastWidth = width;
+      lastHeight = height;
+
       console.log(`[SwipeExtension] Initial resolution: ${width}x${height}`);
       saveEvent({
         type: 'video-resolution',
@@ -415,35 +422,42 @@ function trackVideoResolution(video) {
         timestamp: new Date().toISOString(),
         extra: { width, height }
       });
+
+      // Small delay before starting to track changes
+      setTimeout(() => {
+        allowChanges = true;
+      }, 200); // 200 ms or more
     }
   });
 
-  //  Watch for resolution changes over time
-  let lastWidth = 0;
-  let lastHeight = 0;
-
+  // Watch for resolution changes
   const resolutionInterval = setInterval(() => {
-    if (video.videoWidth !== lastWidth || video.videoHeight !== lastHeight) {
-      lastWidth = video.videoWidth;
-      lastHeight = video.videoHeight;
+    if (!allowChanges) return; // Ignore early mutations
 
-      if (lastWidth && lastHeight) {
-        console.log(`[SwipeExtension] Resolution changed to: ${lastWidth}x${lastHeight}`);
-        saveEvent({
-          type: 'video-resolution-change',
-          videoId: getVideoId(),
-          src: video.src,
-          timestamp: new Date().toISOString(),
-          extra: { width: lastWidth, height: lastHeight }
-        });
-      }
+    const currentWidth = video.videoWidth;
+    const currentHeight = video.videoHeight;
+
+    if (currentWidth && currentHeight &&
+        (currentWidth !== lastWidth || currentHeight !== lastHeight)) {
+
+      lastWidth = currentWidth;
+      lastHeight = currentHeight;
+
+      console.log(`[SwipeExtension] Resolution changed to: ${currentWidth}x${currentHeight}`);
+      saveEvent({
+        type: 'video-resolution-change',
+        videoId: getVideoId(),
+        src: video.src,
+        timestamp: new Date().toISOString(),
+        extra: { width: currentWidth, height: currentHeight }
+      });
     }
-  }, 1000); // check every second
+  }, 1000);
 
-  // Optional cleanup if needed when video is removed/switched
+  // Cleanup interval on video end or removal
   video.addEventListener('ended', () => clearInterval(resolutionInterval));
+  video.addEventListener('emptied', () => clearInterval(resolutionInterval));
 }
-
 
 
 // ================== RE-HOOK ON URL CHANGE ==================
