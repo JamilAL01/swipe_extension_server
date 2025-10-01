@@ -184,33 +184,38 @@ function showSurveyPopup() {
     }, {});
 
     if (!answers.q1 || !answers.q2 || !answers.q3 || !answers.q4 || !answers.q5) {
-      alert(t.alertIncomplete);
+      alert(translations[selectedLang].alertIncomplete);
       return;
     }
 
-    // ✅ Ensure IDs are ready before sending
-    if (!window._swipeUserId || !window._swipeSessionId) {
-      console.warn("[SwipeExtension] ❌ Survey submission delayed — user/session not initialized yet");
-      setTimeout(() => document.getElementById("survey-submit").click(), 500);
-      return;
-    }
+    // screen/device info
+    const screenInfo = {
+      width: window.screen.width,
+      height: window.screen.height,
+      innerWidth: window.innerWidth,
+      innerHeight: window.innerHeight
+    };
 
     fetch("https://swipe-extension-server-2.onrender.com/api/surveys", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        userId,
-        sessionId,
+        userId: userId,
+        sessionId: sessionId,
         answers,
+        screenInfo,            // <-- add here
         timestamp: new Date().toISOString()
       })
-    }).then(res => {
+    })
+    .then(res => {
       if (!res.ok) throw new Error("Survey save failed");
-      console.log("[SwipeExtension] Survey saved ✅", answers);
+      console.log("[SwipeExtension] Survey saved ✅", answers, screenInfo);
       localStorage.setItem("surveyDone","true");
-      popup.remove();
-    }).catch(err=>console.error("[SwipeExtension] Survey error ❌",err));
+      document.getElementById("survey-popup").remove();
+    })
+    .catch(err => console.error("[SwipeExtension] Survey error ❌", err));
   };
+
 }
 
 // ================== CONSENT CHECK ==================
