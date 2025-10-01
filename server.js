@@ -70,17 +70,17 @@ app.post("/api/events", async (req, res) => {
 // 📝 Save survey responses
 app.post("/api/surveys", async (req, res) => {
   try {
-    const { userId, sessionId, answers, timestamp } = req.body;
+    const { userId, sessionId, answers, timestamp, screen_size, device_type } = req.body;
 
     if (!userId || !sessionId || !answers) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
     const result = await pool.query(
-      `INSERT INTO survey_responses (user_id, session_id, answers, created_at)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO survey_responses (user_id, session_id, answers, created_at, screen_size)
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING *;`,
-      [userId, sessionId, answers, timestamp || new Date()]
+      [userId, sessionId, answers, timestamp || new Date(), screen_size || null, device_type || null]
     );
 
     res.status(201).json({
@@ -92,6 +92,7 @@ app.post("/api/surveys", async (req, res) => {
     res.status(500).json({ error: "Database error", details: err.message });
   }
 });
+
 
 // ================== HEALTH CHECK ==================
 app.get("/", (req, res) => {

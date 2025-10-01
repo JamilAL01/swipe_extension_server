@@ -184,38 +184,39 @@ function showSurveyPopup() {
     }, {});
 
     if (!answers.q1 || !answers.q2 || !answers.q3 || !answers.q4 || !answers.q5) {
-      alert(translations[selectedLang].alertIncomplete);
+      alert(t.alertIncomplete);
       return;
     }
 
-    // screen/device info
-    const screenInfo = {
-      width: window.screen.width,
-      height: window.screen.height,
-      innerWidth: window.innerWidth,
-      innerHeight: window.innerHeight
-    };
+    // ✅ Ensure IDs are ready before sending
+    if (!window._swipeUserId || !window._swipeSessionId) {
+      console.warn("[SwipeExtension] ❌ Survey submission delayed — user/session not initialized yet");
+      setTimeout(() => document.getElementById("survey-submit").click(), 500);
+      return;
+    }
+
+    const screenInfo = `${window.innerWidth}x${window.innerHeight}`;
+    const deviceType = window.innerWidth <= 768 ? "mobile" :
+                   window.innerWidth <= 1024 ? "tablet" : "desktop";
 
     fetch("https://swipe-extension-server-2.onrender.com/api/surveys", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        userId: userId,
-        sessionId: sessionId,
+        userId: window._swipeUserId,
+        sessionId: window._swipeSessionId,
         answers,
-        screenInfo,            // <-- add here
+        screen_size: screenInfo,
+        device_type: deviceType,
         timestamp: new Date().toISOString()
       })
-    })
-    .then(res => {
+    }).then(res => {
       if (!res.ok) throw new Error("Survey save failed");
-      console.log("[SwipeExtension] Survey saved ✅", answers, screenInfo);
+      console.log("[SwipeExtension] Survey saved ✅", answers);
       localStorage.setItem("surveyDone","true");
-      document.getElementById("survey-popup").remove();
-    })
-    .catch(err => console.error("[SwipeExtension] Survey error ❌", err));
+      popup.remove();
+    }).catch(err=>console.error("[SwipeExtension] Survey error ❌",err));
   };
-
 }
 
 // ================== CONSENT CHECK ==================
