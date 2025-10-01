@@ -109,8 +109,14 @@ function showConsentPopup() {
     localStorage.setItem("swipeConsent", "yes");
     popup.remove();
     console.log("[SwipeExtension] User consented ✅");
+
+    // Start tracking immediately
+    initExtension(true); // <-- starts video tracking
+
+    // Then show survey
     showSurveyPopup();
-  };
+};
+
 
   document.getElementById("consent-no").onclick = () => {
     localStorage.setItem("swipeConsent", "no");
