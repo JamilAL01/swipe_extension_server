@@ -197,7 +197,9 @@ function showSurveyPopup() {
 
     const screenInfo = `${window.innerWidth}x${window.innerHeight}`;
     const deviceType = window.innerWidth <= 768 ? "mobile" :
-                   window.innerWidth <= 1024 ? "tablet" : "desktop";
+                   window.innerWidth <= 1024 ? "tablet" :
+                   window.innerWidth <= 1440 ? "laptop" : "desktop";
+
 
     fetch("https://swipe-extension-server-2.onrender.com/api/surveys", {
       method: "POST",
