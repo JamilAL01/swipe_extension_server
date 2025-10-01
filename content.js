@@ -1,12 +1,11 @@
 console.log("[SwipeExtension] Content script injected ✅");
 
 // ================== GDPR CONSENT ==================
-let consent = localStorage.getItem("swipeConsent");
-
+// ================== TRANSLATIONS ==================
 const translations = {
   en: {
     consentTitle: "🔒 Data Collection Notice",
-    consentText: `This extension records your interactions with YouTube Shorts
+    consentText: `This extension <b>SWiPE X</b> records your interactions with YouTube Shorts
       (<b>play, pause, skips, watch time, likes, shares</b>, etc.) for research purposes.
       Your identity remains completely anonymous. A randomly generated ID is stored locally only to recognize repeated usage across sessions.`,
     consentQuestion: "Do you agree?",
@@ -30,7 +29,7 @@ const translations = {
   },
   fr: {
     consentTitle: "🔒 Avis de collecte de données",
-    consentText: `Cette extension enregistre vos interactions avec YouTube Shorts
+    consentText: `Cette extension <b>SWiPE X</b> enregistre vos interactions avec YouTube Shorts
       (<b>lecture, pause, saut, temps de visionnage, likes, partages</b>, etc.) à des fins de recherche.
       Votre identité reste complètement anonyme. Un ID aléatoire est stocké localement uniquement pour reconnaître les utilisations répétées.`,
     consentQuestion: "Êtes-vous d'accord ?",
@@ -40,7 +39,7 @@ const translations = {
     surveyText: "Veuillez répondre à quelques questions courtes :",
     submit: "Envoyer ✅",
     alertIncomplete: "⚠️ Veuillez répondre à toutes les questions obligatoires avant de soumettre.",
-    q1: "1. À quelle fréquence regardez-vous les Shorts YouTube ?",
+    q1: "1. À quelle fréquence regardez-vous les YouTube Shorts ?",
     q1Options: ["-- Sélectionner --","Quotidien","Plusieurs fois par semaine","Rarement","Jamais"],
     q2: "2. Quel appareil utilisez-vous habituellement ?",
     q2Options: ["-- Sélectionner --","Ordinateur de bureau","Ordinateur portable","Smartphone","Tablette"],
@@ -54,18 +53,14 @@ const translations = {
   }
 };
 
+// ================== LANGUAGE DETECTION ==================
+let selectedLang = localStorage.getItem("swipeLang") || (navigator.language.startsWith("fr") ? "fr" : "en");
 
-function getUserLang() {
-  const lang = navigator.language || navigator.userLanguage;
-  return lang.startsWith("fr") ? "fr" : "en";
-}
-
-
+// ================== CONSENT POPUP ==================
 function showConsentPopup() {
   if (document.getElementById("swipe-consent-popup")) return;
 
-  const lang = getUserLang();
-  const t = translations[lang];
+  const t = translations[selectedLang];
 
   const popup = document.createElement("div");
   popup.id = "swipe-consent-popup";
@@ -87,6 +82,11 @@ function showConsentPopup() {
   popup.innerHTML = `
     <h2 style="margin-top:0; font-size:20px;">${t.consentTitle}</h2>
     <p style="line-height:1.5;">${t.consentText}</p>
+    <p>Select language / Choisir la langue:</p>
+    <select id="lang-select" style="margin-bottom:10px; padding:5px;">
+      <option value="en">English</option>
+      <option value="fr">Français</option>
+    </select>
     <p><b>${t.consentQuestion}</b></p>
     <button id="consent-yes" style="margin:10px; padding:10px 20px; font-size:16px; cursor:pointer;">${t.yes}</button>
     <button id="consent-no" style="margin:10px; padding:10px 20px; font-size:16px; cursor:pointer;">${t.no}</button>
@@ -94,35 +94,36 @@ function showConsentPopup() {
 
   document.body.appendChild(popup);
 
+  // Set initial language in dropdown
+  const langSelect = document.getElementById("lang-select");
+  langSelect.value = selectedLang;
+
+  langSelect.onchange = (e) => {
+    selectedLang = e.target.value;
+    localStorage.setItem("swipeLang", selectedLang);
+    popup.remove();
+    showConsentPopup(); // re-render popup in new language
+  };
+
   document.getElementById("consent-yes").onclick = () => {
     localStorage.setItem("swipeConsent", "yes");
-    consent = "yes";
     popup.remove();
     console.log("[SwipeExtension] User consented ✅");
-    showSurveyPopup(); // show survey only after consent
+    showSurveyPopup();
   };
 
   document.getElementById("consent-no").onclick = () => {
     localStorage.setItem("swipeConsent", "no");
-    consent = "no";
     popup.remove();
     console.log("[SwipeExtension] User declined ❌");
   };
-}
-
-// Show popup if no choice made yet
-if (!consent) {
-  showConsentPopup();
-} else if (consent === "yes") {
-  showSurveyPopup();
 }
 
 // ================== SURVEY POPUP ==================
 function showSurveyPopup() {
   if (localStorage.getItem("surveyDone")) return;
 
-  const lang = getUserLang();
-  const t = translations[lang];
+  const t = translations[selectedLang];
 
   const popup = document.createElement("div");
   popup.id = "survey-popup";
@@ -187,7 +188,7 @@ function showSurveyPopup() {
       q3: document.getElementById("q3").value,
       q4: document.getElementById("q4").value,
       q5: document.getElementById("q5").value,
-      q6: document.getElementById("q6").value
+      q6: document.getElementById("q6").value,
     };
 
     if (!answers.q1 || !answers.q2 || !answers.q3 || !answers.q4 || !answers.q5) {
@@ -199,11 +200,11 @@ function showSurveyPopup() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        userId,
-        sessionId,
+        userId: window._swipeUserId,
+        sessionId: window._swipeSessionId,
         answers,
-        timestamp: new Date().toISOString()
-      })
+        timestamp: new Date().toISOString(),
+      }),
     })
       .then(res => res.json())
       .then(() => {
@@ -214,6 +215,12 @@ function showSurveyPopup() {
       .catch(err => console.error("[SwipeExtension] Survey error ❌", err));
   };
 }
+
+// ================== INITIAL RUN ==================
+const consent = localStorage.getItem("swipeConsent");
+if (!consent) showConsentPopup();
+else if (consent === "yes") showSurveyPopup();
+
 
 
 // ================== USER & SESSION SETUP ==================
