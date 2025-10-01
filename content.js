@@ -107,15 +107,13 @@ function showConsentPopup() {
   };
 
   document.getElementById("consent-yes").onclick = () => {
-    localStorage.setItem("swipeConsent", "yes");
+    localStorage.setItem("swipeConsent","yes");
     consent = "yes";
     popup.remove();
     console.log("[SwipeExtension] User consented ✅");
-
-    initExtension(true);   // initialize tracking & IDs first
-    showSurveyPopup();     // then show survey immediately
+    showSurveyPopup();   // show survey
+    initExtension(true); // start tracking
   };
-
 
   document.getElementById("consent-no").onclick = () => {
     localStorage.setItem("swipeConsent","no");
@@ -197,13 +195,11 @@ function showSurveyPopup() {
 }
 
 // ================== CONSENT CHECK ==================
-if (!consent) {
-  showConsentPopup();
-} else if (consent === "yes") {
+if (!consent) showConsentPopup();
+else if (consent==="yes") {
   showSurveyPopup();
-  initExtension(true);
+  initExtension(true); // start tracking
 }
-
 
 
 
