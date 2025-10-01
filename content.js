@@ -111,9 +111,10 @@ function showConsentPopup() {
     consent = "yes";
     popup.remove();
     console.log("[SwipeExtension] User consented ✅");
-    initExtension(true); // start tracking
-    showSurveyPopup();   // show survey
+    initExtension(true);   // ✅ first initialize (sets userId, sessionId)
+    setTimeout(showSurveyPopup, 100); // ✅ then show the survey
   };
+
 
   document.getElementById("consent-no").onclick = () => {
     localStorage.setItem("swipeConsent","no");
