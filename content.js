@@ -436,28 +436,23 @@ const observer = new MutationObserver(() => {
 observer.observe(document.body, { childList: true, subtree: true });
 
 // ================== VIDEO RESOLUTION ======================
-// ================== VIDEO RESOLUTION TRACKING ======================
-const trackedVideos = new Map(); // Keep track of active video intervals per videoId
-
+// ================== VIDEO RESOLUTION ======================
 function trackVideoResolution(video, videoId) {
   if (!video || !videoId) return;
 
-  // Avoid double-tracking the same video
-  if (trackedVideos.has(videoId)) return;
-
   let lastWidth = 0;
   let lastHeight = 0;
-  let allowChanges = false;
+  let allowChanges = false; // control when change events start
 
   // Log initial resolution once metadata is loaded
   const onMetadata = () => {
     const currentWidth = video.videoWidth;
     const currentHeight = video.videoHeight;
 
+    // Estimate maximum resolution after a short delay (adaptive bitrate might upgrade)
     let maxWidth = currentWidth;
     let maxHeight = currentHeight;
 
-    // Wait 1s to let adaptive streams stabilize
     const timeoutId = setTimeout(() => {
       const maybeW = video.videoWidth;
       const maybeH = video.videoHeight;
@@ -472,21 +467,23 @@ function trackVideoResolution(video, videoId) {
         videoId,
         src: video.src,
         timestamp: new Date().toISOString(),
-        extra: { current: `${currentWidth}x${currentHeight}`, max: `${maxWidth}x${maxHeight}` }
+        extra: {
+          current: `${currentWidth}x${currentHeight}`,
+          max: `${maxWidth}x${maxHeight}`
+        }
       });
 
       allowChanges = true;
       lastWidth = video.videoWidth;
       lastHeight = video.videoHeight;
-    }, 1000);
+    }, 1000); // wait 1s to stabilize resolution
 
-    // Track resolution changes per video
-    const intervalId = setInterval(() => {
+    // Track resolution changes over time
+    const resolutionInterval = setInterval(() => {
       if (!allowChanges) return;
 
       const w = video.videoWidth;
       const h = video.videoHeight;
-
       if ((w !== lastWidth || h !== lastHeight) && w && h) {
         lastWidth = w;
         lastHeight = h;
@@ -502,47 +499,15 @@ function trackVideoResolution(video, videoId) {
       }
     }, 2000);
 
-    // Store interval and timeout IDs to cleanup later
-    trackedVideos.set(videoId, { intervalId, timeoutId });
+    // Cleanup on video end
+    video.addEventListener('ended', () => {
+      clearInterval(resolutionInterval);
+      clearTimeout(timeoutId);
+      video.removeEventListener('loadedmetadata', onMetadata);
+    });
   };
 
   video.addEventListener('loadedmetadata', onMetadata);
-
-  // Cleanup function (call when user swipes away)
-  const cleanup = () => {
-    const tracked = trackedVideos.get(videoId);
-    if (tracked) {
-      clearInterval(tracked.intervalId);
-      clearTimeout(tracked.timeoutId);
-      trackedVideos.delete(videoId);
-    }
-    video.removeEventListener('loadedmetadata', onMetadata);
-  };
-
-  // Automatically cleanup on video ended
-  video.addEventListener('ended', cleanup);
-
-  // Return cleanup function in case you need it on swipe
-  return cleanup;
-}
-
-// ================== USAGE ======================
-// Call this whenever a video becomes active (e.g., swipe or start)
-function onVideoActivated(videoElement, videoId) {
-  // Stop tracking previous videos if needed
-  trackedVideos.forEach((_, oldVideoId) => {
-    if (oldVideoId !== videoId) {
-      const tracked = trackedVideos.get(oldVideoId);
-      if (tracked) {
-        clearInterval(tracked.intervalId);
-        clearTimeout(tracked.timeoutId);
-        trackedVideos.delete(oldVideoId);
-      }
-    }
-  });
-
-  // Start tracking the new video
-  trackVideoResolution(videoElement, videoId);
 }
 
 
