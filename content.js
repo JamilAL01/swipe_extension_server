@@ -438,83 +438,56 @@ observer.observe(document.body, { childList: true, subtree: true });
 
 // ================== VIDEO RESOLUTION ======================
 
-function getMaxAvailableResolutionLabel() {
-  try {
-    const player = window.ytInitialPlayerResponse;
-    if (!player) return null;
-
-    const formats = [
-      ...(player.streamingData?.formats || []),
-      ...(player.streamingData?.adaptiveFormats || [])
-    ];
-
-    let maxLabel = null;
-    let maxPixels = 0;
-
-    for (const fmt of formats) {
-      if (fmt.width && fmt.height) {
-        const pixels = fmt.width * fmt.height;
-        if (pixels > maxPixels) {
-          maxPixels = pixels;
-          maxLabel = fmt.qualityLabel || `${fmt.width}x${fmt.height}`;
-        }
-      }
-    }
-
-    return maxLabel;
-  } catch (e) {
-    console.warn('[SwipeExtension] Could not get max available resolution', e);
-    return null;
-  }
-}
-
 function trackVideoResolution(video) {
   if (!video) return;
 
   let lastWidth = 0;
   let lastHeight = 0;
-  let initialLogged = false;
+  let allowChanges = false; // control when change events start
 
-  // --- 1️⃣ Log initial resolution on video start ---
-  const logInitialResolution = () => {
-    if (initialLogged) return;
+  // Log initial resolution once metadata is loaded
+  video.addEventListener('loadedmetadata', () => {
+    const currentWidth = video.videoWidth;
+    const currentHeight = video.videoHeight;
 
-    const currentW = video.videoWidth;
-    const currentH = video.videoHeight;
-    if (!currentW || !currentH) return; // wait until it's ready
+    // Estimate maximum resolution after a short delay (adaptive bitrate might upgrade)
+    let maxWidth = currentWidth;
+    let maxHeight = currentHeight;
 
-    lastWidth = currentW;
-    lastHeight = currentH;
-    initialLogged = true;
-
-    const maxLabel = getMaxAvailableResolutionLabel();
-
-    console.log(
-      `[SwipeExtension] Initial resolution: ${currentW}x${currentH}, max available: ${maxLabel}`
-    );
-
-    saveEvent({
-      type: 'video-resolution',
-      videoId: getVideoId(),
-      src: video.src,
-      timestamp: new Date().toISOString(),
-      extra: {
-        current: `${currentW}x${currentH}`,
-        max: maxLabel || 'unknown'
+    setTimeout(() => {
+      const maybeW = video.videoWidth;
+      const maybeH = video.videoHeight;
+      if (maybeW > maxWidth || maybeH > maxHeight) {
+        maxWidth = maybeW;
+        maxHeight = maybeH;
       }
-    });
-  };
 
-  video.addEventListener('loadedmetadata', logInitialResolution);
-  video.addEventListener('playing', logInitialResolution);
+      console.log(`[SwipeExtension] Initial resolution: ${currentWidth}x${currentHeight}, max: ${maxWidth}x${maxHeight}`);
+      saveEvent({
+        type: 'video-resolution',
+        videoId: getVideoId(),
+        src: video.src,
+        timestamp: new Date().toISOString(),
+        extra: {
+          current: `${currentWidth}x${currentHeight}`,
+          max: `${maxWidth}x${maxHeight}`
+        }
+      });
 
-  // --- 2️⃣ Track resolution changes due to adaptive switching ---
-  const interval = setInterval(() => {
-    if (!initialLogged) return;
+      // Enable resolution change tracking after initial event
+      allowChanges = true;
+      lastWidth = video.videoWidth;
+      lastHeight = video.videoHeight;
+    }, 2000); // wait 2s to stabilize resolution
+  });
+
+  // Track resolution changes over time
+  const resolutionInterval = setInterval(() => {
+    if (!allowChanges) return;
 
     const w = video.videoWidth;
     const h = video.videoHeight;
-    if (w && h && (w !== lastWidth || h !== lastHeight)) {
+    if ((w !== lastWidth || h !== lastHeight) && w && h) {
       lastWidth = w;
       lastHeight = h;
 
@@ -529,10 +502,9 @@ function trackVideoResolution(video) {
     }
   }, 1000);
 
-  video.addEventListener('ended', () => clearInterval(interval));
-  video.addEventListener('pause', () => clearInterval(interval));
+  // Cleanup interval on video end
+  video.addEventListener('ended', () => clearInterval(resolutionInterval));
 }
-
 
 
 
