@@ -394,7 +394,14 @@ const observer = new MutationObserver(() => {
   const video = document.querySelector("video");
   if (video && !video._resolutionHooked) {
     video._resolutionHooked = true;
-    trackVideoResolution(video);
+    if (hasUserConsented()) {
+      trackVideoResolution(video);
+    } else {
+      // wait for consent, then start
+      waitForConsent().then(() => {
+        trackVideoResolution(video);
+      });
+    }
   }
   if (video && video.src !== lastSrc) {
     const videoId = getVideoId();
