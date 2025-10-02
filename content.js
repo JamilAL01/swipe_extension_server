@@ -441,28 +441,63 @@ observer.observe(document.body, { childList: true, subtree: true });
 function trackVideoResolution(video) {
   if (!video) return;
 
-  let lastWidth = 0;
-  let lastHeight = 0;
-  let allowChanges = false; // control when change events start
+  let currentWidth = 0;
+  let currentHeight = 0;
+  let maxWidth = 0;
+  let maxHeight = 0;
+  let stableTimer = null;
+  let resolutionLogged = false;
 
-  // Log initial resolution once metadata is loaded
-  video.addEventListener('loadedmetadata', () => {
-    const currentWidth = video.videoWidth;
-    const currentHeight = video.videoHeight;
+  // Watch for resolution changes continuously
+  const interval = setInterval(() => {
+    const w = video.videoWidth;
+    const h = video.videoHeight;
 
-    // Estimate maximum resolution after a short delay (adaptive bitrate might upgrade)
-    let maxWidth = currentWidth;
-    let maxHeight = currentHeight;
+    if (w && h && (w !== currentWidth || h !== currentHeight)) {
+      currentWidth = w;
+      currentHeight = h;
 
-    setTimeout(() => {
-      const maybeW = video.videoWidth;
-      const maybeH = video.videoHeight;
-      if (maybeW > maxWidth || maybeH > maxHeight) {
-        maxWidth = maybeW;
-        maxHeight = maybeH;
+      // Update max
+      if (w > maxWidth || h > maxHeight) {
+        maxWidth = w;
+        maxHeight = h;
       }
 
-      console.log(`[SwipeExtension] Initial resolution: ${currentWidth}x${currentHeight}, max: ${maxWidth}x${maxHeight}`);
+      console.log(`[SwipeExtension] Resolution changed: ${w}x${h}`);
+      saveEvent({
+        type: 'video-resolution-change',
+        videoId: getVideoId(),
+        src: video.src,
+        timestamp: new Date().toISOString(),
+        extra: { width: w, height: h }
+      });
+
+      // reset the "stabilized" timer
+      if (stableTimer) clearTimeout(stableTimer);
+      stableTimer = setTimeout(() => {
+        if (!resolutionLogged) {
+          resolutionLogged = true;
+          console.log(`[SwipeExtension] Final resolution: current=${currentWidth}x${currentHeight}, max=${maxWidth}x${maxHeight}`);
+          saveEvent({
+            type: 'video-resolution',
+            videoId: getVideoId(),
+            src: video.src,
+            timestamp: new Date().toISOString(),
+            extra: {
+              current: `${currentWidth}x${currentHeight}`,
+              max: `${maxWidth}x${maxHeight}`
+            }
+          });
+        }
+      }, 3000); // wait 3 seconds of no changes
+    }
+  }, 1000);
+
+  // Safety timeout: if no changes after 10s, log whatever we have
+  setTimeout(() => {
+    if (!resolutionLogged && (currentWidth || currentHeight)) {
+      resolutionLogged = true;
+      console.log(`[SwipeExtension] Timeout resolution log: current=${currentWidth}x${currentHeight}, max=${maxWidth}x${maxHeight}`);
       saveEvent({
         type: 'video-resolution',
         videoId: getVideoId(),
@@ -473,38 +508,12 @@ function trackVideoResolution(video) {
           max: `${maxWidth}x${maxHeight}`
         }
       });
-
-      // Enable resolution change tracking after initial event
-      allowChanges = true;
-      lastWidth = video.videoWidth;
-      lastHeight = video.videoHeight;
-    }, 2000); // wait 2s to stabilize resolution
-  });
-
-  // Track resolution changes over time
-  const resolutionInterval = setInterval(() => {
-    if (!allowChanges) return;
-
-    const w = video.videoWidth;
-    const h = video.videoHeight;
-    if ((w !== lastWidth || h !== lastHeight) && w && h) {
-      lastWidth = w;
-      lastHeight = h;
-
-      console.log(`[SwipeExtension] Resolution changed to: ${w}x${h}`);
-      saveEvent({
-        type: 'video-resolution-change',
-        videoId: getVideoId(),
-        src: video.src,
-        timestamp: new Date().toISOString(),
-        extra: { width: w, height: h }
-      });
     }
-  }, 1000);
+  }, 10000);
 
-  // Cleanup interval on video end
-  video.addEventListener('ended', () => clearInterval(resolutionInterval));
+  video.addEventListener('ended', () => clearInterval(interval));
 }
+
 
 
 
