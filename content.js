@@ -445,81 +445,28 @@ function trackVideoResolution(video) {
   let lastHeight = 0;
   let allowChanges = false; // control when change events start
 
-  // Helper: try to read max width/height from ytInitialPlayerResponse or player config
-  function getMaxFromPlayerResponse() {
-    try {
-      const p = window.ytInitialPlayerResponse
-        || (window.ytplayer && window.ytplayer.config && window.ytplayer.config.args && JSON.parse(window.ytplayer.config.args.player_response));
-      if (!p || !p.streamingData) return null;
-
-      const all = [
-        ...(p.streamingData.formats || []),
-        ...(p.streamingData.adaptiveFormats || [])
-      ];
-
-      let best = null;
-      let bestPixels = 0;
-      for (const fmt of all) {
-        const w = fmt.width || 0;
-        const h = fmt.height || 0;
-        if (w && h) {
-          const pixels = w * h;
-          if (pixels > bestPixels) {
-            bestPixels = pixels;
-            best = fmt;
-          }
-        }
-      }
-      if (!best) return null;
-      return { width: best.width, height: best.height, label: best.qualityLabel || `${best.width}x${best.height}` };
-    } catch (e) {
-      return null;
-    }
-  }
-
-  // Handler used for loadedmetadata (defined so we can call it immediately if metadata already present)
-  function onLoadedMetadata() {
+  // Log initial resolution once metadata is loaded
+  video.addEventListener('loadedmetadata', () => {
     const currentWidth = video.videoWidth;
     const currentHeight = video.videoHeight;
-    const capturedSrc = video.src; // capture early in case element is swapped
 
-    // Start with current as fallback
-    let maxWidth = currentWidth || 0;
-    let maxHeight = currentHeight || 0;
+    // Estimate maximum resolution after a short delay (adaptive bitrate might upgrade)
+    let maxWidth = currentWidth;
+    let maxHeight = currentHeight;
 
-    // Try immediate parse of available formats
-    const bestNow = getMaxFromPlayerResponse();
-    if (bestNow && bestNow.width && bestNow.height) {
-      maxWidth = Math.max(maxWidth, bestNow.width);
-      maxHeight = Math.max(maxHeight, bestNow.height);
-    }
-
-    // After your stabilization delay, re-check current video dims and try playerResponse again.
     setTimeout(() => {
-      // sample current playing dims (may have changed)
-      const maybeW = video.videoWidth || currentWidth || 0;
-      const maybeH = video.videoHeight || currentHeight || 0;
+      const maybeW = video.videoWidth;
+      const maybeH = video.videoHeight;
       if (maybeW > maxWidth || maybeH > maxHeight) {
-        maxWidth = Math.max(maxWidth, maybeW);
-        maxHeight = Math.max(maxHeight, maybeH);
+        maxWidth = maybeW;
+        maxHeight = maybeH;
       }
-
-      // try reading ytInitialPlayerResponse again (may be available now)
-      const bestLater = getMaxFromPlayerResponse();
-      if (bestLater && bestLater.width && bestLater.height) {
-        maxWidth = Math.max(maxWidth, bestLater.width);
-        maxHeight = Math.max(maxHeight, bestLater.height);
-      }
-
-      // If still zero, fall back to current values
-      if (!maxWidth && currentWidth) maxWidth = currentWidth;
-      if (!maxHeight && currentHeight) maxHeight = currentHeight;
 
       console.log(`[SwipeExtension] Initial resolution: ${currentWidth}x${currentHeight}, max: ${maxWidth}x${maxHeight}`);
       saveEvent({
         type: 'video-resolution',
         videoId: getVideoId(),
-        src: capturedSrc,
+        src: video.src,
         timestamp: new Date().toISOString(),
         extra: {
           current: `${currentWidth}x${currentHeight}`,
@@ -529,18 +476,10 @@ function trackVideoResolution(video) {
 
       // Enable resolution change tracking after initial event
       allowChanges = true;
-      lastWidth = maybeW;
-      lastHeight = maybeH;
+      lastWidth = video.videoWidth;
+      lastHeight = video.videoHeight;
     }, 1000); // wait 1s to stabilize resolution
-  }
-
-  // Attach loadedmetadata handler or call immediately if metadata already loaded
-  if (video.readyState >= 1) {
-    // metadata already loaded
-    onLoadedMetadata();
-  } else {
-    video.addEventListener('loadedmetadata', onLoadedMetadata, { once: true });
-  }
+  });
 
   // Track resolution changes over time
   const resolutionInterval = setInterval(() => {
@@ -563,11 +502,9 @@ function trackVideoResolution(video) {
     }
   }, 2000);
 
-  // Cleanup interval on video end / removal
-  const cleanup = () => clearInterval(resolutionInterval);
-  video.addEventListener('ended', cleanup);
+  // Cleanup interval on video end
+  video.addEventListener('ended', () => clearInterval(resolutionInterval));
 }
-
 
 
 
