@@ -436,13 +436,15 @@ const observer = new MutationObserver(() => {
 observer.observe(document.body, { childList: true, subtree: true });
 
 // ================== VIDEO RESOLUTION ======================
-
 function trackVideoResolution(video) {
   if (!video) return;
 
+  // Per-video state
   let lastWidth = 0;
   let lastHeight = 0;
-  let allowChanges = false; // control when change events start
+  let allowChanges = false;
+
+  const videoId = getVideoId(); // assume this is unique per video
 
   // Log initial resolution once metadata is loaded
   video.addEventListener('loadedmetadata', () => {
@@ -461,10 +463,10 @@ function trackVideoResolution(video) {
         maxHeight = maybeH;
       }
 
-      console.log(`[SwipeExtension] Initial resolution: ${currentWidth}x${currentHeight}, max: ${maxWidth}x${maxHeight}`);
+      console.log(`[SwipeExtension] Initial resolution for video ${videoId}: ${currentWidth}x${currentHeight}, max: ${maxWidth}x${maxHeight}`);
       saveEvent({
         type: 'video-resolution',
-        videoId: getVideoId(),
+        videoId,
         src: video.src,
         timestamp: new Date().toISOString(),
         extra: {
@@ -477,7 +479,7 @@ function trackVideoResolution(video) {
       allowChanges = true;
       lastWidth = video.videoWidth;
       lastHeight = video.videoHeight;
-    }, 1000); // wait 1s to stabilize resolution
+    }, 1000);
   });
 
   // Track resolution changes over time
@@ -486,14 +488,16 @@ function trackVideoResolution(video) {
 
     const w = video.videoWidth;
     const h = video.videoHeight;
+
+    // Only fire if resolution changes for this specific video
     if ((w !== lastWidth || h !== lastHeight) && w && h) {
       lastWidth = w;
       lastHeight = h;
 
-      console.log(`[SwipeExtension] Resolution changed to: ${w}x${h}`);
+      console.log(`[SwipeExtension] Resolution changed for video ${videoId} to: ${w}x${h}`);
       saveEvent({
         type: 'video-resolution-change',
-        videoId: getVideoId(),
+        videoId,
         src: video.src,
         timestamp: new Date().toISOString(),
         extra: { width: w, height: h }
