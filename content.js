@@ -441,29 +441,54 @@ observer.observe(document.body, { childList: true, subtree: true });
 function trackVideoResolution(video) {
   if (!video) return;
 
-  let currentWidth = 0;
-  let currentHeight = 0;
+  let lastWidth = 0;
+  let lastHeight = 0;
   let maxWidth = 0;
   let maxHeight = 0;
-  let stableTimer = null;
-  let resolutionLogged = false;
+  let hasLoggedInitial = false;
 
-  // Watch for resolution changes continuously
-  const interval = setInterval(() => {
+  video.addEventListener('loadedmetadata', () => {
     const w = video.videoWidth;
     const h = video.videoHeight;
 
-    if (w && h && (w !== currentWidth || h !== currentHeight)) {
-      currentWidth = w;
-      currentHeight = h;
+    if (w && h) {
+      maxWidth = w;
+      maxHeight = h;
+      lastWidth = w;
+      lastHeight = h;
 
-      // Update max
+      console.log(`[SwipeExtension] Initial resolution: ${w}x${h}`);
+      saveEvent({
+        type: 'video-resolution',
+        videoId: getVideoId(),
+        src: video.src,
+        timestamp: new Date().toISOString(),
+        extra: {
+          current: `${w}x${h}`,
+          max: `${w}x${h}`
+        }
+      });
+
+      hasLoggedInitial = true;
+    }
+  });
+
+  // Track resolution changes continuously
+  const interval = setInterval(() => {
+    if (!hasLoggedInitial) return;
+
+    const w = video.videoWidth;
+    const h = video.videoHeight;
+    if (w && h && (w !== lastWidth || h !== lastHeight)) {
+      lastWidth = w;
+      lastHeight = h;
+
       if (w > maxWidth || h > maxHeight) {
         maxWidth = w;
         maxHeight = h;
       }
 
-      console.log(`[SwipeExtension] Resolution changed: ${w}x${h}`);
+      console.log(`[SwipeExtension] Resolution changed to: ${w}x${h}`);
       saveEvent({
         type: 'video-resolution-change',
         videoId: getVideoId(),
@@ -471,47 +496,25 @@ function trackVideoResolution(video) {
         timestamp: new Date().toISOString(),
         extra: { width: w, height: h }
       });
-
-      // reset the "stabilized" timer
-      if (stableTimer) clearTimeout(stableTimer);
-      stableTimer = setTimeout(() => {
-        if (!resolutionLogged) {
-          resolutionLogged = true;
-          console.log(`[SwipeExtension] Final resolution: current=${currentWidth}x${currentHeight}, max=${maxWidth}x${maxHeight}`);
-          saveEvent({
-            type: 'video-resolution',
-            videoId: getVideoId(),
-            src: video.src,
-            timestamp: new Date().toISOString(),
-            extra: {
-              current: `${currentWidth}x${currentHeight}`,
-              max: `${maxWidth}x${maxHeight}`
-            }
-          });
-        }
-      }, 3000); // wait 3 seconds of no changes
     }
   }, 1000);
 
-  // Safety timeout: if no changes after 10s, log whatever we have
-  setTimeout(() => {
-    if (!resolutionLogged && (currentWidth || currentHeight)) {
-      resolutionLogged = true;
-      console.log(`[SwipeExtension] Timeout resolution log: current=${currentWidth}x${currentHeight}, max=${maxWidth}x${maxHeight}`);
+  // Optional: final log on end
+  video.addEventListener('ended', () => {
+    clearInterval(interval);
+    if (hasLoggedInitial) {
       saveEvent({
         type: 'video-resolution',
         videoId: getVideoId(),
         src: video.src,
         timestamp: new Date().toISOString(),
         extra: {
-          current: `${currentWidth}x${currentHeight}`,
+          current: `${lastWidth}x${lastHeight}`,
           max: `${maxWidth}x${maxHeight}`
         }
       });
     }
-  }, 10000);
-
-  video.addEventListener('ended', () => clearInterval(interval));
+  });
 }
 
 
