@@ -435,24 +435,17 @@ const observer = new MutationObserver(() => {
 
 observer.observe(document.body, { childList: true, subtree: true });
 
-// ================== VIDEO RESOLUTION ======================
-function trackVideoResolution(video) {
-  if (!video) return;
+function trackVideoResolution(video, videoId) {
+  if (!video || !videoId) return;
 
-  // Per-video state
   let lastWidth = 0;
   let lastHeight = 0;
   let allowChanges = false;
-
-  // Capture video ID once per video
-  const videoId = getVideoId(); 
 
   // Log initial resolution once metadata is loaded
   video.addEventListener('loadedmetadata', () => {
     const currentWidth = video.videoWidth;
     const currentHeight = video.videoHeight;
-
-    // Estimate maximum resolution after a short delay (adaptive bitrate might upgrade)
     let maxWidth = currentWidth;
     let maxHeight = currentHeight;
 
@@ -470,20 +463,16 @@ function trackVideoResolution(video) {
         videoId,
         src: video.src,
         timestamp: new Date().toISOString(),
-        extra: {
-          current: `${currentWidth}x${currentHeight}`,
-          max: `${maxWidth}x${maxHeight}`
-        }
+        extra: { current: `${currentWidth}x${currentHeight}`, max: `${maxWidth}x${maxHeight}` }
       });
 
-      // Enable resolution change tracking after initial event
       allowChanges = true;
       lastWidth = video.videoWidth;
       lastHeight = video.videoHeight;
     }, 1000);
   });
 
-  // Track resolution changes over time
+  // Track resolution changes per video
   const resolutionInterval = setInterval(() => {
     if (!allowChanges) return;
 
