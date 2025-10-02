@@ -475,32 +475,76 @@ function trackVideoResolution(video) {
 
   let lastWidth = 0;
   let lastHeight = 0;
-  let allowChanges = false;
-  let resolutionInterval;
+  let currentVideoId = null;
+  let resolutionInterval = null;
+  let timeoutId = null;
 
-  // ✅ Capture the videoId at the moment the video is hooked
-  const videoId = getVideoId(); // this MUST point to the *new* video, not previous
+  const cleanup = () => {
+    clearInterval(resolutionInterval);
+    clearTimeout(timeoutId);
+    resolutionInterval = null;
+  };
 
-  // Clean up any previous interval if it exists
-  if (video._resolutionInterval) {
-    clearInterval(video._resolutionInterval);
-  }
+  const startResolutionTracking = () => {
+    timeoutId = setTimeout(() => {
+      currentVideoId = getVideoId();
+      if (!currentVideoId) return;
+
+      const currentW = video.videoWidth;
+      const currentH = video.videoHeight;
+
+      // ✅ NEW: get max available resolution from player API
+      const maxRes = getMaxAvailableResolution();
+      const maxW = maxRes?.width || currentW;
+      const maxH = maxRes?.height || currentH;
+
+      console.log(`[SwipeExtension] [${currentVideoId}] Current=${currentW}x${currentH}, MaxAvailable=${maxW}x${maxH}`);
+      saveEvent({
+        type: "video-resolution",
+        videoId: currentVideoId,
+        src: video.src,
+        timestamp: new Date().toISOString(),
+        extra: {
+          current: `${currentW}x${currentH}`,
+          max: `${maxW}x${maxH}`, // ✅ now truly the max quality available
+        },
+      });
+
+      lastWidth = currentW;
+      lastHeight = currentH;
+
+      // Optional: watch for resolution changes (quality auto-switching)
+      resolutionInterval = setInterval(() => {
+        const w = video.videoWidth;
+        const h = video.videoHeight;
+        if ((w !== lastWidth || h !== lastHeight) && w && h) {
+          lastWidth = w;
+          lastHeight = h;
+          saveEvent({
+            type: "video-resolution-change",
+            videoId: currentVideoId,
+            src: video.src,
+            timestamp: new Date().toISOString(),
+            extra: { width: w, height: h },
+          });
+        }
+      }, 2000);
+    }, 100);
+  };
 
   video.addEventListener('loadedmetadata', () => {
     const currentW = video.videoWidth;
     const currentH = video.videoHeight;
 
-    // ✅ Get optimal resolution from YouTube's internal player (not current bitrate)
-    const optimal = getOptimalResolutionFromPlayer(video);
-    const maxW = optimal?.width || currentW;
-    const maxH = optimal?.height || currentH;
+    // 🔥 Try to get optimal resolution from YouTube internals
+    const optimalRes = getOptimalResolutionFromPlayer(video);
 
-    console.log(`[SwipeExtension] Initial resolution for ${videoId}: current=${currentW}x${currentH}, max=${maxW}x${maxH}`);
+    const maxW = optimalRes?.width || currentW;
+    const maxH = optimalRes?.height || currentH;
 
-    // ✅ Save resolution event immediately with the correct videoId
     saveEvent({
       type: 'video-resolution',
-      videoId, // ✅ correct ID for this specific video
+      videoId: currentVideoId,
       src: video.src,
       timestamp: new Date().toISOString(),
       extra: {
@@ -508,37 +552,8 @@ function trackVideoResolution(video) {
         max: `${Math.round(maxW)}x${Math.round(maxH)}`
       }
     });
-
-    // Start watching for resolution changes
-    allowChanges = true;
-    lastWidth = currentW;
-    lastHeight = currentH;
   });
 
-  resolutionInterval = setInterval(() => {
-    if (!allowChanges) return;
-
-    const w = video.videoWidth;
-    const h = video.videoHeight;
-    if (w && h && (w !== lastWidth || h !== lastHeight)) {
-      lastWidth = w;
-      lastHeight = h;
-
-      saveEvent({
-        type: 'video-resolution-change',
-        videoId, // ✅ same ID — stays consistent
-        src: video.src,
-        timestamp: new Date().toISOString(),
-        extra: { width: w, height: h }
-      });
-    }
-  }, 2000);
-
-  video._resolutionInterval = resolutionInterval;
-
-  video.addEventListener('ended', () => {
-    clearInterval(resolutionInterval);
-  });
 }
 
 // ================== RE-HOOK ON URL CHANGE ==================
