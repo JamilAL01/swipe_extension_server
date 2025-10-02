@@ -444,7 +444,8 @@ function trackVideoResolution(video) {
   let lastHeight = 0;
   let allowChanges = false;
 
-  const videoId = getVideoId(); // assume this is unique per video
+  // Capture video ID once per video
+  const videoId = getVideoId(); 
 
   // Log initial resolution once metadata is loaded
   video.addEventListener('loadedmetadata', () => {
@@ -489,7 +490,6 @@ function trackVideoResolution(video) {
     const w = video.videoWidth;
     const h = video.videoHeight;
 
-    // Only fire if resolution changes for this specific video
     if ((w !== lastWidth || h !== lastHeight) && w && h) {
       lastWidth = w;
       lastHeight = h;
