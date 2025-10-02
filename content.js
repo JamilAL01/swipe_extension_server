@@ -436,37 +436,38 @@ const observer = new MutationObserver(() => {
 observer.observe(document.body, { childList: true, subtree: true });
 
 // ================== VIDEO RESOLUTION ======================
-function trackVideoResolution(video, playerResponse) {
-  if (!video || video._resolutionHooked) return;
-  video._resolutionHooked = true;
+function trackVideoResolution(video) {
+  if (!video) return;
+
+  let lastWidth = 0;
+  let lastHeight = 0;
+  let allowChanges = false;
+
+  // Get max available resolution from ytInitialPlayerResponse
+  let maxAvailable = { width: 0, height: 0 };
+  if (typeof ytInitialPlayerResponse !== "undefined") {
+    const formats = ytInitialPlayerResponse.streamingData?.formats || [];
+    const adaptiveFormats = ytInitialPlayerResponse.streamingData?.adaptiveFormats || [];
+    const allFormats = [...formats, ...adaptiveFormats];
+
+    for (const f of allFormats) {
+      // Skip premium-only formats
+      if (ytInitialPlayerResponse.playabilityStatus?.paygatedQualitiesMetadata) {
+        const premiumFormats = ytInitialPlayerResponse.playabilityStatus.paygatedQualitiesMetadata.qualityDetails.map(q => q.key);
+        if (premiumFormats.includes(f.qualityLabel)) continue;
+      }
+      if (f.width > maxAvailable.width || f.height > maxAvailable.height) {
+        maxAvailable.width = f.width;
+        maxAvailable.height = f.height;
+      }
+    }
+  }
 
   video.addEventListener('loadedmetadata', () => {
     const currentWidth = video.videoWidth;
     const currentHeight = video.videoHeight;
 
-    // Get true maximum available resolution
-    let maxWidth = 0;
-    let maxHeight = 0;
-    if (playerResponse && playerResponse.streamingData) {
-      const allFormats = [
-        ...(playerResponse.streamingData.formats || []),
-        ...(playerResponse.streamingData.adaptiveFormats || [])
-      ];
-
-      for (const f of allFormats) {
-        // Skip premium-only formats
-        if (playerResponse.playabilityStatus?.paygatedQualitiesMetadata) {
-          const premiumFormats = playerResponse.playabilityStatus.paygatedQualitiesMetadata.qualityDetails.map(q => q.key);
-          if (premiumFormats.includes(f.qualityLabel)) continue;
-        }
-        if (f.width > maxWidth || f.height > maxHeight) {
-          maxWidth = f.width;
-          maxHeight = f.height;
-        }
-      }
-    }
-
-    console.log(`[SwipeExtension] Current: ${currentWidth}x${currentHeight}, Max available: ${maxWidth}x${maxHeight}`);
+    console.log(`[SwipeExtension] Initial resolution: ${currentWidth}x${currentHeight}, max: ${maxAvailable.width}x${maxAvailable.height}`);
     saveEvent({
       type: 'video-resolution',
       videoId: getVideoId(),
@@ -474,10 +475,35 @@ function trackVideoResolution(video, playerResponse) {
       timestamp: new Date().toISOString(),
       extra: {
         current: `${currentWidth}x${currentHeight}`,
-        max: `${maxWidth}x${maxHeight}`
+        max: `${maxAvailable.width}x${maxAvailable.height}`
       }
     });
+
+    allowChanges = true;
+    lastWidth = currentWidth;
+    lastHeight = currentHeight;
   });
+
+  const resolutionInterval = setInterval(() => {
+    if (!allowChanges) return;
+    const w = video.videoWidth;
+    const h = video.videoHeight;
+    if ((w !== lastWidth || h !== lastHeight) && w && h) {
+      lastWidth = w;
+      lastHeight = h;
+
+      console.log(`[SwipeExtension] Resolution changed to: ${w}x${h}`);
+      saveEvent({
+        type: 'video-resolution-change',
+        videoId: getVideoId(),
+        src: video.src,
+        timestamp: new Date().toISOString(),
+        extra: { width: w, height: h }
+      });
+    }
+  }, 2000);
+
+  video.addEventListener('ended', () => clearInterval(resolutionInterval));
 }
 
 
@@ -487,10 +513,7 @@ setInterval(() => {
   if (window.location.href !== lastUrl) {
     lastUrl = window.location.href;
     const video = document.querySelector("video");
-    if (video) {
-      attachVideoEvents(video);
-      trackVideoResolution(video, ytInitialPlayerResponse); // <-- added
-    }
+    if (video) attachVideoEvents(video);
     attachActionEvents();
   }
 }, 1000);
