@@ -443,76 +443,57 @@ observer.observe(document.body, { childList: true, subtree: true });
 // ================== VIDEO RESOLUTION ======================
 function getMaxAvailableResolution() {
   try {
-    // 1️⃣ Parse from ytInitialPlayerResponse (most reliable)
-    let response = null;
-
-    if (window.ytInitialPlayerResponse) {
-      response = window.ytInitialPlayerResponse;
-    } else if (window.ytplayer?.config?.args?.player_response) {
-      const pr = window.ytplayer.config.args.player_response;
-      try {
-        response = typeof pr === "string" ? JSON.parse(pr) : pr;
-      } catch {
-        response = pr;
-      }
-    }
-
-    if (response && response.streamingData) {
-      const allFormats = [
-        ...(response.streamingData.formats || []),
-        ...(response.streamingData.adaptiveFormats || []),
-      ];
-
-      if (allFormats.length > 0) {
-        const best = allFormats.reduce((max, f) => {
-          const w = f.width || 0;
-          const h = f.height || 0;
-          return h > max.height ? { width: w, height: h } : max;
+    // ✅ Try to get the ytInitialPlayerResponse object
+    const win = unsafeWindow || window;
+    const ytp = win.ytInitialPlayerResponse;
+    if (ytp && ytp.streamingData && Array.isArray(ytp.streamingData.adaptiveFormats)) {
+      const formats = ytp.streamingData.adaptiveFormats;
+      if (formats.length > 0) {
+        const best = formats.reduce((max, f) => {
+          if (f.height && f.width) {
+            if (f.height > max.height) return f;
+            if (f.height === max.height && f.width > max.width) return f;
+          }
+          return max;
         }, { width: 0, height: 0 });
 
-        if (best.height > 0) {
-          return best;
-        }
-      }
-    }
-
-    // 2️⃣ Fallback: YouTube player APIs (lower priority)
-    const player = document.querySelector("ytd-player")?.player_;
-    if (player) {
-      if (typeof player.getAvailableQualityData === "function") {
-        const data = player.getAvailableQualityData();
-        if (Array.isArray(data) && data.length > 0) {
-          const best = data.reduce(
-            (max, q) => (q.height > max.height ? q : max),
-            { height: 0 }
-          );
+        if (best && best.width && best.height) {
           return { width: best.width, height: best.height };
         }
       }
+    }
 
-      if (typeof player.getAvailableQualityLevels === "function") {
-        const qualities = player.getAvailableQualityLevels();
-        const map = {
-          highres: [3840, 2160],
-          hd2160: [3840, 2160],
-          hd1440: [2560, 1440],
-          hd1080: [1920, 1080],
-          hd720: [1280, 720],
-          large: [854, 480],
-          medium: [640, 360],
-          small: [426, 240],
-          tiny: [256, 144],
-        };
-        if (qualities.length > 0) {
-          const [w, h] = map[qualities[0]] || [0, 0];
-          return { width: w, height: h };
-        }
+    // ✅ fallback to player API
+    const player = document.querySelector('ytd-player')?.player_;
+    if (player && typeof player.getAvailableQualityData === 'function') {
+      const data = player.getAvailableQualityData();
+      if (Array.isArray(data) && data.length > 0) {
+        const best = data.reduce((max, q) => q.height > max.height ? q : max, {height: 0});
+        return { width: best.width, height: best.height };
+      }
+    }
+
+    if (player && typeof player.getAvailableQualityLevels === 'function') {
+      const qualities = player.getAvailableQualityLevels();
+      const map = {
+        'highres': [3840, 2160],
+        'hd2160': [3840, 2160],
+        'hd1440': [2560, 1440],
+        'hd1080': [1920, 1080],
+        'hd720': [1280, 720],
+        'large': [854, 480],
+        'medium': [640, 360],
+        'small': [426, 240],
+        'tiny': [256, 144],
+      };
+      if (qualities.length > 0) {
+        const [w, h] = map[qualities[0]] || [0, 0];
+        return { width: w, height: h };
       }
     }
   } catch (e) {
-    console.warn("getMaxAvailableResolution error", e);
+    console.warn('getMaxAvailableResolution error', e);
   }
-
   return null;
 }
 
