@@ -436,45 +436,37 @@ const observer = new MutationObserver(() => {
 observer.observe(document.body, { childList: true, subtree: true });
 
 // ================== VIDEO RESOLUTION ======================
-
-function getMaxAvailableResolution(playerResponse) {
-  if (!playerResponse || !playerResponse.streamingData) return null;
-
-  const formats = playerResponse.streamingData.formats || [];
-  const adaptiveFormats = playerResponse.streamingData.adaptiveFormats || [];
-
-  const allFormats = [...formats, ...adaptiveFormats];
-
-  let maxWidth = 0;
-  let maxHeight = 0;
-
-  for (const f of allFormats) {
-    // Skip premium-only formats
-    if (playerResponse.playabilityStatus?.paygatedQualitiesMetadata) {
-      const premiumFormats = playerResponse.playabilityStatus.paygatedQualitiesMetadata.qualityDetails.map(q => q.key);
-      if (premiumFormats.includes(f.qualityLabel)) continue;
-    }
-
-    if (f.width > maxWidth || f.height > maxHeight) {
-      maxWidth = f.width;
-      maxHeight = f.height;
-    }
-  }
-
-  return { width: maxWidth, height: maxHeight };
-}
-
 function trackVideoResolution(video, playerResponse) {
-  if (!video) return;
+  if (!video || video._resolutionHooked) return;
+  video._resolutionHooked = true;
 
   video.addEventListener('loadedmetadata', () => {
     const currentWidth = video.videoWidth;
     const currentHeight = video.videoHeight;
 
-    const maxAvailable = getMaxAvailableResolution(playerResponse);
+    // Get true maximum available resolution
+    let maxWidth = 0;
+    let maxHeight = 0;
+    if (playerResponse && playerResponse.streamingData) {
+      const allFormats = [
+        ...(playerResponse.streamingData.formats || []),
+        ...(playerResponse.streamingData.adaptiveFormats || [])
+      ];
 
-    console.log(`[SwipeExtension] Current: ${currentWidth}x${currentHeight}, Max available: ${maxAvailable.width}x${maxAvailable.height}`);
+      for (const f of allFormats) {
+        // Skip premium-only formats
+        if (playerResponse.playabilityStatus?.paygatedQualitiesMetadata) {
+          const premiumFormats = playerResponse.playabilityStatus.paygatedQualitiesMetadata.qualityDetails.map(q => q.key);
+          if (premiumFormats.includes(f.qualityLabel)) continue;
+        }
+        if (f.width > maxWidth || f.height > maxHeight) {
+          maxWidth = f.width;
+          maxHeight = f.height;
+        }
+      }
+    }
 
+    console.log(`[SwipeExtension] Current: ${currentWidth}x${currentHeight}, Max available: ${maxWidth}x${maxHeight}`);
     saveEvent({
       type: 'video-resolution',
       videoId: getVideoId(),
@@ -482,18 +474,23 @@ function trackVideoResolution(video, playerResponse) {
       timestamp: new Date().toISOString(),
       extra: {
         current: `${currentWidth}x${currentHeight}`,
-        max: `${maxAvailable.width}x${maxAvailable.height}`
+        max: `${maxWidth}x${maxHeight}`
       }
     });
   });
 }
+
+
 
 // ================== RE-HOOK ON URL CHANGE ==================
 setInterval(() => {
   if (window.location.href !== lastUrl) {
     lastUrl = window.location.href;
     const video = document.querySelector("video");
-    if (video) attachVideoEvents(video);
+    if (video) {
+      attachVideoEvents(video);
+      trackVideoResolution(video, ytInitialPlayerResponse); // <-- added
+    }
     attachActionEvents();
   }
 }, 1000);
