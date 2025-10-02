@@ -441,44 +441,34 @@ const observer = new MutationObserver(() => {
 observer.observe(document.body, { childList: true, subtree: true });
 
 // ================== VIDEO RESOLUTION ======================
-function getMaxAvailableResolution() {
+function getOptimalResolutionFromPlayer(video) {
+  const player = video?.player_ || window.ytplayer?.player;
+  if (!player) return null;
+
+  let stats = null;
   try {
-    const player = document.querySelector('ytd-player')?.player_;
-    if (!player) return null;
-
-    // Newer player API (structured data)
-    if (typeof player.getAvailableQualityData === 'function') {
-      const data = player.getAvailableQualityData();
-      if (Array.isArray(data) && data.length > 0) {
-        const best = data.reduce((max, q) => q.height > max.height ? q : max, {height: 0});
-        return { width: best.width, height: best.height };
-      }
+    if (typeof player.getStatsForNerds === 'function') {
+      stats = player.getStatsForNerds();
     }
+  } catch (e) {}
 
-    // Fallback: use quality level strings
-    if (typeof player.getAvailableQualityLevels === 'function') {
-      const qualities = player.getAvailableQualityLevels();
-      const map = {
-        'highres': [3840, 2160],
-        'hd2160': [3840, 2160],
-        'hd1440': [2560, 1440],
-        'hd1080': [1920, 1080],
-        'hd720': [1280, 720],
-        'large': [854, 480],
-        'medium': [640, 360],
-        'small': [426, 240],
-        'tiny': [256, 144],
-      };
-      if (qualities.length > 0) {
-        const [w, h] = map[qualities[0]] || [0, 0];
-        return { width: w, height: h };
-      }
-    }
-  } catch (e) {
-    console.warn('getMaxAvailableResolution error', e);
+  if (!stats) return null;
+
+  // Some builds give it as 'optimal_res', others as 'Optimal Res'
+  const optimal = stats.optimal_res || stats['Optimal Res'] || stats['optimal_res:'];
+  if (!optimal) return null;
+
+  // It might be "608x1080" or "1080p" → normalize
+  if (optimal.endsWith('p')) {
+    const h = parseInt(optimal);
+    return { width: h * (16 / 9), height: h };
+  } else if (optimal.includes('x')) {
+    const [w, h] = optimal.split('x').map(Number);
+    return { width: w, height: h };
   }
   return null;
 }
+
 
 function trackVideoResolution(video) {
   if (!video) return;
@@ -542,12 +532,28 @@ function trackVideoResolution(video) {
     }, 100);
   };
 
-  video.addEventListener("loadedmetadata", () => {
-    cleanup();
-    startResolutionTracking();
+  video.addEventListener('loadedmetadata', () => {
+    const currentW = video.videoWidth;
+    const currentH = video.videoHeight;
+
+    // 🔥 Try to get optimal resolution from YouTube internals
+    const optimalRes = getOptimalResolutionFromPlayer(video);
+
+    const maxW = optimalRes?.width || currentW;
+    const maxH = optimalRes?.height || currentH;
+
+    saveEvent({
+      type: 'video-resolution',
+      videoId: currentVideoId,
+      src: video.src,
+      timestamp: new Date().toISOString(),
+      extra: {
+        current: `${currentW}x${currentH}`,
+        max: `${Math.round(maxW)}x${Math.round(maxH)}`
+      }
+    });
   });
 
-  video.addEventListener("ended", cleanup);
 }
 
 // ================== RE-HOOK ON URL CHANGE ==================
