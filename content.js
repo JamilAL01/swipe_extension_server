@@ -441,22 +441,28 @@ const observer = new MutationObserver(() => {
 observer.observe(document.body, { childList: true, subtree: true });
 
 // ================== VIDEO RESOLUTION ======================
-function trackVideoResolution(video, videoId) {
-  if (!video || !videoId) return;
+function trackVideoResolution(video) {
+  if (!video) return;
 
   let lastWidth = 0;
   let lastHeight = 0;
   let allowChanges = false;
+  let currentVideoId = null;
+  let resolutionInterval = null;
+  let timeoutId = null;
 
-  // Log initial resolution once metadata is loaded
-  const onMetadata = () => {
+  const startResolutionTracking = () => {
+    // Capture the fresh videoId for THIS metadata load
+    currentVideoId = getVideoId();
+    if (!currentVideoId) return;
+
     const currentWidth = video.videoWidth;
     const currentHeight = video.videoHeight;
-
     let maxWidth = currentWidth;
     let maxHeight = currentHeight;
 
-    const timeoutId = setTimeout(() => {
+    // Delay to allow adaptive bitrate to kick in
+    timeoutId = setTimeout(() => {
       const maybeW = video.videoWidth;
       const maybeH = video.videoHeight;
       if (maybeW > maxWidth || maybeH > maxHeight) {
@@ -464,10 +470,10 @@ function trackVideoResolution(video, videoId) {
         maxHeight = maybeH;
       }
 
-      console.log(`[SwipeExtension] Initial resolution for video ${videoId}: ${currentWidth}x${currentHeight}, max: ${maxWidth}x${maxHeight}`);
+      console.log(`[SwipeExtension] [${currentVideoId}] Initial resolution: ${currentWidth}x${currentHeight}, max: ${maxWidth}x${maxHeight}`);
       saveEvent({
         type: "video-resolution",
-        videoId,
+        videoId: currentVideoId,
         src: video.src,
         timestamp: new Date().toISOString(),
         extra: {
@@ -481,40 +487,45 @@ function trackVideoResolution(video, videoId) {
       lastHeight = video.videoHeight;
     }, 1000);
 
-    // Track resolution changes over time
-    const intervalId = setInterval(() => {
-      if (!allowChanges) return;
+    // Start interval fresh each time
+    if (resolutionInterval) clearInterval(resolutionInterval);
+    resolutionInterval = setInterval(() => {
+      if (!allowChanges || !currentVideoId) return;
 
       const w = video.videoWidth;
       const h = video.videoHeight;
-
       if ((w !== lastWidth || h !== lastHeight) && w && h) {
         lastWidth = w;
         lastHeight = h;
 
-        console.log(`[SwipeExtension] Resolution changed for video ${videoId} to: ${w}x${h}`);
+        console.log(`[SwipeExtension] [${currentVideoId}] Resolution changed: ${w}x${h}`);
         saveEvent({
           type: "video-resolution-change",
-          videoId,
+          videoId: currentVideoId,
           src: video.src,
           timestamp: new Date().toISOString(),
           extra: { width: w, height: h },
         });
       }
     }, 2000);
-
-    // Cleanup on video end
-    const cleanup = () => {
-      clearInterval(intervalId);
-      clearTimeout(timeoutId);
-      video.removeEventListener("loadedmetadata", onMetadata);
-    };
-
-    video.addEventListener("ended", cleanup);
   };
 
-  video.addEventListener("loadedmetadata", onMetadata);
+  const cleanup = () => {
+    clearInterval(resolutionInterval);
+    clearTimeout(timeoutId);
+    resolutionInterval = null;
+    allowChanges = false;
+  };
+
+  // Each time new video metadata loads, reset tracking
+  video.addEventListener("loadedmetadata", () => {
+    cleanup();
+    startResolutionTracking();
+  });
+
+  video.addEventListener("ended", cleanup);
 }
+
 
 // ================== RE-HOOK ON URL CHANGE ==================
 setInterval(() => {
