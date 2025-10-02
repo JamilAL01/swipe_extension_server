@@ -441,60 +441,30 @@ const observer = new MutationObserver(() => {
 observer.observe(document.body, { childList: true, subtree: true });
 
 // ================== VIDEO RESOLUTION ======================
-function getMaxAvailableResolution() {
+// ================== VIDEO RESOLUTION ======================
+function getMaxAvailableResolutionFromPlayer() {
   try {
-    // ✅ Try to get the ytInitialPlayerResponse object
-    const win = unsafeWindow || window;
-    const ytp = win.ytInitialPlayerResponse;
-    if (ytp && ytp.streamingData && Array.isArray(ytp.streamingData.adaptiveFormats)) {
-      const formats = ytp.streamingData.adaptiveFormats;
-      if (formats.length > 0) {
-        const best = formats.reduce((max, f) => {
-          if (f.height && f.width) {
-            if (f.height > max.height) return f;
-            if (f.height === max.height && f.width > max.width) return f;
-          }
-          return max;
-        }, { width: 0, height: 0 });
+    const playerResponse = window.ytInitialPlayerResponse;
+    if (!playerResponse || !playerResponse.streamingData) return null;
 
-        if (best && best.width && best.height) {
-          return { width: best.width, height: best.height };
-        }
-      }
-    }
+    const formats = [
+      ...(playerResponse.streamingData.formats || []),
+      ...(playerResponse.streamingData.adaptiveFormats || [])
+    ];
 
-    // ✅ fallback to player API
-    const player = document.querySelector('ytd-player')?.player_;
-    if (player && typeof player.getAvailableQualityData === 'function') {
-      const data = player.getAvailableQualityData();
-      if (Array.isArray(data) && data.length > 0) {
-        const best = data.reduce((max, q) => q.height > max.height ? q : max, {height: 0});
-        return { width: best.width, height: best.height };
-      }
-    }
+    if (!formats.length) return null;
 
-    if (player && typeof player.getAvailableQualityLevels === 'function') {
-      const qualities = player.getAvailableQualityLevels();
-      const map = {
-        'highres': [3840, 2160],
-        'hd2160': [3840, 2160],
-        'hd1440': [2560, 1440],
-        'hd1080': [1920, 1080],
-        'hd720': [1280, 720],
-        'large': [854, 480],
-        'medium': [640, 360],
-        'small': [426, 240],
-        'tiny': [256, 144],
-      };
-      if (qualities.length > 0) {
-        const [w, h] = map[qualities[0]] || [0, 0];
-        return { width: w, height: h };
-      }
-    }
+    // Pick the format with the largest height
+    const best = formats.reduce((max, f) => {
+      if (f.height && f.height > (max.height || 0)) return f;
+      return max;
+    }, {});
+
+    return best.width && best.height ? { width: best.width, height: best.height } : null;
   } catch (e) {
-    console.warn('getMaxAvailableResolution error', e);
+    console.warn('getMaxAvailableResolutionFromPlayer error', e);
+    return null;
   }
-  return null;
 }
 
 function trackVideoResolution(video) {
@@ -520,15 +490,12 @@ function trackVideoResolution(video) {
       const currentW = video.videoWidth;
       const currentH = video.videoHeight;
 
-      // ✅ NEW: true maximum resolution from ytInitialPlayerResponse
-      const maxRes = getMaxAvailableResolution();
+      // ✅ Get max available resolution from ytInitialPlayerResponse
+      const maxRes = getMaxAvailableResolutionFromPlayer();
       const maxW = maxRes?.width || currentW;
       const maxH = maxRes?.height || currentH;
 
-      console.log(
-        `[SwipeExtension] [${currentVideoId}] Current=${currentW}x${currentH}, MaxAvailable=${maxW}x${maxH}`
-      );
-
+      console.log(`[SwipeExtension] [${currentVideoId}] Current=${currentW}x${currentH}, MaxAvailable=${maxW}x${maxH}`);
       saveEvent({
         type: "video-resolution",
         videoId: currentVideoId,
@@ -536,13 +503,14 @@ function trackVideoResolution(video) {
         timestamp: new Date().toISOString(),
         extra: {
           current: `${currentW}x${currentH}`,
-          max: `${maxW}x${maxH}`,
+          max: `${maxW}x${maxH}`, // ✅ now truly the max quality available
         },
       });
 
       lastWidth = currentW;
       lastHeight = currentH;
 
+      // Optional: watch for resolution changes (quality auto-switching)
       resolutionInterval = setInterval(() => {
         const w = video.videoWidth;
         const h = video.videoHeight;
