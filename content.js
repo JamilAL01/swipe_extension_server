@@ -438,42 +438,69 @@ observer.observe(document.body, { childList: true, subtree: true });
 
 // ================== VIDEO RESOLUTION ======================
 
+function getMaxAvailableResolution() {
+  try {
+    const player = window.ytInitialPlayerResponse;
+    if (!player) return null;
+
+    const allFormats = [
+      ...(player.streamingData?.formats || []),
+      ...(player.streamingData?.adaptiveFormats || [])
+    ];
+
+    let maxW = 0, maxH = 0;
+    for (const fmt of allFormats) {
+      if (fmt.width && fmt.height) {
+        if (fmt.width * fmt.height > maxW * maxH) {
+          maxW = fmt.width;
+          maxH = fmt.height;
+        }
+      }
+    }
+
+    return maxW && maxH ? `${maxW}x${maxH}` : null;
+  } catch (e) {
+    console.warn('[SwipeExtension] Failed to parse max resolution', e);
+    return null;
+  }
+}
+
 function trackVideoResolution(video) {
   if (!video) return;
 
   let lastWidth = 0;
   let lastHeight = 0;
-  let maxWidth = 0;
-  let maxHeight = 0;
+  let maxResolution = getMaxAvailableResolution(); // e.g. "1080x1920"
   let hasLoggedInitial = false;
 
-  video.addEventListener('loadedmetadata', () => {
+  // Log initial resolution as soon as the video starts
+  const logInitial = () => {
+    if (hasLoggedInitial) return;
     const w = video.videoWidth;
     const h = video.videoHeight;
+    if (!w || !h) return;
 
-    if (w && h) {
-      maxWidth = w;
-      maxHeight = h;
-      lastWidth = w;
-      lastHeight = h;
+    lastWidth = w;
+    lastHeight = h;
+    hasLoggedInitial = true;
 
-      console.log(`[SwipeExtension] Initial resolution: ${w}x${h}`);
-      saveEvent({
-        type: 'video-resolution',
-        videoId: getVideoId(),
-        src: video.src,
-        timestamp: new Date().toISOString(),
-        extra: {
-          current: `${w}x${h}`,
-          max: `${w}x${h}`
-        }
-      });
+    console.log(`[SwipeExtension] Initial resolution: ${w}x${h}, max: ${maxResolution}`);
+    saveEvent({
+      type: 'video-resolution',
+      videoId: getVideoId(),
+      src: video.src,
+      timestamp: new Date().toISOString(),
+      extra: {
+        current: `${w}x${h}`,
+        max: maxResolution || `${w}x${h}`
+      }
+    });
+  };
 
-      hasLoggedInitial = true;
-    }
-  });
+  video.addEventListener('loadedmetadata', logInitial);
+  video.addEventListener('playing', logInitial);
 
-  // Track resolution changes continuously
+  // Track changes continuously
   const interval = setInterval(() => {
     if (!hasLoggedInitial) return;
 
@@ -483,11 +510,6 @@ function trackVideoResolution(video) {
       lastWidth = w;
       lastHeight = h;
 
-      if (w > maxWidth || h > maxHeight) {
-        maxWidth = w;
-        maxHeight = h;
-      }
-
       console.log(`[SwipeExtension] Resolution changed to: ${w}x${h}`);
       saveEvent({
         type: 'video-resolution-change',
@@ -496,25 +518,23 @@ function trackVideoResolution(video) {
         timestamp: new Date().toISOString(),
         extra: { width: w, height: h }
       });
-    }
-  }, 1000);
 
-  // Optional: final log on end
-  video.addEventListener('ended', () => {
-    clearInterval(interval);
-    if (hasLoggedInitial) {
+      // Also log updated video-resolution event with same max
       saveEvent({
         type: 'video-resolution',
         videoId: getVideoId(),
         src: video.src,
         timestamp: new Date().toISOString(),
         extra: {
-          current: `${lastWidth}x${lastHeight}`,
-          max: `${maxWidth}x${maxHeight}`
+          current: `${w}x${h}`,
+          max: maxResolution || `${w}x${h}`
         }
       });
     }
-  });
+  }, 1000);
+
+  video.addEventListener('ended', () => clearInterval(interval));
+  video.addEventListener('pause', () => clearInterval(interval));
 }
 
 
