@@ -225,7 +225,6 @@ function showSurveyPopup() {
 if (!consent) showConsentPopup();
 else if (consent==="yes") {
   showSurveyPopup();
-  initExtension(true); // start tracking
 }
 
 
