@@ -441,238 +441,104 @@ const observer = new MutationObserver(() => {
 observer.observe(document.body, { childList: true, subtree: true });
 
 // ================== VIDEO RESOLUTION ======================
-// ================= Helpers: parse/normalize resolutions =================
-function parseQualityLabel(label) {
-  if (!label) return null;
-  const m = String(label).match(/(\d{3,4})p/); // "1080p"
-  if (m) {
-    const h = parseInt(m[1], 10);
-    return { height: h, width: Math.round(h * (16 / 9)) };
-  }
-  if (label.includes('x')) {
-    const [w, h] = label.split('x').map(Number);
-    if (!isNaN(h) && !isNaN(w)) return { width: w, height: h };
-  }
-  return null;
-}
+function getOptimalResolutionFromPlayer(video) {
+  const player = video?.player_ || window.ytplayer?.player;
+  if (!player) return null;
 
-// Try to extract structured quality objects from various player APIs
-function extractFromAvailableQualityData(player) {
-  try {
-    if (typeof player.getAvailableQualityData === 'function') {
-      const data = player.getAvailableQualityData();
-      if (Array.isArray(data) && data.length) {
-        let best = { width: 0, height: 0 };
-        for (const q of data) {
-          const h = q.height || q.h || (q.quality && parseInt(String(q.quality).replace(/\D/g,''), 10)) || 0;
-          const w = q.width || q.w || (h ? Math.round(h * (16/9)) : 0);
-          if (h > best.height) best = { width: w, height: h };
-        }
-        if (best.height) return best;
-      }
-    }
-  } catch (e) { /* ignore */ }
-  return null;
-}
-
-function extractFromStatsForNerds(player) {
+  let stats = null;
   try {
     if (typeof player.getStatsForNerds === 'function') {
-      const stats = player.getStatsForNerds();
-      // Stats object shape varies across builds: try common fields
-      const candidate = stats?.optimal_res || stats?.optimalResolution || stats?.['Optimal Res'] || stats?.optimal_res_str;
-      if (candidate) {
-        const parsed = parseQualityLabel(candidate);
-        if (parsed) return parsed;
-        // sometimes it's "608x1080" etc.
-        if (candidate.includes('x')) {
-          const [w,h] = candidate.split('x').map(Number);
-          if (!isNaN(h)) return { width: w, height: h };
-        }
-      }
+      stats = player.getStatsForNerds();
     }
-  } catch (e) { /* ignore */ }
-  return null;
-}
+  } catch (e) {}
 
-function extractFromPlayerResponse(player) {
-  try {
-    // player.getPlayerResponse() sometimes exists; else fall back to global initial response
-    let pr = null;
-    if (player && typeof player.getPlayerResponse === 'function') {
-      pr = player.getPlayerResponse();
-    } else if (window.ytInitialPlayerResponse) {
-      pr = window.ytInitialPlayerResponse;
-    } else if (window.ytplayer && window.ytplayer.config && window.ytplayer.config.args) {
-      const arg = window.ytplayer.config.args.player_response;
-      try { pr = typeof arg === 'string' ? JSON.parse(arg) : arg; } catch(e) { pr = arg; }
-    }
+  if (!stats) return null;
 
-    if (!pr || !pr.streamingData) return null;
-    const formats = (pr.streamingData.adaptiveFormats || []).concat(pr.streamingData.formats || []);
-    if (!formats || !formats.length) return null;
+  // Some builds give it as 'optimal_res', others as 'Optimal Res'
+  const optimal = stats.optimal_res || stats['Optimal Res'] || stats['optimal_res:'];
+  if (!optimal) return null;
 
-    let best = { width: 0, height: 0 };
-    for (const f of formats) {
-      // prefer explicit height
-      if (f.height) {
-        const h = Number(f.height);
-        const w = f.width ? Number(f.width) : Math.round(h * (16/9));
-        if (h > best.height) best = { width: w, height: h };
-        continue;
-      }
-      // try qualityLabel
-      if (f.qualityLabel) {
-        const parsed = parseQualityLabel(f.qualityLabel);
-        if (parsed && parsed.height > best.height) best = parsed;
-      }
-      // sometimes itag-only info exists (skip heavy itag map)
-    }
-    if (best.height) return best;
-  } catch (e) { /* ignore */ }
-  return null;
-}
-
-function extractFromAvailableQualityLevels(player) {
-  try {
-    if (typeof player.getAvailableQualityLevels === 'function') {
-      const levels = player.getAvailableQualityLevels();
-      if (Array.isArray(levels) && levels.length) {
-        // first entries usually highest
-        const map = {
-          'highres': [3840, 2160],
-          'hd2160': [3840, 2160],
-          'hd1440': [2560, 1440],
-          'hd1080': [1920, 1080],
-          'hd720': [1280, 720],
-          'large': [854, 480],
-          'medium': [640, 360],
-          'small': [426, 240],
-          'tiny': [256, 144],
-        };
-        for (const key of levels) {
-          if (map[key]) return { width: map[key][0], height: map[key][1] };
-        }
-      }
-    }
-  } catch (e) { /* ignore */ }
-  return null;
-}
-
-// Main: try all sources, poll for up to `timeoutMs`
-async function getTrueMaxResolution(video, timeoutMs = 2000) {
-  const start = Date.now();
-  let best = null;
-
-  while (Date.now() - start < timeoutMs) {
-    // prefer the player object if available
-    const player = video?.player_ || window.ytplayer?.player || document.querySelector('ytd-player')?.player_;
-
-    // 1) Stats for nerds (optimal_res)
-    let candidate = player ? extractFromStatsForNerds(player) : null;
-    if (candidate && candidate.height > (best?.height || 0)) best = candidate;
-
-    // 2) Structured available quality data
-    candidate = player ? extractFromAvailableQualityData(player) : null;
-    if (candidate && candidate.height > (best?.height || 0)) best = candidate;
-
-    // 3) Player response / streamingData
-    candidate = extractFromPlayerResponse(player);
-    if (candidate && candidate.height > (best?.height || 0)) best = candidate;
-
-    // 4) Fallback to quality levels mapping
-    candidate = player ? extractFromAvailableQualityLevels(player) : null;
-    if (candidate && candidate.height > (best?.height || 0)) best = candidate;
-
-    // If we've found something >= 720p we can stop early (likely the true max)
-    if (best && best.height >= 720) break;
-
-    // small wait before retrying
-    await new Promise(r => setTimeout(r, 150));
+  // It might be "608x1080" or "1080p" → normalize
+  if (optimal.endsWith('p')) {
+    const h = parseInt(optimal);
+    return { width: h * (16 / 9), height: h };
+  } else if (optimal.includes('x')) {
+    const [w, h] = optimal.split('x').map(Number);
+    return { width: w, height: h };
   }
-
-  return best; // may be null
+  return null;
 }
 
-// ================== trackVideoResolution (final) ======================
+
 function trackVideoResolution(video) {
   if (!video) return;
 
-  // store per-video timers/intervals on element so we can cleanup reliably
-  if (!video.__resolutionState) video.__resolutionState = {};
-  const state = video.__resolutionState;
+  let lastWidth = 0;
+  let lastHeight = 0;
+  let allowChanges = false;
+  let resolutionInterval;
 
-  const clearState = () => {
-    if (state.intervalId) { clearInterval(state.intervalId); state.intervalId = null; }
-    if (state.timeoutId) { clearTimeout(state.timeoutId); state.timeoutId = null; }
-    state.allowChanges = false;
-    state.currentVideoId = null;
-  };
+  // ✅ Capture the videoId at the moment the video is hooked
+  const videoId = getVideoId(); // this MUST point to the *new* video, not previous
 
-  // ensure we don't hook duplicate handlers
-  if (state.hooked) return;
-  state.hooked = true;
+  // Clean up any previous interval if it exists
+  if (video._resolutionInterval) {
+    clearInterval(video._resolutionInterval);
+  }
 
   video.addEventListener('loadedmetadata', () => {
-    // When same <video> element is reused, loadedmetadata fires for each new src.
-    // clear previous timers/intervals
-    clearState();
+    const currentW = video.videoWidth;
+    const currentH = video.videoHeight;
 
-    // small delay to allow the page/player DOM to update videoId & player internals
-    state.timeoutId = setTimeout(async () => {
-      // capture the correct video id *after* the DOM/player updates
-      const videoId = getVideoId();
-      state.currentVideoId = videoId || null;
+    // ✅ Get optimal resolution from YouTube's internal player (not current bitrate)
+    const optimal = getOptimalResolutionFromPlayer(video);
+    const maxW = optimal?.width || currentW;
+    const maxH = optimal?.height || currentH;
 
-      const currentW = video.videoWidth || 0;
-      const currentH = video.videoHeight || 0;
+    console.log(`[SwipeExtension] Initial resolution for ${videoId}: current=${currentW}x${currentH}, max=${maxW}x${maxH}`);
 
-      // Try to discover the true max (optimal) resolution by polling internal APIs
-      const maxRes = await getTrueMaxResolution(video, 2000); // up to 2s
-      const maxW = Math.round(maxRes?.width || currentW);
-      const maxH = Math.round(maxRes?.height || currentH);
+    // ✅ Save resolution event immediately with the correct videoId
+    saveEvent({
+      type: 'video-resolution',
+      videoId, // ✅ correct ID for this specific video
+      src: video.src,
+      timestamp: new Date().toISOString(),
+      extra: {
+        current: `${currentW}x${currentH}`,
+        max: `${Math.round(maxW)}x${Math.round(maxH)}`
+      }
+    });
 
-      // Defensive: if parsed max is smaller than current, prefer the larger (rare)
-      const finalMaxW = Math.max(maxW, currentW);
-      const finalMaxH = Math.max(maxH, currentH);
-
-      // Save the event immediately with the captured videoId
-      saveEvent({
-        type: 'video-resolution',
-        videoId: state.currentVideoId,
-        src: video.src,
-        timestamp: new Date().toISOString(),
-        extra: {
-          current: `${currentW}x${currentH}`,
-          max: `${finalMaxW}x${finalMaxH}`
-        }
-      });
-
-      // begin watching for runtime resolution changes (switches)
-      state.lastWidth = currentW;
-      state.lastHeight = currentH;
-      state.allowChanges = true;
-      state.intervalId = setInterval(() => {
-        if (!state.allowChanges || !state.currentVideoId) return;
-        const w = video.videoWidth || 0;
-        const h = video.videoHeight || 0;
-        if (w && h && (w !== state.lastWidth || h !== state.lastHeight)) {
-          state.lastWidth = w;
-          state.lastHeight = h;
-          saveEvent({
-            type: 'video-resolution-change',
-            videoId: state.currentVideoId,
-            src: video.src,
-            timestamp: new Date().toISOString(),
-            extra: { width: w, height: h }
-          });
-        }
-      }, 1200); // slightly more reactive
-    }, 120); // tiny delay to allow getVideoId()/player internals to settle
+    // Start watching for resolution changes
+    allowChanges = true;
+    lastWidth = currentW;
+    lastHeight = currentH;
   });
 
-  // cleanup when video ends or src changes (the loadedmetadata handler clears state on new loads)
-  video.addEventListener('ended', () => clearState());
+  resolutionInterval = setInterval(() => {
+    if (!allowChanges) return;
+
+    const w = video.videoWidth;
+    const h = video.videoHeight;
+    if (w && h && (w !== lastWidth || h !== lastHeight)) {
+      lastWidth = w;
+      lastHeight = h;
+
+      saveEvent({
+        type: 'video-resolution-change',
+        videoId, // ✅ same ID — stays consistent
+        src: video.src,
+        timestamp: new Date().toISOString(),
+        extra: { width: w, height: h }
+      });
+    }
+  }, 2000);
+
+  video._resolutionInterval = resolutionInterval;
+
+  video.addEventListener('ended', () => {
+    clearInterval(resolutionInterval);
+  });
 }
 
 // ================== RE-HOOK ON URL CHANGE ==================
