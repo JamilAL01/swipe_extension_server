@@ -441,50 +441,12 @@ const observer = new MutationObserver(() => {
 observer.observe(document.body, { childList: true, subtree: true });
 
 // ================== VIDEO RESOLUTION ======================
-function getMaxAvailableResolution() {
-  try {
-    const player = document.querySelector('ytd-player')?.player_;
-    if (!player) return null;
-
-    // Newer player API (structured data)
-    if (typeof player.getAvailableQualityData === 'function') {
-      const data = player.getAvailableQualityData();
-      if (Array.isArray(data) && data.length > 0) {
-        const best = data.reduce((max, q) => q.height > max.height ? q : max, {height: 0});
-        return { width: best.width, height: best.height };
-      }
-    }
-
-    // Fallback: use quality level strings
-    if (typeof player.getAvailableQualityLevels === 'function') {
-      const qualities = player.getAvailableQualityLevels();
-      const map = {
-        'highres': [3840, 2160],
-        'hd2160': [3840, 2160],
-        'hd1440': [2560, 1440],
-        'hd1080': [1920, 1080],
-        'hd720': [1280, 720],
-        'large': [854, 480],
-        'medium': [640, 360],
-        'small': [426, 240],
-        'tiny': [256, 144],
-      };
-      if (qualities.length > 0) {
-        const [w, h] = map[qualities[0]] || [0, 0];
-        return { width: w, height: h };
-      }
-    }
-  } catch (e) {
-    console.warn('getMaxAvailableResolution error', e);
-  }
-  return null;
-}
-
 function trackVideoResolution(video) {
   if (!video) return;
 
   let lastWidth = 0;
   let lastHeight = 0;
+  let allowChanges = false;
   let currentVideoId = null;
   let resolutionInterval = null;
   let timeoutId = null;
@@ -493,43 +455,58 @@ function trackVideoResolution(video) {
     clearInterval(resolutionInterval);
     clearTimeout(timeoutId);
     resolutionInterval = null;
+    allowChanges = false;
   };
 
   const startResolutionTracking = () => {
+    // Delay slightly to let YouTube update videoId properly
     timeoutId = setTimeout(() => {
-      currentVideoId = getVideoId();
+      currentVideoId = getVideoId(); // ✅ now gets the correct current video ID
       if (!currentVideoId) return;
 
-      const currentW = video.videoWidth;
-      const currentH = video.videoHeight;
+      const currentWidth = video.videoWidth;
+      const currentHeight = video.videoHeight;
+      let maxWidth = currentWidth;
+      let maxHeight = currentHeight;
 
-      // ✅ NEW: get max available resolution from player API
-      const maxRes = getMaxAvailableResolution();
-      const maxW = maxRes?.width || currentW;
-      const maxH = maxRes?.height || currentH;
+      // Another short delay to stabilize adaptive quality
+      setTimeout(() => {
+        const maybeW = video.videoWidth;
+        const maybeH = video.videoHeight;
+        if (maybeW > maxWidth || maybeH > maxHeight) {
+          maxWidth = maybeW;
+          maxHeight = maybeH;
+        }
 
-      console.log(`[SwipeExtension] [${currentVideoId}] Current=${currentW}x${currentH}, MaxAvailable=${maxW}x${maxH}`);
-      saveEvent({
-        type: "video-resolution",
-        videoId: currentVideoId,
-        src: video.src,
-        timestamp: new Date().toISOString(),
-        extra: {
-          current: `${currentW}x${currentH}`,
-          max: `${maxW}x${maxH}`, // ✅ now truly the max quality available
-        },
-      });
+        console.log(`[SwipeExtension] [${currentVideoId}] Initial resolution: ${currentWidth}x${currentHeight}, max: ${maxWidth}x${maxHeight}`);
+        saveEvent({
+          type: "video-resolution",
+          videoId: currentVideoId,
+          src: video.src,
+          timestamp: new Date().toISOString(),
+          extra: {
+            current: `${currentWidth}x${currentHeight}`,
+            max: `${maxWidth}x${maxHeight}`,
+          },
+        });
 
-      lastWidth = currentW;
-      lastHeight = currentH;
+        allowChanges = true;
+        lastWidth = video.videoWidth;
+        lastHeight = video.videoHeight;
+      }, 300); // <— small extra delay to avoid previous ID bleed
 
-      // Optional: watch for resolution changes (quality auto-switching)
+      // Start fresh interval for resolution changes
+      if (resolutionInterval) clearInterval(resolutionInterval);
       resolutionInterval = setInterval(() => {
+        if (!allowChanges || !currentVideoId) return;
+
         const w = video.videoWidth;
         const h = video.videoHeight;
         if ((w !== lastWidth || h !== lastHeight) && w && h) {
           lastWidth = w;
           lastHeight = h;
+
+          console.log(`[SwipeExtension] [${currentVideoId}] Resolution changed: ${w}x${h}`);
           saveEvent({
             type: "video-resolution-change",
             videoId: currentVideoId,
@@ -539,9 +516,10 @@ function trackVideoResolution(video) {
           });
         }
       }, 2000);
-    }, 100);
+    }, 100); // ✅ short delay to ensure getVideoId() reflects the new video
   };
 
+  // Triggered every time a new video loads in the same element
   video.addEventListener("loadedmetadata", () => {
     cleanup();
     startResolutionTracking();
@@ -549,6 +527,7 @@ function trackVideoResolution(video) {
 
   video.addEventListener("ended", cleanup);
 }
+
 
 // ================== RE-HOOK ON URL CHANGE ==================
 setInterval(() => {
