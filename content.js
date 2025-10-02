@@ -478,7 +478,7 @@ function trackVideoResolution(video) {
       allowChanges = true;
       lastWidth = video.videoWidth;
       lastHeight = video.videoHeight;
-    }, 2000); // wait 2s to stabilize resolution
+    }, 1000); // wait 1s to stabilize resolution
   });
 
   // Track resolution changes over time
@@ -500,7 +500,7 @@ function trackVideoResolution(video) {
         extra: { width: w, height: h }
       });
     }
-  }, 1000);
+  }, 2000);
 
   // Cleanup interval on video end
   video.addEventListener('ended', () => clearInterval(resolutionInterval));
