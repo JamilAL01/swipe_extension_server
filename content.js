@@ -394,14 +394,7 @@ const observer = new MutationObserver(() => {
   const video = document.querySelector("video");
   if (video && !video._resolutionHooked) {
     video._resolutionHooked = true;
-    if (hasUserConsented()) {
-      trackVideoResolution(video);
-    } else {
-      // wait for consent, then start
-      waitForConsent().then(() => {
-        trackVideoResolution(video);
-      });
-    }
+    trackVideoResolution(video);
   }
   if (video && video.src !== lastSrc) {
     const videoId = getVideoId();
@@ -445,221 +438,134 @@ observer.observe(document.body, { childList: true, subtree: true });
 
 // ================== VIDEO RESOLUTION ======================
 
-// ---------- HELPERS: read ytInitialPlayerResponse robustly ----------
-function readYtInitialPlayerResponse() {
-  // 1) direct global
-  if (window.ytInitialPlayerResponse) return window.ytInitialPlayerResponse;
-
-  // 2) older player config / args
-  try {
-    if (window.ytplayer && window.ytplayer.config && window.ytplayer.config.args && window.ytplayer.config.args.player_response) {
-      return JSON.parse(window.ytplayer.config.args.player_response);
-    }
-  } catch (e) { /* ignore */ }
-
-  // 3) try to extract from inline <script> tags containing "ytInitialPlayerResponse"
-  try {
-    const scripts = Array.from(document.scripts);
-    for (const s of scripts) {
-      const txt = s.textContent;
-      if (!txt || txt.indexOf('ytInitialPlayerResponse') === -1) continue;
-
-      // look for "ytInitialPlayerResponse" then the first "{" after it and parse a balanced JSON object
-      const after = txt.slice(txt.indexOf('ytInitialPlayerResponse'));
-      const braceIdx = after.indexOf('{');
-      if (braceIdx === -1) continue;
-
-      let i = braceIdx;
-      let depth = 0;
-      let endIndex = -1;
-      for (; i < after.length; i++) {
-        const ch = after[i];
-        if (ch === '{') depth++;
-        else if (ch === '}') {
-          depth--;
-          if (depth === 0) { endIndex = i; break; }
-        }
-      }
-      if (endIndex > -1) {
-        const jsonText = after.slice(braceIdx, endIndex + 1);
-        try {
-          const parsed = JSON.parse(jsonText);
-          return parsed;
-        } catch (err) {
-          // JSON parse fail — try next script
-          continue;
-        }
-      }
-    }
-  } catch (e) {
-    // ignore parsing errors
-  }
-
-  return null;
-}
-
-function getMaxAvailableResolutionLabel() {
-  const player = readYtInitialPlayerResponse();
-  if (!player || !player.streamingData) return null;
-
-  const allFormats = [
-    ...(player.streamingData.formats || []),
-    ...(player.streamingData.adaptiveFormats || [])
-  ];
-
-  let maxPixels = 0;
-  let bestLabel = null;
-
-  for (const fmt of allFormats) {
-    const w = fmt.width || 0;
-    const h = fmt.height || 0;
-    if (w && h) {
-      const pixels = w * h;
-      if (pixels > maxPixels) {
-        maxPixels = pixels;
-        bestLabel = fmt.qualityLabel || `${w}x${h}`;
-      }
-    }
-  }
-
-  return bestLabel; // e.g. "1080p" or "720p" or fallback "1280x720"
-}
-
-// ---------- NEW: robust trackVideoResolution ----------
 function trackVideoResolution(video) {
   if (!video) return;
 
-  // state
-  let lastW = 0;
-  let lastH = 0;
-  let initialLogged = false;
-  const pendingChanges = []; // queue changes detected before initial logged
+  let lastWidth = 0;
+  let lastHeight = 0;
+  let allowChanges = false; // control when change events start
 
-  // get max label once (may be null if not parsable)
-  let maxLabel = getMaxAvailableResolutionLabel();
+  // Helper: try to read max width/height from ytInitialPlayerResponse or player config
+  function getMaxFromPlayerResponse() {
+    try {
+      const p = window.ytInitialPlayerResponse
+        || (window.ytplayer && window.ytplayer.config && window.ytplayer.config.args && JSON.parse(window.ytplayer.config.args.player_response));
+      if (!p || !p.streamingData) return null;
 
-  // Helper: emit a change event (or queue if initial not yet logged)
-  function handleDetectedChange(w, h) {
-    if (!initialLogged) {
-      pendingChanges.push({ w, h, ts: new Date().toISOString() });
-      return;
+      const all = [
+        ...(p.streamingData.formats || []),
+        ...(p.streamingData.adaptiveFormats || [])
+      ];
+
+      let best = null;
+      let bestPixels = 0;
+      for (const fmt of all) {
+        const w = fmt.width || 0;
+        const h = fmt.height || 0;
+        if (w && h) {
+          const pixels = w * h;
+          if (pixels > bestPixels) {
+            bestPixels = pixels;
+            best = fmt;
+          }
+        }
+      }
+      if (!best) return null;
+      return { width: best.width, height: best.height, label: best.qualityLabel || `${best.width}x${best.height}` };
+    } catch (e) {
+      return null;
     }
-    // if initial logged, emit immediately
-    console.log(`[SwipeExtension] Resolution changed to: ${w}x${h}`);
-    saveEvent({
-      type: 'video-resolution-change',
-      videoId: getVideoId(),
-      src: video.src,
-      timestamp: new Date().toISOString(),
-      extra: { width: w, height: h }
-    });
   }
 
-  // Log initial resolution (must be first). We try several triggers.
-  function logInitialIfReady() {
-    if (initialLogged) return;
+  // Handler used for loadedmetadata (defined so we can call it immediately if metadata already present)
+  function onLoadedMetadata() {
+    const currentWidth = video.videoWidth;
+    const currentHeight = video.videoHeight;
+    const capturedSrc = video.src; // capture early in case element is swapped
+
+    // Start with current as fallback
+    let maxWidth = currentWidth || 0;
+    let maxHeight = currentHeight || 0;
+
+    // Try immediate parse of available formats
+    const bestNow = getMaxFromPlayerResponse();
+    if (bestNow && bestNow.width && bestNow.height) {
+      maxWidth = Math.max(maxWidth, bestNow.width);
+      maxHeight = Math.max(maxHeight, bestNow.height);
+    }
+
+    // After your stabilization delay, re-check current video dims and try playerResponse again.
+    setTimeout(() => {
+      // sample current playing dims (may have changed)
+      const maybeW = video.videoWidth || currentWidth || 0;
+      const maybeH = video.videoHeight || currentHeight || 0;
+      if (maybeW > maxWidth || maybeH > maxHeight) {
+        maxWidth = Math.max(maxWidth, maybeW);
+        maxHeight = Math.max(maxHeight, maybeH);
+      }
+
+      // try reading ytInitialPlayerResponse again (may be available now)
+      const bestLater = getMaxFromPlayerResponse();
+      if (bestLater && bestLater.width && bestLater.height) {
+        maxWidth = Math.max(maxWidth, bestLater.width);
+        maxHeight = Math.max(maxHeight, bestLater.height);
+      }
+
+      // If still zero, fall back to current values
+      if (!maxWidth && currentWidth) maxWidth = currentWidth;
+      if (!maxHeight && currentHeight) maxHeight = currentHeight;
+
+      console.log(`[SwipeExtension] Initial resolution: ${currentWidth}x${currentHeight}, max: ${maxWidth}x${maxHeight}`);
+      saveEvent({
+        type: 'video-resolution',
+        videoId: getVideoId(),
+        src: capturedSrc,
+        timestamp: new Date().toISOString(),
+        extra: {
+          current: `${currentWidth}x${currentHeight}`,
+          max: `${maxWidth}x${maxHeight}`
+        }
+      });
+
+      // Enable resolution change tracking after initial event
+      allowChanges = true;
+      lastWidth = maybeW;
+      lastHeight = maybeH;
+    }, 1000); // wait 1s to stabilize resolution
+  }
+
+  // Attach loadedmetadata handler or call immediately if metadata already loaded
+  if (video.readyState >= 1) {
+    // metadata already loaded
+    onLoadedMetadata();
+  } else {
+    video.addEventListener('loadedmetadata', onLoadedMetadata, { once: true });
+  }
+
+  // Track resolution changes over time
+  const resolutionInterval = setInterval(() => {
+    if (!allowChanges) return;
+
     const w = video.videoWidth;
     const h = video.videoHeight;
+    if ((w !== lastWidth || h !== lastHeight) && w && h) {
+      lastWidth = w;
+      lastHeight = h;
 
-    // some Shorts may have 0 initially; if not ready, skip — will be caught by playing/interval
-    if (!w || !h) return;
-
-    lastW = w;
-    lastH = h;
-    initialLogged = true;
-
-    // compute max label (try again in case it was not available earlier)
-    if (!maxLabel) maxLabel = getMaxAvailableResolutionLabel();
-
-    console.log(`[SwipeExtension] Initial resolution: ${w}x${h}, max available: ${maxLabel || 'unknown'}`);
-    saveEvent({
-      type: 'video-resolution',
-      videoId: getVideoId(),
-      src: video.src,
-      timestamp: new Date().toISOString(),
-      extra: {
-        current: `${w}x${h}`,
-        max: maxLabel || `${w}x${h}`
-      }
-    });
-
-    // flush pending changes in order (if any) — these were detected during initialization
-    while (pendingChanges.length) {
-      const c = pendingChanges.shift();
-      // If the queued change equals the initial (rare), skip
-      if (c.w === w && c.h === h) continue;
-      console.log(`[SwipeExtension] Flushing queued change: ${c.w}x${c.h}`);
+      console.log(`[SwipeExtension] Resolution changed to: ${w}x${h}`);
       saveEvent({
         type: 'video-resolution-change',
         videoId: getVideoId(),
         src: video.src,
-        timestamp: c.ts,
-        extra: { width: c.w, height: c.h }
+        timestamp: new Date().toISOString(),
+        extra: { width: w, height: h }
       });
-      // update lastW/lastH
-      lastW = c.w; lastH = c.h;
     }
-  }
+  }, 2000);
 
-  // Try to log initial on common events
-  video.addEventListener('loadedmetadata', logInitialIfReady, { once: true });
-  video.addEventListener('playing', logInitialIfReady, { once: true });
-
-  // Also attempt immediate call (in case metadata already loaded)
-  setTimeout(logInitialIfReady, 50);
-
-  // Continuous watcher for changes (do not emit changes before initial logged — they will queue)
-  const watcher = setInterval(() => {
-    const w = video.videoWidth;
-    const h = video.videoHeight;
-    if (w && h) {
-      if (!initialLogged) {
-        // might be ready now; try to log initial
-        logInitialIfReady();
-      } else if (w !== lastW || h !== lastH) {
-        lastW = w; lastH = h;
-        handleDetectedChange(w, h);
-      }
-    }
-  }, 800); // check ~0.8s — adjustable
-
-  // Clean up when video removed / ended
-  const cleanup = () => {
-    clearInterval(watcher);
-    try {
-      video.removeEventListener('loadedmetadata', logInitialIfReady);
-      video.removeEventListener('playing', logInitialIfReady);
-      video.removeEventListener('ended', cleanup);
-      video.removeEventListener('emptied', cleanup);
-    } catch (e) {}
-  };
+  // Cleanup interval on video end / removal
+  const cleanup = () => clearInterval(resolutionInterval);
   video.addEventListener('ended', cleanup);
-  video.addEventListener('emptied', cleanup);
-
-  // If ytInitialPlayerResponse wasn't present earlier, try to refresh maxLabel shortly after start
-  // but don't block initial logging — just improve the max value for future events
-  setTimeout(() => {
-    if (!maxLabel) {
-      const ml = getMaxAvailableResolutionLabel();
-      if (ml) {
-        maxLabel = ml;
-        // If initial already logged but max was unknown, send a small update event to correct max info.
-        // NOTE: we send a single 'video-resolution' update only if initial was already logged and max differs.
-        if (initialLogged) {
-          saveEvent({
-            type: 'video-resolution',
-            videoId: getVideoId(),
-            src: video.src,
-            timestamp: new Date().toISOString(),
-            extra: {
-              current: `${lastW}x${lastH}`,
-              max: maxLabel
-            }
-          });
-        }
-      }
-    }
-  }, 600); // try again a bit later (600ms)
 }
 
 
