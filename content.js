@@ -393,8 +393,11 @@ const observer = new MutationObserver(() => {
   const video = document.querySelector("video");
   if (video && !video._resolutionHooked) {
     video._resolutionHooked = true;
-    trackVideoResolution(video);
+
+    const videoId = getVideoId(); // capture ID immediately
+    trackVideoResolution(video, videoId); // pass it in
   }
+
   if (video && video.src !== lastSrc) {
     const videoId = getVideoId();
 
@@ -407,7 +410,9 @@ const observer = new MutationObserver(() => {
         timestamp: new Date().toISOString(),
         watchedTime: watchedTime.toFixed(2),
         duration: prevDuration.toFixed(2),
-        percent: prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100).toFixed(1) : 0,
+        percent: prevDuration
+          ? Math.min((watchedTime / prevDuration) * 100, 100).toFixed(1)
+          : 0,
       });
     }
 
@@ -436,20 +441,18 @@ const observer = new MutationObserver(() => {
 observer.observe(document.body, { childList: true, subtree: true });
 
 // ================== VIDEO RESOLUTION ======================
-// ================== VIDEO RESOLUTION ======================
 function trackVideoResolution(video, videoId) {
   if (!video || !videoId) return;
 
   let lastWidth = 0;
   let lastHeight = 0;
-  let allowChanges = false; // control when change events start
+  let allowChanges = false;
 
   // Log initial resolution once metadata is loaded
   const onMetadata = () => {
     const currentWidth = video.videoWidth;
     const currentHeight = video.videoHeight;
 
-    // Estimate maximum resolution after a short delay (adaptive bitrate might upgrade)
     let maxWidth = currentWidth;
     let maxHeight = currentHeight;
 
@@ -463,54 +466,55 @@ function trackVideoResolution(video, videoId) {
 
       console.log(`[SwipeExtension] Initial resolution for video ${videoId}: ${currentWidth}x${currentHeight}, max: ${maxWidth}x${maxHeight}`);
       saveEvent({
-        type: 'video-resolution',
+        type: "video-resolution",
         videoId,
         src: video.src,
         timestamp: new Date().toISOString(),
         extra: {
           current: `${currentWidth}x${currentHeight}`,
-          max: `${maxWidth}x${maxHeight}`
-        }
+          max: `${maxWidth}x${maxHeight}`,
+        },
       });
 
       allowChanges = true;
       lastWidth = video.videoWidth;
       lastHeight = video.videoHeight;
-    }, 1000); // wait 1s to stabilize resolution
+    }, 1000);
 
     // Track resolution changes over time
-    const resolutionInterval = setInterval(() => {
+    const intervalId = setInterval(() => {
       if (!allowChanges) return;
 
       const w = video.videoWidth;
       const h = video.videoHeight;
+
       if ((w !== lastWidth || h !== lastHeight) && w && h) {
         lastWidth = w;
         lastHeight = h;
 
         console.log(`[SwipeExtension] Resolution changed for video ${videoId} to: ${w}x${h}`);
         saveEvent({
-          type: 'video-resolution-change',
+          type: "video-resolution-change",
           videoId,
           src: video.src,
           timestamp: new Date().toISOString(),
-          extra: { width: w, height: h }
+          extra: { width: w, height: h },
         });
       }
     }, 2000);
 
     // Cleanup on video end
-    video.addEventListener('ended', () => {
-      clearInterval(resolutionInterval);
+    const cleanup = () => {
+      clearInterval(intervalId);
       clearTimeout(timeoutId);
-      video.removeEventListener('loadedmetadata', onMetadata);
-    });
+      video.removeEventListener("loadedmetadata", onMetadata);
+    };
+
+    video.addEventListener("ended", cleanup);
   };
 
-  video.addEventListener('loadedmetadata', onMetadata);
+  video.addEventListener("loadedmetadata", onMetadata);
 }
-
-
 
 // ================== RE-HOOK ON URL CHANGE ==================
 setInterval(() => {
