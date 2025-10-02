@@ -532,28 +532,12 @@ function trackVideoResolution(video) {
     }, 100);
   };
 
-  video.addEventListener('loadedmetadata', () => {
-    const currentW = video.videoWidth;
-    const currentH = video.videoHeight;
-
-    // 🔥 Try to get optimal resolution from YouTube internals
-    const optimalRes = getOptimalResolutionFromPlayer(video);
-
-    const maxW = optimalRes?.width || currentW;
-    const maxH = optimalRes?.height || currentH;
-
-    saveEvent({
-      type: 'video-resolution',
-      videoId: currentVideoId,
-      src: video.src,
-      timestamp: new Date().toISOString(),
-      extra: {
-        current: `${currentW}x${currentH}`,
-        max: `${Math.round(maxW)}x${Math.round(maxH)}`
-      }
-    });
+  video.addEventListener("loadedmetadata", () => {
+    cleanup();
+    startResolutionTracking();
   });
 
+  video.addEventListener("ended", cleanup);
 }
 
 // ================== RE-HOOK ON URL CHANGE ==================
