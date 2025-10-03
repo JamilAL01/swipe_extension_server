@@ -391,26 +391,31 @@ function attachActionEvents() {
 // =================  STATS ========================
 function updateStats(watchedTimeSec, percentWatched) {
   chrome.storage.local.get(
-    ["videosWatched", "totalWatchedTime", "avgPercentWatched"],
+    ["videosWatched", "totalWatchedTime", "avgPercentWatched", "videoHistory"],
     (data) => {
       const videosWatched = (data.videosWatched || 0) + 1;
       const totalWatchedTime = (data.totalWatchedTime || 0) + watchedTimeSec;
 
-      // Compute running average percent watched
+      // Running average
       const prevAvg = data.avgPercentWatched || 0;
       const avgPercentWatched =
         (prevAvg * (videosWatched - 1) + percentWatched) / videosWatched;
 
-      chrome.storage.local.get(['videoHistory'], (data2) => {
-        const history = data2.videoHistory || [];
-        history.push({ watchTime: watchedTimeSec, percentWatched });
-        if (history.length > 10) history.shift(); // keep last 10
-        chrome.storage.local.set({ videoHistory: history });
-      });
+      // Update history (last 10 videos)
+      const history = data.videoHistory || [];
+      history.push({ watchTime: watchedTimeSec, percentWatched });
+      if (history.length > 10) history.shift();
 
+      chrome.storage.local.set({
+        videosWatched,
+        totalWatchedTime,
+        avgPercentWatched,
+        videoHistory: history,
+      });
     }
   );
 }
+
 
 // ================== OBSERVE VIDEO CHANGES ==================
 const observer = new MutationObserver(() => {
