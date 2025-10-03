@@ -421,29 +421,30 @@ const observer = new MutationObserver(() => {
   }
 
   if (video && video.src !== lastSrc) {
-    const videoId = getVideoId();
+      const videoId = getVideoId();
 
-    if (currentVideo && startTime) {
-      watchedTime += (Date.now() - startTime) / 1000;
+      if (currentVideo && startTime) {
+        watchedTime += (Date.now() - startTime) / 1000;
 
-      const percent = prevDuration
-        ? Math.min((watchedTime / prevDuration) * 100, 100).toFixed(1)
-        : 0;
+        // Ensure we have a valid duration
+        const duration = prevDuration || currentVideo.duration || 0;
+        const percent = duration ? Math.min((watchedTime / duration) * 100, 100).toFixed(1) : 0;
 
-      saveEvent({
-        type: "video-stopped",
-        videoId: getVideoId(),
-        src: currentVideo.src,
-        timestamp: new Date().toISOString(),
-        watchedTime: watchedTime.toFixed(2),
-        duration: prevDuration.toFixed(2),
-        percent,
-      });
+        saveEvent({
+          type: "video-stopped",
+          videoId: getVideoId(),
+          src: currentVideo.src,
+          timestamp: new Date().toISOString(),
+          watchedTime: watchedTime.toFixed(2),
+          duration: duration.toFixed(2),
+          percent,
+        });
 
-      // ✅ Update general stats
-      updateStats(watchedTime, parseFloat(percent));
-    }
-
+        // ✅ Only update stats if duration > 0
+        if (duration > 0) {
+          updateStats(watchedTime, parseFloat(percent));
+        }
+      }
 
     if (lastSrc) {
       saveEvent({
