@@ -1,5 +1,6 @@
 # SWiPE X Extension
 
+## English Version
 SWiPE X is a Chrome/Android extension to track YouTube Shorts video events and save them in a database.
 
 ## Features
