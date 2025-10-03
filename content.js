@@ -388,7 +388,7 @@ function attachActionEvents() {
   }
 }
 
-// =================  STATS ========================
+// ================== STATS ========================
 function updateStats(watchedTimeSec, percentWatched) {
   chrome.storage.local.get(
     ["videosWatched", "totalWatchedTime", "avgPercentWatched"],
@@ -396,7 +396,6 @@ function updateStats(watchedTimeSec, percentWatched) {
       const videosWatched = (data.videosWatched || 0) + 1;
       const totalWatchedTime = (data.totalWatchedTime || 0) + watchedTimeSec;
 
-      // Compute running average percent watched
       const prevAvg = data.avgPercentWatched || 0;
       const avgPercentWatched =
         (prevAvg * (videosWatched - 1) + percentWatched) / videosWatched;
@@ -410,61 +409,73 @@ function updateStats(watchedTimeSec, percentWatched) {
   );
 }
 
+// ================== VIDEO EVENT TRACKING ==================
+function attachVideoEvents(video) {
+  if (!video) return;
+
+  let accumulatedTime = 0;
+  let lastTime = Date.now();
+
+  const updateWatchedTime = () => {
+    const now = Date.now();
+    accumulatedTime += (now - lastTime) / 1000;
+    lastTime = now;
+  };
+
+  // Update continuously while video is playing
+  video.addEventListener("timeupdate", updateWatchedTime);
+
+  video.addEventListener("ended", () => {
+    updateWatchedTime();
+    const duration = video.duration || 0;
+    const percent = duration ? Math.min((accumulatedTime / duration) * 100, 100) : 0;
+
+    saveEvent({
+      type: "video-stopped",
+      videoId: getVideoId(),
+      src: video.src,
+      timestamp: new Date().toISOString(),
+      watchedTime: accumulatedTime.toFixed(2),
+      duration: duration.toFixed(2),
+      percent: percent.toFixed(1),
+    });
+
+    if (duration > 0) updateStats(accumulatedTime, percent);
+
+    accumulatedTime = 0;
+  });
+}
+
 // ================== OBSERVE VIDEO CHANGES ==================
+let lastVideoSrc = null;
+
 const observer = new MutationObserver(() => {
   const video = document.querySelector("video");
-  if (video && !video._resolutionHooked) {
-    video._resolutionHooked = true;
+  if (!video) return;
 
-    const videoId = getVideoId(); // capture ID immediately
-    trackVideoResolution(video, videoId); // pass it in
-  }
+  // Only attach events to a new video
+  if (video.src && video.src !== lastVideoSrc) {
+    lastVideoSrc = video.src;
 
-  if (video && video.src !== lastSrc) {
-      const videoId = getVideoId();
-
-      if (currentVideo && startTime) {
-        watchedTime += (Date.now() - startTime) / 1000;
-
-        // Ensure we have a valid duration
-        const duration = prevDuration || currentVideo.duration || 0;
-        const percent = duration ? Math.min((watchedTime / duration) * 100, 100).toFixed(1) : 0;
-
-        saveEvent({
-          type: "video-stopped",
-          videoId: getVideoId(),
-          src: currentVideo.src,
-          timestamp: new Date().toISOString(),
-          watchedTime: watchedTime.toFixed(2),
-          duration: duration.toFixed(2),
-          percent,
-        });
-
-        // ✅ Only update stats if duration > 0
-        if (duration > 0) {
-          updateStats(watchedTime, parseFloat(percent));
-        }
-      }
-
-    if (lastSrc) {
-      saveEvent({
-        type: "swiped-to-new-video",
-        videoId,
-        src: video.src,
-        timestamp: new Date().toISOString(),
-        extra: { previous: lastSrc },
-      });
+    // Wait for metadata to be loaded so duration is correct
+    if (!video.duration || video.duration === Infinity || video.duration === 0) {
+      video.addEventListener(
+        "loadedmetadata",
+        () => attachVideoEvents(video),
+        { once: true }
+      );
+    } else {
+      attachVideoEvents(video);
     }
 
-    currentVideo = video;
-    lastSrc = video.src;
-    startTime = Date.now();
-    watchedTime = 0;
-    prevDuration = video.duration || 0;
-    hasPlayed = false;
-
-    attachVideoEvents(video);
-    attachActionEvents();
+    // Optional: track swipes to new video
+    saveEvent({
+      type: "swiped-to-new-video",
+      videoId: getVideoId(),
+      src: video.src,
+      timestamp: new Date().toISOString(),
+      extra: { previous: lastVideoSrc },
+    });
   }
 });
 
