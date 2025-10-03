@@ -441,6 +441,44 @@ const observer = new MutationObserver(() => {
 observer.observe(document.body, { childList: true, subtree: true });
 
 // ================== VIDEO RESOLUTION ======================
+function getMaxResolutionFromInitialData() {
+  try {
+    // Find the <script> tag that contains ytInitialPlayerResponse
+    const script = [...document.scripts].find(s =>
+      s.textContent.includes('ytInitialPlayerResponse')
+    );
+    if (!script) return null;
+
+    // Extract JSON content
+    const match = script.textContent.match(/ytInitialPlayerResponse\s*=\s*(\{.*?\});/);
+    if (!match) return null;
+
+    const data = JSON.parse(match[1]);
+    const adaptiveFormats = data?.streamingData?.adaptiveFormats;
+    if (!adaptiveFormats || !adaptiveFormats.length) return null;
+
+    // Pick the format with the largest resolution
+    let maxFmt = adaptiveFormats.reduce(
+      (acc, fmt) => {
+        if (fmt.width && fmt.height) {
+          const pixels = fmt.width * fmt.height;
+          const accPixels = acc.width * acc.height;
+          if (pixels > accPixels) return fmt;
+        }
+        return acc;
+      },
+      { width: 0, height: 0 }
+    );
+
+    return maxFmt.width && maxFmt.height
+      ? `${maxFmt.width}x${maxFmt.height}`
+      : null;
+  } catch (err) {
+    console.warn('[SwipeExtension] Failed to parse ytInitialPlayerResponse:', err);
+    return null;
+  }
+}
+
 function trackVideoResolution(video) {
   if (!video) return;
 
@@ -451,30 +489,6 @@ function trackVideoResolution(video) {
   let resolutionInterval = null;
   let timeoutId = null;
 
-  const qualityMap = {
-    tiny: '144x256',
-    small: '240x426',
-    medium: '360x640',
-    large: '480x854',
-    hd720: '1280x720',
-    hd1080: '1920x1080',
-    hd1440: '2560x1440',
-    hd2160: '3840x2160',
-    highres: 'unknown'
-  };
-
-  const getMaxResolutionFromPlayer = () => {
-    const player = document.querySelector('#movie_player');
-    if (player && typeof player.getAvailableQualityLevels === 'function') {
-      const levels = player.getAvailableQualityLevels();
-      if (Array.isArray(levels) && levels.length > 0) {
-        const top = levels[0]; // first is usually the max
-        return qualityMap[top] || top;
-      }
-    }
-    return null;
-  };
-
   const cleanup = () => {
     clearInterval(resolutionInterval);
     clearTimeout(timeoutId);
@@ -483,6 +497,7 @@ function trackVideoResolution(video) {
   };
 
   const startResolutionTracking = () => {
+    // Delay slightly to let YouTube update videoId properly
     timeoutId = setTimeout(() => {
       currentVideoId = getVideoId();
       if (!currentVideoId) return;
@@ -490,28 +505,31 @@ function trackVideoResolution(video) {
       const currentWidth = video.videoWidth;
       const currentHeight = video.videoHeight;
 
-      // ✅ get true max from YouTube player
-      const maxResStr = getMaxResolutionFromPlayer() || `${currentWidth}x${currentHeight}`;
+      // ✅ Use ytInitialPlayerResponse to get true max available resolution
+      const maxRes =
+        getMaxResolutionFromInitialData() ||
+        `${currentWidth}x${currentHeight}`;
 
       console.log(
-        `[SwipeExtension] [${currentVideoId}] Initial resolution: ${currentWidth}x${currentHeight}, max available: ${maxResStr}`
+        `[SwipeExtension] [${currentVideoId}] Initial resolution: ${currentWidth}x${currentHeight}, max available: ${maxRes}`
       );
 
       saveEvent({
-        type: "video-resolution",
+        type: 'video-resolution',
         videoId: currentVideoId,
         src: video.src,
         timestamp: new Date().toISOString(),
         extra: {
           current: `${currentWidth}x${currentHeight}`,
-          max: maxResStr
-        },
+          max: maxRes
+        }
       });
 
       allowChanges = true;
       lastWidth = currentWidth;
       lastHeight = currentHeight;
 
+      // Start tracking resolution changes
       if (resolutionInterval) clearInterval(resolutionInterval);
       resolutionInterval = setInterval(() => {
         if (!allowChanges || !currentVideoId) return;
@@ -521,25 +539,29 @@ function trackVideoResolution(video) {
         if ((w !== lastWidth || h !== lastHeight) && w && h) {
           lastWidth = w;
           lastHeight = h;
-          console.log(`[SwipeExtension] [${currentVideoId}] Resolution changed: ${w}x${h}`);
+
+          console.log(
+            `[SwipeExtension] [${currentVideoId}] Resolution changed: ${w}x${h}`
+          );
           saveEvent({
-            type: "video-resolution-change",
+            type: 'video-resolution-change',
             videoId: currentVideoId,
             src: video.src,
             timestamp: new Date().toISOString(),
-            extra: { width: w, height: h },
+            extra: { width: w, height: h }
           });
         }
       }, 2000);
     }, 100);
   };
 
-  video.addEventListener("loadedmetadata", () => {
+  // Triggered when a new video loads
+  video.addEventListener('loadedmetadata', () => {
     cleanup();
     startResolutionTracking();
   });
 
-  video.addEventListener("ended", cleanup);
+  video.addEventListener('ended', cleanup);
 }
 
 
