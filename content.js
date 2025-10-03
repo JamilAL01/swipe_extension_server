@@ -401,11 +401,13 @@ function updateStats(watchedTimeSec, percentWatched) {
       const avgPercentWatched =
         (prevAvg * (videosWatched - 1) + percentWatched) / videosWatched;
 
-      chrome.storage.local.set({
-        videosWatched,
-        totalWatchedTime,
-        avgPercentWatched,
+      chrome.storage.local.get(['videoHistory'], (data2) => {
+        const history = data2.videoHistory || [];
+        history.push({ watchTime: watchedTimeSec, percentWatched });
+        if (history.length > 10) history.shift(); // keep last 10
+        chrome.storage.local.set({ videoHistory: history });
       });
+
     }
   );
 }
