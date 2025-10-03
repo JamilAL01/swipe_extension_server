@@ -396,15 +396,13 @@ function updateStats(watchedTimeSec, percentWatched) {
       const videosWatched = (data.videosWatched || 0) + 1;
       const totalWatchedTime = (data.totalWatchedTime || 0) + watchedTimeSec;
 
-      // Running average
       const prevAvg = data.avgPercentWatched || 0;
       const avgPercentWatched =
         (prevAvg * (videosWatched - 1) + percentWatched) / videosWatched;
 
-      // Update history (last 10 videos)
       const history = data.videoHistory || [];
       history.push({ watchTime: watchedTimeSec, percentWatched });
-      if (history.length > 10) history.shift();
+      if (history.length > 10) history.shift(); // keep last 10
 
       chrome.storage.local.set({
         videosWatched,
@@ -415,6 +413,7 @@ function updateStats(watchedTimeSec, percentWatched) {
     }
   );
 }
+
 
 
 // ================== OBSERVE VIDEO CHANGES ==================
