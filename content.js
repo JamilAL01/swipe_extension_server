@@ -564,6 +564,24 @@ function trackVideoResolution(video) {
   video.addEventListener('ended', cleanup);
 }
 
+// =================  STATS ========================
+function updateStats(watchTimeInSec, watchPercent) {
+  chrome.storage.local.get(['stats'], (data) => {
+    const stats = data.stats || {
+      totalVideos: 0,
+      totalWatchTime: 0,
+      totalWatchPercent: 0,
+      totalWatchEntries: 0
+    };
+
+    stats.totalVideos += 1;
+    stats.totalWatchTime += watchTimeInSec;
+    stats.totalWatchPercent += watchPercent;
+    stats.totalWatchEntries += 1;
+
+    chrome.storage.local.set({ stats });
+  });
+}
 
 
 // ================== RE-HOOK ON URL CHANGE ==================

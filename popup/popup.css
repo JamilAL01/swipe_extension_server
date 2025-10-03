@@ -1,12 +1,38 @@
 body {
   font-family: Arial, sans-serif;
-  width: 300px;
-  padding: 10px;
+  margin: 0;
+  padding: 12px;
+  background: #f8f9fa;
+  width: 220px;
 }
-h2 {
-  font-size: 18px;
-  margin-bottom: 10px;
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
-#stats {
-  font-size: 14px;
+
+h1 {
+  font-size: 16px;
+  margin: 0 0 10px 0;
+  text-align: center;
+}
+
+.metric {
+  display: flex;
+  justify-content: space-between;
+  background: #fff;
+  padding: 6px 8px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.label {
+  font-weight: 500;
+  color: #333;
+}
+
+.value {
+  font-weight: 700;
+  color: #1a73e8;
 }
