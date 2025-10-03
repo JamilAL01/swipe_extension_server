@@ -1,30 +1,15 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Swipe Video Logger</title>
-  <link rel="stylesheet" href="popup.css">
-</head>
-<body>
-  <div class="container">
-    <h1>📊 Your Stats</h1>
+<html>
+  <head>
+    <title>Swipe Stats</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <h3>Swipe Video Stats</h3>
+    <p>Videos watched: <span id="videosWatched">0</span></p>
+    <p>Total watched time (sec): <span id="totalWatchedTime">0</span></p>
+    <p>Average % watched: <span id="avgPercentWatched">0%</span></p>
 
-    <div class="metric">
-      <span class="label">Videos Watched:</span>
-      <span id="videos-count" class="value">0</span>
-    </div>
-
-    <div class="metric">
-      <span class="label">Total Watch Time:</span>
-      <span id="watch-time" class="value">0 min</span>
-    </div>
-
-    <div class="metric">
-      <span class="label">Avg. Watch %:</span>
-      <span id="avg-percent" class="value">0%</span>
-    </div>
-  </div>
-
-  <script src="popup.js"></script>
-</body>
+    <script src="popup.js"></script>
+  </body>
 </html>
