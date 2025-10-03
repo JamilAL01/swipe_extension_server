@@ -451,6 +451,30 @@ function trackVideoResolution(video) {
   let resolutionInterval = null;
   let timeoutId = null;
 
+  const qualityMap = {
+    tiny: '144x256',
+    small: '240x426',
+    medium: '360x640',
+    large: '480x854',
+    hd720: '1280x720',
+    hd1080: '1920x1080',
+    hd1440: '2560x1440',
+    hd2160: '3840x2160',
+    highres: 'unknown'
+  };
+
+  const getMaxResolutionFromPlayer = () => {
+    const player = document.querySelector('#movie_player');
+    if (player && typeof player.getAvailableQualityLevels === 'function') {
+      const levels = player.getAvailableQualityLevels();
+      if (Array.isArray(levels) && levels.length > 0) {
+        const top = levels[0]; // first is usually the max
+        return qualityMap[top] || top;
+      }
+    }
+    return null;
+  };
+
   const cleanup = () => {
     clearInterval(resolutionInterval);
     clearTimeout(timeoutId);
@@ -459,43 +483,35 @@ function trackVideoResolution(video) {
   };
 
   const startResolutionTracking = () => {
-    // Delay slightly to let YouTube update videoId properly
     timeoutId = setTimeout(() => {
-      currentVideoId = getVideoId(); // ✅ now gets the correct current video ID
+      currentVideoId = getVideoId();
       if (!currentVideoId) return;
 
       const currentWidth = video.videoWidth;
       const currentHeight = video.videoHeight;
-      let maxWidth = currentWidth;
-      let maxHeight = currentHeight;
 
-      // Another short delay to stabilize adaptive quality
-      setTimeout(() => {
-        const maybeW = video.videoWidth;
-        const maybeH = video.videoHeight;
-        if (maybeW > maxWidth || maybeH > maxHeight) {
-          maxWidth = maybeW;
-          maxHeight = maybeH;
-        }
+      // ✅ get true max from YouTube player
+      const maxResStr = getMaxResolutionFromPlayer() || `${currentWidth}x${currentHeight}`;
 
-        console.log(`[SwipeExtension] [${currentVideoId}] Initial resolution: ${currentWidth}x${currentHeight}, max: ${maxWidth}x${maxHeight}`);
-        saveEvent({
-          type: "video-resolution",
-          videoId: currentVideoId,
-          src: video.src,
-          timestamp: new Date().toISOString(),
-          extra: {
-            current: `${currentWidth}x${currentHeight}`,
-            max: `${maxWidth}x${maxHeight}`,
-          },
-        });
+      console.log(
+        `[SwipeExtension] [${currentVideoId}] Initial resolution: ${currentWidth}x${currentHeight}, max available: ${maxResStr}`
+      );
 
-        allowChanges = true;
-        lastWidth = video.videoWidth;
-        lastHeight = video.videoHeight;
-      }, 300); // <— small extra delay to avoid previous ID bleed
+      saveEvent({
+        type: "video-resolution",
+        videoId: currentVideoId,
+        src: video.src,
+        timestamp: new Date().toISOString(),
+        extra: {
+          current: `${currentWidth}x${currentHeight}`,
+          max: maxResStr
+        },
+      });
 
-      // Start fresh interval for resolution changes
+      allowChanges = true;
+      lastWidth = currentWidth;
+      lastHeight = currentHeight;
+
       if (resolutionInterval) clearInterval(resolutionInterval);
       resolutionInterval = setInterval(() => {
         if (!allowChanges || !currentVideoId) return;
@@ -505,7 +521,6 @@ function trackVideoResolution(video) {
         if ((w !== lastWidth || h !== lastHeight) && w && h) {
           lastWidth = w;
           lastHeight = h;
-
           console.log(`[SwipeExtension] [${currentVideoId}] Resolution changed: ${w}x${h}`);
           saveEvent({
             type: "video-resolution-change",
@@ -516,10 +531,9 @@ function trackVideoResolution(video) {
           });
         }
       }, 2000);
-    }, 100); // ✅ short delay to ensure getVideoId() reflects the new video
+    }, 100);
   };
 
-  // Triggered every time a new video loads in the same element
   video.addEventListener("loadedmetadata", () => {
     cleanup();
     startResolutionTracking();
@@ -527,6 +541,7 @@ function trackVideoResolution(video) {
 
   video.addEventListener("ended", cleanup);
 }
+
 
 
 // ================== RE-HOOK ON URL CHANGE ==================
