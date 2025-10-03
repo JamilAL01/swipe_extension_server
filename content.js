@@ -388,6 +388,28 @@ function attachActionEvents() {
   }
 }
 
+// =================  STATS ========================
+function updateStats(watchedTimeSec, percentWatched) {
+  chrome.storage.local.get(
+    ["videosWatched", "totalWatchedTime", "avgPercentWatched"],
+    (data) => {
+      const videosWatched = (data.videosWatched || 0) + 1;
+      const totalWatchedTime = (data.totalWatchedTime || 0) + watchedTimeSec;
+
+      // Compute running average percent watched
+      const prevAvg = data.avgPercentWatched || 0;
+      const avgPercentWatched =
+        (prevAvg * (videosWatched - 1) + percentWatched) / videosWatched;
+
+      chrome.storage.local.set({
+        videosWatched,
+        totalWatchedTime,
+        avgPercentWatched,
+      });
+    }
+  );
+}
+
 // ================== OBSERVE VIDEO CHANGES ==================
 const observer = new MutationObserver(() => {
   const video = document.querySelector("video");
@@ -403,6 +425,11 @@ const observer = new MutationObserver(() => {
 
     if (currentVideo && startTime) {
       watchedTime += (Date.now() - startTime) / 1000;
+
+      const percent = prevDuration
+        ? Math.min((watchedTime / prevDuration) * 100, 100).toFixed(1)
+        : 0;
+
       saveEvent({
         type: "video-stopped",
         videoId: getVideoId(),
@@ -410,11 +437,13 @@ const observer = new MutationObserver(() => {
         timestamp: new Date().toISOString(),
         watchedTime: watchedTime.toFixed(2),
         duration: prevDuration.toFixed(2),
-        percent: prevDuration
-          ? Math.min((watchedTime / prevDuration) * 100, 100).toFixed(1)
-          : 0,
+        percent,
       });
+
+      // ✅ Update general stats
+      updateStats(watchedTime, parseFloat(percent));
     }
+
 
     if (lastSrc) {
       saveEvent({
@@ -562,25 +591,6 @@ function trackVideoResolution(video) {
   });
 
   video.addEventListener('ended', cleanup);
-}
-
-// =================  STATS ========================
-function updateStats(watchTimeInSec, watchPercent) {
-  chrome.storage.local.get(['stats'], (data) => {
-    const stats = data.stats || {
-      totalVideos: 0,
-      totalWatchTime: 0,
-      totalWatchPercent: 0,
-      totalWatchEntries: 0
-    };
-
-    stats.totalVideos += 1;
-    stats.totalWatchTime += watchTimeInSec;
-    stats.totalWatchPercent += watchPercent;
-    stats.totalWatchEntries += 1;
-
-    chrome.storage.local.set({ stats });
-  });
 }
 
 
