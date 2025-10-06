@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Load and render stats
   function renderStats() {
-    chrome.storage.local.get(
+    chrome.storage.session.get(
       ['videosWatched', 'totalWatchedTime', 'avgPercentWatched', 'videoHistory'],
       (data) => {
         const videosWatched = data.videosWatched || 0;
@@ -75,10 +75,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Reset stats
   resetBtn.addEventListener('click', () => {
-    chrome.storage.local.clear(() => {
+     chrome.storage.session.clear(() => {
       renderStats();
     });
   });
+
 
   renderStats();
 });
