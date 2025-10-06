@@ -25,10 +25,26 @@ chrome.runtime.onMessage.addListener((msg) => {
   }
 });
 
-// background.js
-chrome.runtime.onStartup.addListener(() => {
-  chrome.storage.local.clear(() => {
-    console.log("[SwipeExtension] ✅ Stats automatically reset on new browser session");
-  });
+
+// Track how many relevant tabs are open (e.g. YouTube)
+let trackedTabs = new Set();
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (tab.url && tab.url.includes("youtube.com")) {
+    trackedTabs.add(tabId);
+  }
 });
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  // Remove the closed tab from the set
+  trackedTabs.delete(tabId);
+
+  // If no tracked tabs remain, reset stats
+  if (trackedTabs.size === 0) {
+    chrome.storage.local.clear(() => {
+      console.log("[SwipeExtension] Stats reset because all YouTube tabs were closed");
+    });
+  }
+});
+
 
