@@ -24,3 +24,11 @@ chrome.runtime.onMessage.addListener((msg) => {
     });
   }
 });
+
+// background.js
+chrome.runtime.onStartup.addListener(() => {
+  chrome.storage.local.clear(() => {
+    console.log("[SwipeExtension] ✅ Stats automatically reset on new browser session");
+  });
+});
+
