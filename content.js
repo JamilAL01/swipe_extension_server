@@ -122,9 +122,11 @@ function showConsentPopup() {
     localStorage.setItem("swipeConsent","yes");
     consent = "yes";
     popup.remove();
+    window._swipeConsentDismissedAt = performance.now();  // 👈 mark when popup closed
     console.log("[SwipeExtension] User consented ✅");
-    showSurveyPopup();   // show survey
+    showSurveyPopup();
   };
+
 
   document.getElementById("consent-no").onclick = () => {
     localStorage.setItem("swipeConsent","no");
@@ -540,71 +542,77 @@ function trackVideoResolution(video) {
 
 // ============= START-UP DELAY & STALLS ================
 function attachStallAndStartupTracking(video) {
-  if (video._stallStartupHooked) return; // ✅ prevent double attaching
+  if (video._stallStartupHooked) return;
   video._stallStartupHooked = true;
 
   const videoId = getVideoId();
 
-  // --- STARTUP DELAY TRACKING ---
-  const startTime = performance.now();
-  let firstPlay = false;
+  let firstPlayTime = null;
+  let stallStart = null;
 
-  const onLoadedData = () => {
-    // just marks that metadata is ready — useful if needed later
-  };
+  // -------- STARTUP DELAY ----------
+  const startupStart = performance.now();
 
-  const onPlaying = () => {
-    if (!firstPlay) {
-      firstPlay = true;
-      const startupDelay = (performance.now() - startTime) / 1000;
+  const onPlayingFirst = () => {
+    if (!firstPlayTime) {
+      firstPlayTime = performance.now();
+      let startupDelay = (firstPlayTime - startupStart) / 1000;
 
-      console.log(`[SwipeExtension] Startup delay: ${startupDelay.toFixed(2)}s`);
+      // ⛔️ Subtract any "survey popup" time if needed
+      const popupDismissedAt = window._swipeConsentDismissedAt || null;
+      if (popupDismissedAt && popupDismissedAt > startupStart) {
+        startupDelay = Math.max(0, (firstPlayTime - popupDismissedAt) / 1000);
+      }
 
-      saveEvent({
-        type: "video-startup-delay",
-        videoId,
-        startupDelay: startupDelay.toFixed(2),
-        timestamp: new Date().toISOString(),
-      });
+      if (startupDelay > 0.2) {  // ignore tiny startup delays
+        saveEvent({
+          type: "video-startup-delay",
+          videoId,
+          timestamp: new Date().toISOString(),
+          extra: { startupDelay: startupDelay.toFixed(2) }
+        });
+        console.log(`[SwipeExtension] Startup delay sent: ${startupDelay.toFixed(2)}s`);
+      }
 
-      // Clean up startup listeners after first play
-      video.removeEventListener("loadeddata", onLoadedData);
-      video.removeEventListener("playing", onPlaying);
+      video.removeEventListener("playing", onPlayingFirst);
     }
   };
 
-  video.addEventListener("loadeddata", onLoadedData);
-  video.addEventListener("playing", onPlaying);
+  video.addEventListener("playing", onPlayingFirst);
 
-  // --- STALL TRACKING ---
-  let stallStart = null;
-
+  // -------- STALL DETECTION ----------
   const onStalled = () => {
-    stallStart = performance.now();
-    console.log("[SwipeExtension] Stall started...");
+    // Ignore stalls before first playback
+    if (!firstPlayTime) return;
+    if (stallStart === null) {
+      stallStart = performance.now();
+      console.log("[SwipeExtension] Stall started…");
+    }
   };
 
   const onResume = () => {
     if (stallStart !== null) {
       const stallDuration = (performance.now() - stallStart) / 1000;
-      console.log(`[SwipeExtension] Stall ended after ${stallDuration.toFixed(2)}s`);
-
-      saveEvent({
-        type: "video-stall",
-        videoId,
-        stallDuration: stallDuration.toFixed(2),
-        timestamp: new Date().toISOString(),
-      });
-
       stallStart = null;
+
+      if (stallDuration > 0.2) {  // filter out micro-stalls
+        saveEvent({
+          type: "video-stall",
+          videoId,
+          timestamp: new Date().toISOString(),
+          extra: { stallDuration: stallDuration.toFixed(2) }
+        });
+        console.log(`[SwipeExtension] Stall ended: ${stallDuration.toFixed(2)}s`);
+      }
     }
   };
 
+  video.addEventListener("waiting", onStalled);
   video.addEventListener("stalled", onStalled);
   video.addEventListener("playing", onResume);
-  video.addEventListener("waiting", onStalled); // for buffering events too
   video.addEventListener("timeupdate", onResume);
 }
+
 
 
 
