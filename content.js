@@ -545,12 +545,8 @@ function attachStallAndStartupTracking(video) {
   if (video._stallStartupHooked) return;
   video._stallStartupHooked = true;
 
-  const videoId = getVideoId();
-
   let firstPlayTime = null;
   let stallStart = null;
-
-  // -------- STARTUP DELAY ----------
   const startupStart = performance.now();
 
   const onPlayingFirst = () => {
@@ -558,31 +554,25 @@ function attachStallAndStartupTracking(video) {
       firstPlayTime = performance.now();
       let startupDelay = (firstPlayTime - startupStart) / 1000;
 
-      // ⛔️ Subtract any "survey popup" time if needed
       const popupDismissedAt = window._swipeConsentDismissedAt || null;
       if (popupDismissedAt && popupDismissedAt > startupStart) {
         startupDelay = Math.max(0, (firstPlayTime - popupDismissedAt) / 1000);
       }
 
-      if (startupDelay > 0.2) {  // ignore tiny startup delays
+      if (startupDelay > 0.2) {
         saveEvent({
           type: "video-startup-delay",
-          videoId,
+          videoId: getVideoId(),
           timestamp: new Date().toISOString(),
           extra: { startupDelay: startupDelay.toFixed(2) }
         });
-        console.log(`[SwipeExtension] Startup delay sent: ${startupDelay.toFixed(2)}s`);
       }
 
       video.removeEventListener("playing", onPlayingFirst);
     }
   };
 
-  video.addEventListener("playing", onPlayingFirst);
-
-  // -------- STALL DETECTION ----------
   const onStalled = () => {
-    // Ignore stalls before first playback
     if (!firstPlayTime) return;
     if (stallStart === null) {
       stallStart = performance.now();
@@ -594,11 +584,10 @@ function attachStallAndStartupTracking(video) {
     if (stallStart !== null) {
       const stallDuration = (performance.now() - stallStart) / 1000;
       stallStart = null;
-
-      if (stallDuration > 0.2) {  // filter out micro-stalls
+      if (stallDuration > 0.2) {
         saveEvent({
           type: "video-stall",
-          videoId,
+          videoId: getVideoId(),
           timestamp: new Date().toISOString(),
           extra: { stallDuration: stallDuration.toFixed(2) }
         });
@@ -607,10 +596,22 @@ function attachStallAndStartupTracking(video) {
     }
   };
 
+  video.addEventListener("playing", onPlayingFirst);
   video.addEventListener("waiting", onStalled);
   video.addEventListener("stalled", onStalled);
   video.addEventListener("playing", onResume);
   video.addEventListener("timeupdate", onResume);
+
+  // 🧹 Save cleanup references
+  video._stallStartupCleanup = () => {
+    video.removeEventListener("playing", onPlayingFirst);
+    video.removeEventListener("waiting", onStalled);
+    video.removeEventListener("stalled", onStalled);
+    video.removeEventListener("playing", onResume);
+    video.removeEventListener("timeupdate", onResume);
+    video._stallStartupHooked = false;
+    stallStart = null;
+  };
 }
 
 
@@ -631,6 +632,11 @@ const observer = new MutationObserver(() => {
   }
 
   if (video && video.src !== lastSrc) {
+    // ✅ CLEANUP old stall/startup listeners if same node is reused
+    if (currentVideo && currentVideo._stallStartupCleanup) {
+      currentVideo._stallStartupCleanup();
+    }
+
     const videoId = getVideoId();
 
     if (currentVideo && startTime) {
@@ -675,6 +681,7 @@ const observer = new MutationObserver(() => {
 
     attachVideoEvents(video);
     attachActionEvents();
+    attachStallAndStartupTracking(video); // ✅ Re-attach cleanly
   }
 });
 
