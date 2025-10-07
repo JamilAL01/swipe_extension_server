@@ -425,6 +425,11 @@ const observer = new MutationObserver(() => {
     const videoId = getVideoId(); // capture ID immediately
     trackVideoResolution(video, videoId); // pass it in
   }
+  if (video && !video._startupStallHooked) {
+    video._startupStallHooked = true;
+    trackStartupDelay(video);
+    trackStalls(video);
+  }
 
   if (video && video.src !== lastSrc) {
       const videoId = getVideoId();
@@ -600,6 +605,75 @@ function trackVideoResolution(video) {
   video.addEventListener('ended', cleanup);
 }
 
+// ============= START-UP DELAY ================
+function trackStartupDelay(video) {
+  let startupStart = null;
+  let startupMeasured = false;
+
+  // When metadata is loaded → mark the start of the startup delay
+  video.addEventListener('loadedmetadata', () => {
+    startupStart = performance.now();
+  });
+
+  // When the video actually starts playing → measure delay
+  video.addEventListener('playing', () => {
+    if (startupStart !== null && !startupMeasured) {
+      const delay = (performance.now() - startupStart) / 1000; // seconds
+      startupMeasured = true;
+
+      console.log(`[SwipeExtension] Startup delay: ${delay.toFixed(2)}s`);
+      saveEvent({
+        type: "video-startup-delay",
+        videoId: getVideoId(),
+        src: video.src,
+        timestamp: new Date().toISOString(),
+        extra: { delay: delay.toFixed(2) }
+      });
+    }
+  });
+}
+
+// ================= STALLS | REBUFERRING ====================
+function trackStalls(video) {
+  let stallStart = null;
+  let totalStallTime = 0;
+  let stallCount = 0;
+
+  video.addEventListener('waiting', () => {
+    stallStart = performance.now();
+    stallCount++;
+    console.log(`[SwipeExtension] Stall #${stallCount} started`);
+  });
+
+  video.addEventListener('playing', () => {
+    if (stallStart !== null) {
+      const stallDuration = (performance.now() - stallStart) / 1000;
+      totalStallTime += stallDuration;
+      stallStart = null;
+
+      console.log(`[SwipeExtension] Stall ended after ${stallDuration.toFixed(2)}s`);
+
+      saveEvent({
+        type: "video-stall",
+        videoId: getVideoId(),
+        src: video.src,
+        timestamp: new Date().toISOString(),
+        extra: {
+          stallNumber: stallCount,
+          duration: stallDuration.toFixed(2),
+          totalStallTime: totalStallTime.toFixed(2)
+        }
+      });
+    }
+  });
+
+  // Optionally reset counters at the end of each video
+  video.addEventListener('ended', () => {
+    stallStart = null;
+    totalStallTime = 0;
+    stallCount = 0;
+  });
+}
 
 // ================== RE-HOOK ON URL CHANGE ==================
 setInterval(() => {
