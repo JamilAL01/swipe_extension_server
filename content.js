@@ -242,6 +242,14 @@ function showSurveyPopup() {
   submitBtn.addEventListener("click", handleSurveySubmit);
 }
 
+// ================== CONSENT CHECK ==================
+if (!consent) {
+  showConsentPopup();
+} else if (consent === "yes") {
+  showSurveyPopup();
+}
+
+
 // ================== USER & SESSION SETUP ==================
 
 let currentVideo = null;
