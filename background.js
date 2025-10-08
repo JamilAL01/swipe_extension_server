@@ -6,7 +6,7 @@ chrome.runtime.onInstalled.addListener(() => {
 // Function to POST event to backend
 async function postEvent(event) {
   try {
-    await fetch("http://138.96.49.105:4000/v1/events", {   
+    await fetch("https://swipe-extension-server-2.onrender.com:4000/v1/events", {   
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(event),
