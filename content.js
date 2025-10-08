@@ -180,12 +180,9 @@ function showSurveyPopup() {
   document.body.appendChild(popup);
 
   const submitBtn = document.getElementById("survey-submit");
-  submitBtn.onclick = null;  // remove previous handler
-  submitBtn.onclick = handleSurveySubmit;
 
-
+  // ✅ Define the handler first
   const handleSurveySubmit = () => {
-    // Prevent double-clicking / spam
     submitBtn.disabled = true;
 
     const answers = ["q1","q2","q3","q4","q5","q6"].reduce((acc,key)=>{
@@ -193,9 +190,12 @@ function showSurveyPopup() {
       return acc;
     }, {});
 
-    if (!answers.q1 || !answers.q2 || !answers.q3 || !answers.q4 || !answers.q5) {
+    if (!answers.q1 || !answers.q2 || !answers.q3 || !answers.q4 || !answers.q5 ||
+        answers.q1.startsWith("--") || answers.q2.startsWith("--") ||
+        answers.q3.startsWith("--") || answers.q4.startsWith("--") ||
+        answers.q5.startsWith("--")) {
       alert(t.alertIncomplete);
-      submitBtn.disabled = false; // re-enable if validation failed
+      submitBtn.disabled = false;
       return;
     }
 
@@ -228,24 +228,19 @@ function showSurveyPopup() {
         localStorage.setItem("surveyDone","true");
         popup.remove();
       })
-      .catch(err=>{
-        console.error("[SwipeExtension] Survey error ❌",err);
-        submitBtn.disabled = false; // allow retry if network error
+      .catch(err => {
+        console.error("[SwipeExtension] Survey error ❌", err);
+        submitBtn.disabled = false;
       })
       .finally(() => {
         submitBtn.removeEventListener("click", handleSurveySubmit);
       });
   };
 
+  // ✅ Clear any previous handlers and attach only once
+  submitBtn.onclick = null;
   submitBtn.addEventListener("click", handleSurveySubmit);
-  }
-
-  // ================== CONSENT CHECK ==================
-  if (!consent) showConsentPopup();
-  else if (consent==="yes") {
-    showSurveyPopup();
-  }
-
+}
 
 // ================== USER & SESSION SETUP ==================
 
