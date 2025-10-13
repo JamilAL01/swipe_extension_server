@@ -550,7 +550,6 @@ function trackVideoResolution(video) {
   };
 
   const startResolutionTracking = () => {
-    // Delay slightly to let YouTube update videoId properly
     timeoutId = setTimeout(() => {
       currentVideoId = getVideoId();
       if (!currentVideoId) return;
@@ -558,11 +557,32 @@ function trackVideoResolution(video) {
       const currentWidth = video.videoWidth;
       const currentHeight = video.videoHeight;
 
-      // ✅ Use ytInitialPlayerResponse to get true max available resolution
-      const info = getMaxResolutionAndBitrate();
-      console.log(`[SwipeExtension] Max resolution: ${info.maxRes}, Bitrate: ${info.bitrate} bps`);
+      // Get ytInitialPlayerResponse
+      const script = [...document.scripts].find(s =>
+        s.textContent.includes('ytInitialPlayerResponse')
+      );
+      if (!script) return;
 
+      const match = script.textContent.match(/ytInitialPlayerResponse\s*=\s*(\{.*?\});/);
+      if (!match) return;
 
+      const data = JSON.parse(match[1]);
+      const adaptiveFormats = data?.streamingData?.adaptiveFormats || [];
+
+      // Filter video-only streams
+      const videoFormats = adaptiveFormats.filter(f => f.mimeType.includes("video"));
+      if (!videoFormats.length) return;
+
+      // Max bitrate and resolution
+      const maxFmt = videoFormats.reduce((acc, fmt) => (fmt.bitrate > (acc.bitrate || 0) ? fmt : acc), {});
+      const maxRes = maxFmt.width && maxFmt.height ? `${maxFmt.width}x${maxFmt.height}` : `${currentWidth}x${currentHeight}`;
+      const maxBitrate = maxFmt.bitrate || null;
+
+      // Current bitrate based on current resolution
+      const currentFmt = videoFormats.find(f => f.width === currentWidth && f.height === currentHeight);
+      const currentBitrate = currentFmt ? currentFmt.bitrate : null;
+
+      // Save initial resolution + bitrate
       saveEvent({
         type: 'video-resolution',
         videoId: currentVideoId,
@@ -571,6 +591,8 @@ function trackVideoResolution(video) {
         extra: {
           current: `${currentWidth}x${currentHeight}`,
           max: maxRes,
+          currentBitrate,
+          maxBitrate,
           viewport: getVideoViewport(video)
         }
       });
@@ -579,20 +601,22 @@ function trackVideoResolution(video) {
       lastWidth = currentWidth;
       lastHeight = currentHeight;
 
-      // Start tracking resolution changes
+      // Track resolution/bitrate changes
       if (resolutionInterval) clearInterval(resolutionInterval);
       resolutionInterval = setInterval(() => {
         if (!allowChanges || !currentVideoId) return;
 
         const w = video.videoWidth;
         const h = video.videoHeight;
+
         if ((w !== lastWidth || h !== lastHeight) && w && h) {
           lastWidth = w;
           lastHeight = h;
 
-          console.log(
-            `[SwipeExtension] [${currentVideoId}] Resolution changed: ${w}x${h}`
-          );
+          // Find current bitrate again
+          const fmt = videoFormats.find(f => f.width === w && f.height === h);
+          const currentBitrateChange = fmt ? fmt.bitrate : null;
+
           saveEvent({
             type: 'video-resolution-change',
             videoId: currentVideoId,
@@ -601,16 +625,17 @@ function trackVideoResolution(video) {
             extra: {
               width: w,
               height: h,
+              currentBitrate: currentBitrateChange,
+              maxBitrate,
               viewport: getVideoViewport(video)
             }
-
           });
         }
       }, 2000);
+
     }, 100);
   };
 
-  // Triggered when a new video loads
   video.addEventListener('loadedmetadata', () => {
     cleanup();
     startResolutionTracking();
