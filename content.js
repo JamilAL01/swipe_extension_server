@@ -532,6 +532,7 @@ function getMaxResolutionAndBitrate() {
   }
 }
 
+// ================== VIDEO RESOLUTION & BITRATE TRACKING ======================
 function trackVideoResolution(video) {
   if (!video) return;
 
@@ -559,11 +560,11 @@ function trackVideoResolution(video) {
 
       // Get ytInitialPlayerResponse
       const script = [...document.scripts].find(s =>
-        s.textContent.includes('ytInitialPlayerResponse')
+        s.textContent.includes("ytInitialPlayerResponse")
       );
       if (!script) return;
 
-      const match = script.textContent.match(/ytInitialPlayerResponse\s*=\s*(\{.*?\});/);
+      const match = script.textContent.match(/ytInitialPlayerResponse\\s*=\\s*(\\{.*?\\});/);
       if (!match) return;
 
       const data = JSON.parse(match[1]);
@@ -573,18 +574,27 @@ function trackVideoResolution(video) {
       const videoFormats = adaptiveFormats.filter(f => f.mimeType.includes("video"));
       if (!videoFormats.length) return;
 
-      // Max bitrate and resolution
-      const maxFmt = videoFormats.reduce((acc, fmt) => (fmt.bitrate > (acc.bitrate || 0) ? fmt : acc), {});
-      const maxRes = maxFmt.width && maxFmt.height ? `${maxFmt.width}x${maxFmt.height}` : `${currentWidth}x${currentHeight}`;
-      const maxBitrate = maxFmt.bitrate || null;
+      // Max resolution + bitrate
+      const maxFmt = videoFormats.reduce(
+        (acc, fmt) => (fmt.bitrate || 0) > (acc.bitrate || 0) ? fmt : acc,
+        {}
+      );
+      const maxRes = maxFmt.width && maxFmt.height
+        ? `${maxFmt.width}x${maxFmt.height}`
+        : `${currentWidth}x${currentHeight}`;
+      const maxBitrate = maxFmt.averageBitrate || maxFmt.bitrate || null;
 
-      // Current bitrate based on current resolution
-      const currentFmt = videoFormats.find(f => f.width === currentWidth && f.height === currentHeight);
-      const currentBitrate = currentFmt ? currentFmt.bitrate : null;
+      // Current bitrate for current resolution
+      const currentFmt = videoFormats.find(
+        f => f.width === currentWidth && f.height === currentHeight
+      );
+      const currentBitrate = currentFmt
+        ? (currentFmt.averageBitrate || currentFmt.bitrate)
+        : null;
 
-      // Save initial resolution + bitrate
+      // Save initial resolution and bitrate
       saveEvent({
-        type: 'video-resolution',
+        type: "video-resolution",
         videoId: currentVideoId,
         src: video.src,
         timestamp: new Date().toISOString(),
@@ -593,15 +603,15 @@ function trackVideoResolution(video) {
           max: maxRes,
           currentBitrate,
           maxBitrate,
-          viewport: getVideoViewport(video)
-        }
+          viewport: getVideoViewport(video),
+        },
       });
 
       allowChanges = true;
       lastWidth = currentWidth;
       lastHeight = currentHeight;
 
-      // Track resolution/bitrate changes
+      // Track changes in resolution and bitrate
       if (resolutionInterval) clearInterval(resolutionInterval);
       resolutionInterval = setInterval(() => {
         if (!allowChanges || !currentVideoId) return;
@@ -613,19 +623,39 @@ function trackVideoResolution(video) {
           lastWidth = w;
           lastHeight = h;
 
+          const fmt = videoFormats.find(f => f.width === w && f.height === h);
+          const currentBitrateChange = fmt
+            ? (fmt.averageBitrate || fmt.bitrate)
+            : null;
+
+          saveEvent({
+            type: "video-resolution-change",
+            videoId: currentVideoId,
+            src: video.src,
+            timestamp: new Date().toISOString(),
+            extra: {
+              width: w,
+              height: h,
+              currentBitrate: currentBitrateChange,
+              maxBitrate,
+              viewport: getVideoViewport(video),
+            },
+          });
         }
       }, 2000);
-
     }, 100);
   };
 
-  video.addEventListener('loadedmetadata', () => {
+  // When video metadata loads
+  video.addEventListener("loadedmetadata", () => {
     cleanup();
     startResolutionTracking();
   });
 
-  video.addEventListener('ended', cleanup);
+  // Stop tracking when video ends
+  video.addEventListener("ended", cleanup);
 }
+
 
 // ============= START-UP DELAY & STALLS ================
 function attachStallAndStartupTracking(video) {
