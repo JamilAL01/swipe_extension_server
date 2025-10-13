@@ -532,6 +532,7 @@ function getMaxResolutionAndBitrate() {
   }
 }
 
+// ================== VIDEO RESOLUTION & BITRATE TRACKING ======================
 function trackVideoResolution(video) {
   if (!video) return;
 
@@ -557,9 +558,9 @@ function trackVideoResolution(video) {
       const currentWidth = video.videoWidth;
       const currentHeight = video.videoHeight;
 
-      // Get ytInitialPlayerResponse
+      // === Get initial YouTube player data ===
       const script = [...document.scripts].find(s =>
-        s.textContent.includes('ytInitialPlayerResponse')
+        s.textContent.includes("ytInitialPlayerResponse")
       );
       if (!script) return;
 
@@ -573,18 +574,28 @@ function trackVideoResolution(video) {
       const videoFormats = adaptiveFormats.filter(f => f.mimeType.includes("video"));
       if (!videoFormats.length) return;
 
-      // Max bitrate and resolution
-      const maxFmt = videoFormats.reduce((acc, fmt) => (fmt.bitrate > (acc.bitrate || 0) ? fmt : acc), {});
-      const maxRes = maxFmt.width && maxFmt.height ? `${maxFmt.width}x${maxFmt.height}` : `${currentWidth}x${currentHeight}`;
-      const maxBitrate = maxFmt.bitrate || null;
+      // === Determine max resolution and bitrate ===
+      const maxFmt = videoFormats.reduce(
+        (acc, fmt) =>
+          (fmt.bitrate || 0) > (acc.bitrate || 0) ? fmt : acc,
+        {}
+      );
+      const maxRes = maxFmt.width && maxFmt.height
+        ? `${maxFmt.width}x${maxFmt.height}`
+        : `${currentWidth}x${currentHeight}`;
+      const maxBitrate = maxFmt.averageBitrate || maxFmt.bitrate || null;
 
-      // Current bitrate based on current resolution
-      const currentFmt = videoFormats.find(f => f.width === currentWidth && f.height === currentHeight);
-      const currentBitrate = currentFmt ? currentFmt.bitrate : null;
+      // === Determine current bitrate (based on resolution) ===
+      const currentFmt = videoFormats.find(
+        f => f.width === currentWidth && f.height === currentHeight
+      );
+      const currentBitrate = currentFmt
+        ? (currentFmt.averageBitrate || currentFmt.bitrate)
+        : null;
 
-      // Save initial resolution + bitrate
+      // === Log initial resolution and bitrate ===
       saveEvent({
-        type: 'video-resolution',
+        type: "video-resolution",
         videoId: currentVideoId,
         src: video.src,
         timestamp: new Date().toISOString(),
@@ -593,15 +604,15 @@ function trackVideoResolution(video) {
           max: maxRes,
           currentBitrate,
           maxBitrate,
-          viewport: getVideoViewport(video)
-        }
+          viewport: getVideoViewport(video),
+        },
       });
 
       allowChanges = true;
       lastWidth = currentWidth;
       lastHeight = currentHeight;
 
-      // Track resolution/bitrate changes
+      // === Continuous monitoring ===
       if (resolutionInterval) clearInterval(resolutionInterval);
       resolutionInterval = setInterval(() => {
         if (!allowChanges || !currentVideoId) return;
@@ -609,16 +620,19 @@ function trackVideoResolution(video) {
         const w = video.videoWidth;
         const h = video.videoHeight;
 
+        // Detect resolution change
         if ((w !== lastWidth || h !== lastHeight) && w && h) {
           lastWidth = w;
           lastHeight = h;
 
           // Find current bitrate again
           const fmt = videoFormats.find(f => f.width === w && f.height === h);
-          const currentBitrateChange = fmt ? fmt.bitrate : null;
+          const currentBitrateChange = fmt
+            ? (fmt.averageBitrate || fmt.bitrate)
+            : null;
 
           saveEvent({
-            type: 'video-resolution-change',
+            type: "video-resolution-change",
             videoId: currentVideoId,
             src: video.src,
             timestamp: new Date().toISOString(),
@@ -627,22 +641,39 @@ function trackVideoResolution(video) {
               height: h,
               currentBitrate: currentBitrateChange,
               maxBitrate,
-              viewport: getVideoViewport(video)
-            }
+              viewport: getVideoViewport(video),
+            },
+          });
+        }
+
+        // Log playback quality stats every interval
+        const q = video.getVideoPlaybackQuality?.();
+        if (q) {
+          saveEvent({
+            type: "video-playback-quality",
+            videoId: currentVideoId,
+            src: video.src,
+            timestamp: new Date().toISOString(),
+            extra: {
+              droppedFrames: q.droppedVideoFrames,
+              totalFrames: q.totalVideoFrames,
+              corruptedFrames: q.corruptedVideoFrames,
+            },
           });
         }
       }, 2000);
-
     }, 100);
   };
 
-  video.addEventListener('loadedmetadata', () => {
+  // === Hook video events ===
+  video.addEventListener("loadedmetadata", () => {
     cleanup();
     startResolutionTracking();
   });
 
-  video.addEventListener('ended', cleanup);
+  video.addEventListener("ended", cleanup);
 }
+
 
 // ============= START-UP DELAY & STALLS ================
 function attachStallAndStartupTracking(video) {
