@@ -715,7 +715,9 @@ const observer = new MutationObserver(() => {
     video._resolutionHooked = true;
 
     const videoId = getVideoId(); 
-    trackVideoResolution(video, videoId); 
+    trackVideoResolution(video, videoId);
+    trackViewportChanges(video);
+
 
     // ✅ Hook stall + startup delay early so we don't miss loadeddata
     attachStallAndStartupTracking(video);
