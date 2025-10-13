@@ -479,11 +479,6 @@ function trackViewportChanges(video) {
       lastViewport = { w: vp.width, h: vp.height };
       sendViewportEvent(vp.width, vp.height);
     }
-
-    if (w !== lastViewport.w || h !== lastViewport.h) {
-      lastViewport = { w, h };
-      sendViewportEvent(w, h);
-    }
   };
 
   // Initial setup when video loads
