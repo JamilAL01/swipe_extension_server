@@ -7,45 +7,64 @@ document.addEventListener('DOMContentLoaded', () => {
       const avgPercent = data.avgPercentWatched || 0;
       const history = data.videoHistory || [];
 
-      // Update stats
       document.getElementById('videos-count').textContent = videos;
       document.getElementById('watch-time').textContent = `${Math.floor(totalTimeSec / 60)} min`;
       document.getElementById('avg-percent').textContent = `${Math.round(avgPercent)}%`;
 
-      // --- Mini line chart: last 10 percentWatched ---
       if (history.length > 0 && typeof Chart !== 'undefined') {
-        const last10 = history.slice(-10); // take last 10 videos
-        const ctx = document.getElementById('percent-history-chart').getContext('2d');
+        const ctx = document.getElementById('watch-history-chart').getContext('2d');
+
+        // Extract percent watched
+        const percents = history.map(h => h.percentWatched);
+
+        // Compute simple moving average (window = 5)
+        const movingAvg = percents.map((val, i, arr) => {
+          const start = Math.max(0, i - 4);
+          const window = arr.slice(start, i + 1);
+          return window.reduce((sum, v) => sum + v, 0) / window.length;
+        });
 
         new Chart(ctx, {
           type: 'line',
           data: {
-            labels: last10.map((_, i) => i + 1), // simple 1..10 x-axis
-            datasets: [{
-              label: '% Watched',
-              data: last10.map(h => h.percentWatched),
-              fill: false,
-              borderColor: 'rgba(75, 192, 192, 1)',
-              backgroundColor: 'rgba(75, 192, 192, 0.2)',
-              tension: 0.3,
-              pointRadius: 4
-            }]
+            labels: history.map((_, i) => i + 1),
+            datasets: [
+              {
+                label: '% Watched',
+                data: percents,
+                borderColor: 'steelblue',
+                backgroundColor: 'rgba(54,162,235,0.2)',
+                fill: true,
+                tension: 0.2,
+                pointRadius: 5
+              },
+              {
+                label: 'Moving Avg (5)',
+                data: movingAvg,
+                borderColor: 'orange',
+                borderWidth: 2,
+                fill: false,
+                tension: 0.2,
+                pointRadius: 0
+              }
+            ]
           },
           options: {
             responsive: true,
-            animation: { duration: 500 },
+            animation: { duration: 800 },
             scales: {
               y: {
                 beginAtZero: true,
                 max: 100,
-                title: { display: true, text: 'Percent Watched (%)' }
+                title: { display: true, text: 'Watch %' }
               },
               x: {
-                title: { display: true, text: 'Last 10 Videos' }
+                title: { display: true, text: 'Last Videos' }
               }
             },
             plugins: {
-              legend: { display: false }
+              tooltip: { mode: 'index', intersect: false },
+              legend: { display: true }
             }
           }
         });
@@ -53,7 +72,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   );
 
-  // Reset button
   document.getElementById('reset-stats').addEventListener('click', () => {
     chrome.storage.local.clear(() => location.reload());
   });
