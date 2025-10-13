@@ -435,6 +435,71 @@ function updateStats(watchedTimeSec, percentWatched) {
     }
   );
 }
+// ================== VIEWPORT =======================
+function getVideoViewport(video) {
+  try {
+    const rect = video.getBoundingClientRect();
+    return {
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+      aspect_ratio: (rect.width / rect.height).toFixed(2),
+      orientation: rect.width > rect.height ? "landscape" : "portrait",
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ================== VIDEO VIEWPORT TRACKING ======================
+function trackViewportChanges(video) {
+  if (!video) return;
+
+  let lastViewport = { w: 0, h: 0 };
+  let currentVideoId = null;
+
+  const sendViewportEvent = (w, h) => {
+    saveEvent({
+      type: "video-viewport-change",
+      videoId: getVideoId(),
+      src: video.src,
+      timestamp: new Date().toISOString(),
+      extra: {
+        width: w,
+        height: h,
+        aspect_ratio: (w / h).toFixed(2),
+        orientation: w > h ? "landscape" : "portrait",
+      },
+    });
+    console.log(`[SwipeExtension] Viewport changed: ${w}x${h}`);
+  };
+
+  const checkViewport = () => {
+    const vp = getVideoViewport(video);
+    if (vp && (vp.width !== lastViewport.w || vp.height !== lastViewport.h)) {
+      lastViewport = { w: vp.width, h: vp.height };
+      sendViewportEvent(vp.width, vp.height);
+    }
+
+    if (w !== lastViewport.w || h !== lastViewport.h) {
+      lastViewport = { w, h };
+      sendViewportEvent(w, h);
+    }
+  };
+
+  // Initial setup when video loads
+  video.addEventListener("loadedmetadata", () => {
+    currentVideoId = getVideoId();
+    checkViewport();
+  });
+
+  // Detect window resizes or fullscreen changes
+  window.addEventListener("resize", checkViewport);
+  document.addEventListener("fullscreenchange", checkViewport);
+
+  // Optional: check every few seconds for subtle UI changes
+  setInterval(checkViewport, 2000);
+}
+
 
 // ================== VIDEO RESOLUTION ======================
 function getMaxResolutionFromInitialData() {
@@ -517,7 +582,8 @@ function trackVideoResolution(video) {
         timestamp: new Date().toISOString(),
         extra: {
           current: `${currentWidth}x${currentHeight}`,
-          max: maxRes
+          max: maxRes,
+          viewport: getVideoViewport(video)
         }
       });
 
@@ -544,7 +610,12 @@ function trackVideoResolution(video) {
             videoId: currentVideoId,
             src: video.src,
             timestamp: new Date().toISOString(),
-            extra: { width: w, height: h }
+            extra: {
+              width: w,
+              height: h,
+              viewport: getVideoViewport(video)
+            }
+
           });
         }
       }, 2000);
