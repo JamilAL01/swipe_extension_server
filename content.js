@@ -411,16 +411,9 @@ function attachActionEvents() {
 }
 
 // =================  STATS ========================
-function updateStats(watchedTimeSec, percentWatched, category = "Unknown") {
+function updateStats(watchedTimeSec, percentWatched) {
   chrome.storage.local.get(
-    [
-      "videosWatched",
-      "totalWatchedTime",
-      "avgPercentWatched",
-      "videoHistory",
-      "swipes",
-      "categoryStats",
-    ],
+    ["videosWatched", "totalWatchedTime", "avgPercentWatched", "videoHistory"],
     (data) => {
       const videosWatched = (data.videosWatched || 0) + 1;
       const totalWatchedTime = (data.totalWatchedTime || 0) + watchedTimeSec;
@@ -429,36 +422,19 @@ function updateStats(watchedTimeSec, percentWatched, category = "Unknown") {
       const avgPercentWatched =
         (prevAvg * (videosWatched - 1) + percentWatched) / videosWatched;
 
-      const swipes = data.swipes || 0; // You can increment this elsewhere on swipe events
-      const boredomIndex = (swipes / totalWatchedTime) * (1 - avgPercentWatched);
-
       const history = data.videoHistory || [];
-      history.push({ watchTime: watchedTimeSec, percentWatched, category });
+      history.push({ watchTime: watchedTimeSec, percentWatched });
       if (history.length > 10) history.shift(); // keep last 10
-
-      // Track category stats
-      const categoryStats = data.categoryStats || {};
-      if (!categoryStats[category]) {
-        categoryStats[category] = { count: 0, totalWatch: 0, avgPercent: 0 };
-      }
-      const cat = categoryStats[category];
-      cat.count += 1;
-      cat.totalWatch += watchedTimeSec;
-      cat.avgPercent =
-        (cat.avgPercent * (cat.count - 1) + percentWatched) / cat.count;
 
       chrome.storage.local.set({
         videosWatched,
         totalWatchedTime,
         avgPercentWatched,
         videoHistory: history,
-        categoryStats,
-        boredomIndex,
       });
     }
   );
 }
-
 // ================== VIEWPORT =======================
 function getVideoViewport(video) {
   try {
