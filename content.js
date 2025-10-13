@@ -455,7 +455,6 @@ function trackViewportChanges(video) {
   if (!video) return;
 
   let lastViewport = { w: 0, h: 0 };
-  let currentVideoId = null;
 
   const sendViewportEvent = (w, h) => {
     saveEvent({
@@ -475,10 +474,10 @@ function trackViewportChanges(video) {
 
   const checkViewport = () => {
     const vp = getVideoViewport(video);
-    if (vp && (vp.width !== lastViewport.w || vp.height !== lastViewport.h)) {
-      lastViewport = { w: vp.width, h: vp.height };
-      sendViewportEvent(vp.width, vp.height);
-    }
+    if (!vp) return;
+
+    const w = vp.width;
+    const h = vp.height;
 
     if (w !== lastViewport.w || h !== lastViewport.h) {
       lastViewport = { w, h };
@@ -488,7 +487,6 @@ function trackViewportChanges(video) {
 
   // Initial setup when video loads
   video.addEventListener("loadedmetadata", () => {
-    currentVideoId = getVideoId();
     checkViewport();
   });
 
@@ -497,7 +495,15 @@ function trackViewportChanges(video) {
   document.addEventListener("fullscreenchange", checkViewport);
 
   // Optional: check every few seconds for subtle UI changes
-  setInterval(checkViewport, 2000);
+  const poll = setInterval(checkViewport, 2000);
+
+  // Cleanup if video removed/ended
+  const cleanup = () => {
+    clearInterval(poll);
+    window.removeEventListener("resize", checkViewport);
+    document.removeEventListener("fullscreenchange", checkViewport);
+  };
+  video.addEventListener("ended", cleanup);
 }
 
 
