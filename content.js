@@ -497,15 +497,13 @@ function trackViewportChanges(video) {
 
 
 // ================== VIDEO RESOLUTION ======================
-function getMaxResolutionFromInitialData() {
+function getMaxResolutionAndBitrate() {
   try {
-    // Find the <script> tag that contains ytInitialPlayerResponse
     const script = [...document.scripts].find(s =>
       s.textContent.includes('ytInitialPlayerResponse')
     );
     if (!script) return null;
 
-    // Extract JSON content
     const match = script.textContent.match(/ytInitialPlayerResponse\s*=\s*(\{.*?\});/);
     if (!match) return null;
 
@@ -513,22 +511,21 @@ function getMaxResolutionFromInitialData() {
     const adaptiveFormats = data?.streamingData?.adaptiveFormats;
     if (!adaptiveFormats || !adaptiveFormats.length) return null;
 
-    // Pick the format with the largest resolution
-    let maxFmt = adaptiveFormats.reduce(
-      (acc, fmt) => {
-        if (fmt.width && fmt.height) {
-          const pixels = fmt.width * fmt.height;
-          const accPixels = acc.width * acc.height;
-          if (pixels > accPixels) return fmt;
-        }
-        return acc;
-      },
-      { width: 0, height: 0 }
-    );
+    // Pick format with largest resolution
+    let maxFmt = adaptiveFormats.reduce((acc, fmt) => {
+      if (fmt.width && fmt.height) {
+        const pixels = fmt.width * fmt.height;
+        const accPixels = acc.width * acc.height;
+        if (pixels > accPixels) return fmt;
+      }
+      return acc;
+    }, { width: 0, height: 0 });
 
-    return maxFmt.width && maxFmt.height
-      ? `${maxFmt.width}x${maxFmt.height}`
-      : null;
+    const maxRes = maxFmt.width && maxFmt.height ? `${maxFmt.width}x${maxFmt.height}` : null;
+    // Extract bitrate (prefer 'bitrate', fallback to 'averageBitrate')
+    const bitrate = maxFmt.bitrate || maxFmt.averageBitrate || null; // in bps
+
+    return { maxRes, bitrate };
   } catch (err) {
     console.warn('[SwipeExtension] Failed to parse ytInitialPlayerResponse:', err);
     return null;
@@ -562,13 +559,9 @@ function trackVideoResolution(video) {
       const currentHeight = video.videoHeight;
 
       // ✅ Use ytInitialPlayerResponse to get true max available resolution
-      const maxRes =
-        getMaxResolutionFromInitialData() ||
-        `${currentWidth}x${currentHeight}`;
+      const info = getMaxResolutionAndBitrate();
+      console.log(`[SwipeExtension] Max resolution: ${info.maxRes}, Bitrate: ${info.bitrate} bps`);
 
-      console.log(
-        `[SwipeExtension] [${currentVideoId}] Initial resolution: ${currentWidth}x${currentHeight}, max available: ${maxRes}`
-      );
 
       saveEvent({
         type: 'video-resolution',
