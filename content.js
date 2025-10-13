@@ -435,6 +435,7 @@ function updateStats(watchedTimeSec, percentWatched) {
     }
   );
 }
+
 // ================== VIEWPORT =======================
 function getVideoViewport(video) {
   try {
@@ -453,8 +454,12 @@ function getVideoViewport(video) {
 // ================== VIDEO VIEWPORT TRACKING ======================
 function trackViewportChanges(video) {
   if (!video) return;
+  // prevent double-attaching
+  if (video._viewportHooked) return;
+  video._viewportHooked = true;
 
-  let lastViewport = { w: 0, h: 0 };
+  let lastViewport = { w: null, h: null };
+  let pollId = null;
 
   const sendViewportEvent = (w, h) => {
     saveEvent({
@@ -479,31 +484,62 @@ function trackViewportChanges(video) {
     const w = vp.width;
     const h = vp.height;
 
-    if (w !== lastViewport.w || h !== lastViewport.h) {
-      lastViewport = { w, h };
-      sendViewportEvent(w, h);
+    // ignore tiny/noisy changes (if you want) — here we require integer difference
+    if (lastViewport.w === w && lastViewport.h === h) {
+      return; // no change
+    }
+
+    // update and send
+    lastViewport = { w, h };
+    sendViewportEvent(w, h);
+  };
+
+  // Initial setup when video loads: send once for the initial size
+  const onLoaded = () => {
+    // capture one initial viewport sample (if available)
+    const vp = getVideoViewport(video);
+    if (vp) {
+      lastViewport = { w: vp.width, h: vp.height };
+      sendViewportEvent(vp.width, vp.height);
     }
   };
 
-  // Initial setup when video loads
-  video.addEventListener("loadedmetadata", () => {
-    checkViewport();
-  });
+  // Cleanup function to stop polling/listeners
+  const cleanup = () => {
+    if (pollId) {
+      clearInterval(pollId);
+      pollId = null;
+    }
+    window.removeEventListener("resize", checkViewport);
+    document.removeEventListener("fullscreenchange", checkViewport);
+    video.removeEventListener("loadedmetadata", onLoaded);
+    video.removeEventListener("ended", cleanup);
+    // clear hook so future videos can reattach if needed
+    video._viewportHooked = false;
+    video._viewportPollId = null;
+  };
 
-  // Detect window resizes or fullscreen changes
+  // Attach event listeners
+  video.addEventListener("loadedmetadata", onLoaded);
   window.addEventListener("resize", checkViewport);
   document.addEventListener("fullscreenchange", checkViewport);
 
-  // Optional: check every few seconds for subtle UI changes
-  const poll = setInterval(checkViewport, 2000);
+  // Start a poll (keeps capturing subtle UI changes). Store id on element for debugging/cleanup.
+  pollId = setInterval(checkViewport, 2000);
+  video._viewportPollId = pollId;
 
-  // Cleanup if video removed/ended
-  const cleanup = () => {
-    clearInterval(poll);
-    window.removeEventListener("resize", checkViewport);
-    document.removeEventListener("fullscreenchange", checkViewport);
-  };
+  // cleanup on video end or removal
   video.addEventListener("ended", cleanup);
+
+  // In case the video element gets replaced in DOM, observe removal (best-effort)
+  const mo = new MutationObserver(() => {
+    if (!document.contains(video)) {
+      // element removed — cleanup
+      cleanup();
+      mo.disconnect();
+    }
+  });
+  mo.observe(document.body, { childList: true, subtree: true });
 }
 
 
