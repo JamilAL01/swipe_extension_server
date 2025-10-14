@@ -9,39 +9,37 @@
   <div class="container">
     <h1>Your Stats</h1>
 
-    <div class="metric">
-      <span class="label">Videos Watched:</span>
-      <span id="videos-count" class="value">0</span>
+    <div class="metrics">
+      <div class="metric">
+        <span class="label">Videos Watched</span>
+        <span id="videos-count" class="value">0</span>
+      </div>
+
+      <div class="metric">
+        <span class="label">Total Watch Time</span>
+        <span id="watch-time" class="value">0 min</span>
+      </div>
+
+      <div class="metric">
+        <span class="label">Avg. Watch %</span>
+        <span id="avg-percent" class="value">0%</span>
+      </div>
     </div>
 
-    <div class="metric">
-      <span class="label">Total Watch Time:</span>
-      <span id="watch-time" class="value">0 min</span>
-    </div>
+    <div class="charts">
+      <div class="chart-block">
+        <h2>Watch History</h2>
+        <canvas id="watch-history-chart" height="200"></canvas>
+      </div>
 
-    <div class="metric">
-      <span class="label">Avg. Watch %:</span>
-      <span id="avg-percent" class="value">0%</span>
-    </div>
-
-    <div class="chart-container">
-      <canvas id="watch-history-chart" height="200"></canvas>
-    </div>
-
-    <h2>Content Consumption</h2>
-
-    <div class="metric">
-      <span class="label">Watched Time:</span>
-      <span id="watched-time" class="value">0 s</span>
-    </div>
-
-    <div class="metric">
-      <span class="label">Wasted Time:</span>
-      <span id="wasted-time" class="value">0 s</span>
-    </div>
-
-    <div class="chart-container">
-      <canvas id="data-pie-chart" height="200"></canvas>
+      <div class="chart-block">
+        <h2>Watched vs Wasted</h2>
+        <canvas id="data-pie-chart" height="200"></canvas>
+        <div class="data-summary">
+          <span id="watched-data" class="summary-item">Watched: 0s</span>
+          <span id="wasted-data" class="summary-item">Wasted: 0s</span>
+        </div>
+      </div>
     </div>
 
     <button id="reset-stats" class="reset-btn">Reset Stats</button>
