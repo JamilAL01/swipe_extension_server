@@ -734,6 +734,28 @@ function attachStallAndStartupTracking(video) {
   video.addEventListener("timeupdate", onResume);
 }
 
+// =============== BUFFER HEALTH ======================
+function getBufferHealth() {
+  try {
+    // Find any element containing "Buffer Health"
+    const elems = [...document.querySelectorAll("*")];
+    const target = elems.find(el =>
+      el.textContent.includes("Buffer Health")
+    );
+
+    if (!target) return null;
+
+    // Extract numeric value like "18.71 s"
+    const match = target.textContent.match(/Buffer\s*Health\s*([0-9.]+)\s*s/i);
+    if (match) {
+      return parseFloat(match[1]);
+    }
+  } catch (err) {
+    console.warn("[SwipeExtension] Buffer health extraction failed:", err);
+  }
+  return null;
+}
+
 
 
 
@@ -757,6 +779,18 @@ const observer = new MutationObserver(() => {
     const videoId = getVideoId();
 
     if (currentVideo && startTime) {
+      const bufferHealth = getBufferHealth();
+
+      saveEvent({
+        type: "video-buffer-health",
+        videoId: getVideoId(),
+        src: currentVideo.src,
+        timestamp: new Date().toISOString(),
+        extra: {
+          bufferHealthSec: bufferHealth
+        }
+      });
+
       watchedTime += (Date.now() - startTime) / 1000;
 
       const duration = prevDuration || currentVideo.duration || 0;
