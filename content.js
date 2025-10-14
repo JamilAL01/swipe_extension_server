@@ -411,7 +411,7 @@ function attachActionEvents() {
 }
 
 // =================  STATS ========================
-function updateStats(watchedTimeSec, percentWatched) {
+function updateStats(watchedTimeSec, percentWatched, videoDurationSec) {
   chrome.storage.local.get(
     ["videosWatched", "totalWatchedTime", "avgPercentWatched", "videoHistory"],
     (data) => {
@@ -423,7 +423,12 @@ function updateStats(watchedTimeSec, percentWatched) {
         (prevAvg * (videosWatched - 1) + percentWatched) / videosWatched;
 
       const history = data.videoHistory || [];
-      history.push({ watchTime: watchedTimeSec, percentWatched });
+      history.push({
+        watchTime: watchedTimeSec,
+        percentWatched,
+        duration: videoDurationSec
+      });
+
       if (history.length > 10) history.shift(); // keep last 10
 
       chrome.storage.local.set({
@@ -435,6 +440,7 @@ function updateStats(watchedTimeSec, percentWatched) {
     }
   );
 }
+
 // ================== VIEWPORT =======================
 function getVideoViewport(video) {
   try {
@@ -769,9 +775,11 @@ const observer = new MutationObserver(() => {
       });
 
       if (duration > 0) {
-        updateStats(watchedTime, parseFloat(percent));
+        // ✅ Pass the duration as the 3rd argument
+        updateStats(watchedTime, parseFloat(percent), duration);
       }
     }
+
 
     if (lastSrc) {
       saveEvent({
