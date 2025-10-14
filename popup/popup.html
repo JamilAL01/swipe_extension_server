@@ -1,52 +1,78 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Swipe Video Logger</title>
-  <link rel="stylesheet" href="popup.css">
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="popup.css" />
+  <style>
+    /* Minimal fallback styling so popup looks OK even without popup.css */
+    :root { --bg: #fff; --muted: #f3f4f6; --accent: #1e40af; --card: #f9fafc; --danger:#ef4444; }
+    html,body{margin:0;padding:0;font-family:Inter,Arial,sans-serif;background:transparent}
+    .container{
+      width:360px;
+      padding:16px;
+      background:var(--bg);
+      border-radius:12px;
+      box-shadow:0 6px 20px rgba(0,0,0,0.08);
+      color:#111;
+    }
+    h1{font-size:16px;margin:0 0 12px;text-align:center}
+    .metrics{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+    .metric{display:flex;justify-content:space-between;padding:8px;border-radius:8px;background:var(--muted);font-size:13px}
+    .metric .label{color:#333}
+    .metric .value{font-weight:700;color:var(--accent)}
+    .charts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+    .chart-block{background:var(--card);padding:8px;border-radius:10px;text-align:center}
+    .chart-block h3{font-size:12px;margin:0 0 8px}
+    canvas{width:100% !important;height:160px !important}
+    .summary-row{display:flex;justify-content:space-between;margin-top:8px;font-size:12px}
+    .summary-row span{background:#eef2ff;padding:6px 8px;border-radius:8px;color:#123}
+    .full-row{grid-column:1 / -1} 
+    .reset-btn{width:100%;margin-top:12px;padding:8px;border-radius:8px;border:0;background:var(--danger);color:#fff;font-weight:700;cursor:pointer}
+  </style>
 </head>
 <body>
-  <div class="container">
+  <div class="container" role="main" aria-label="Swipe stats popup">
     <h1>Your Stats</h1>
 
-    <div class="metric">
-      <span class="label">Videos Watched:</span>
-      <span id="videos-count" class="value">0</span>
+    <div class="metrics" aria-hidden="false">
+      <div class="metric">
+        <span class="label">Videos Watched</span>
+        <span id="videos-count" class="value">0</span>
+      </div>
+
+      <div class="metric">
+        <span class="label">Total Watch Time</span>
+        <span id="watch-time" class="value">0 min</span>
+      </div>
+
+      <div class="metric">
+        <span class="label">Avg. Watch %</span>
+        <span id="avg-percent" class="value">0%</span>
+      </div>
     </div>
 
-    <div class="metric">
-      <span class="label">Total Watch Time:</span>
-      <span id="watch-time" class="value">0 min</span>
+    <div class="charts" aria-hidden="false">
+      <div class="chart-block full-row">
+        <h3>Watch History</h3>
+        <canvas id="watch-history-chart" aria-label="Watch history chart"></canvas>
+      </div>
+
+      <div class="chart-block">
+        <h3>Watched vs Wasted</h3>
+        <canvas id="data-pie-chart" aria-label="Watched versus wasted pie chart"></canvas>
+        <div class="summary-row" style="margin-top:10px">
+          <span id="watched-time">Watched: 0 s</span>
+          <span id="wasted-time">Wasted: 0 s</span>
+        </div>
+      </div>
     </div>
 
-    <div class="metric">
-      <span class="label">Avg. Watch %:</span>
-      <span id="avg-percent" class="value">0%</span>
-    </div>
-
-    <div class="chart-container">
-      <canvas id="watch-history-chart" height="200"></canvas>
-    </div>
-
-    <h2>Content Consumption</h2>
-
-    <div class="metric">
-      <span class="label">Watched Time:</span>
-      <span id="watched-time" class="value">0 s</span>
-    </div>
-
-    <div class="metric">
-      <span class="label">Wasted Time:</span>
-      <span id="wasted-time" class="value">0 s</span>
-    </div>
-
-    <div class="chart-container">
-      <canvas id="data-pie-chart" height="200"></canvas>
-    </div>
-
-    <button id="reset-stats" class="reset-btn">Reset Stats</button>
+    <button id="reset-stats" class="reset-btn" aria-label="Reset statistics">Reset Stats</button>
   </div>
 
+  <!-- Ensure these files exist in the popup folder -->
   <script src="chart.umd.js"></script>
   <script src="popup.js"></script>
 </body>
