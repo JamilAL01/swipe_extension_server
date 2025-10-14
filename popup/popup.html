@@ -25,26 +25,26 @@
     </div>
 
     <div class="chart-container">
-     <canvas id="watch-history-chart"></canvas>
+      <canvas id="watch-history-chart" height="200"></canvas>
     </div>
 
-    <div id="stats">
-     <p>🎥 Videos Watched: <span id="videos-count">0</span></p>
-     <p>⏱️ Total Watch Time: <span id="watch-time">0 min</span></p>
-     <p>📊 Avg. Watch %: <span id="avg-percent">0%</span></p>
-     <hr>
-      <p>📦 Data Downloaded: <span id="data-downloaded">0 MB</span></p>
-      <p>🗑️ Data Wasted: <span id="data-wasted">0 MB</span></p>
-      <p>🌍 CO₂ Emissions: <span id="co2">0 g CO₂</span></p>
+    <h2>Data Usage</h2>
+    <div class="metric">
+      <span class="label">Data Watched:</span>
+      <span id="data-watched" class="value">0 MB</span>
+    </div>
+
+    <div class="metric">
+      <span class="label">Data Wasted:</span>
+      <span id="data-wasted" class="value">0 MB</span>
+    </div>
+
+    <div class="chart-container">
+      <canvas id="data-pie-chart" height="200"></canvas>
     </div>
 
     <button id="reset-stats" class="reset-btn">Reset Stats</button>
-    </div>
-  <canvas id="data-pie-chart" height="200"></canvas>
-  <canvas id="watch-history-chart" height="200"></canvas>
-
-  <button id="reset-stats">Reset Stats</button>
-
+  </div>
 
   <script src="chart.umd.js"></script>
   <script src="popup.js"></script>
