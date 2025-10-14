@@ -71,33 +71,31 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
 
-      // ================== DATA WATCHED / WASTED ==================
+      // ================== WATCHED vs WASTED TIME ==================
       if (history.length > 0) {
-        let totalDataMB = 0;
-        let watchedDataMB = 0;
+        let totalAvailableSec = 0;
+        let totalWatchedSec = 0;
 
         history.forEach(v => {
-          if (!v.duration || !v.bitrate) return;
-          const totalMB = (v.bitrate * v.duration) / (8 * 1e6); // bits → MB
-          const watchedMB = totalMB * (v.percentWatched / 100);
-          totalDataMB += totalMB;
-          watchedDataMB += watchedMB;
+          if (!v.duration || !v.percentWatched) return;
+          totalAvailableSec += v.duration;
+          totalWatchedSec += v.duration * (v.percentWatched / 100);
         });
 
-        const wastedDataMB = Math.max(totalDataMB - watchedDataMB, 0);
+        const wastedSec = Math.max(totalAvailableSec - totalWatchedSec, 0);
 
         // Update UI
-        document.getElementById('data-watched').textContent = `${watchedDataMB.toFixed(1)} MB`;
-        document.getElementById('data-wasted').textContent = `${wastedDataMB.toFixed(1)} MB`;
+        document.getElementById('watched-time').textContent = `${Math.round(totalWatchedSec)} s`;
+        document.getElementById('wasted-time').textContent = `${Math.round(wastedSec)} s`;
 
         // Pie Chart
         const ctxPie = document.getElementById('data-pie-chart').getContext('2d');
         new Chart(ctxPie, {
           type: 'pie',
           data: {
-            labels: ['Watched Data', 'Wasted Data'],
+            labels: ['Watched Time', 'Wasted Time'],
             datasets: [{
-              data: [watchedDataMB, wastedDataMB],
+              data: [totalWatchedSec, wastedSec],
               backgroundColor: ['#4CAF50', '#E74C3C'],
               borderWidth: 1
             }]
@@ -108,7 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
               legend: { position: 'bottom' },
               tooltip: {
                 callbacks: {
-                  label: (ctx) => `${ctx.label}: ${ctx.raw.toFixed(1)} MB`
+                  label: (ctx) => `${ctx.label}: ${ctx.raw.toFixed(1)} s`
                 }
               }
             }
