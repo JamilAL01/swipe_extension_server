@@ -736,93 +736,16 @@ function attachStallAndStartupTracking(video) {
 
 // =============== BUFFER HEALTH ======================
 function getBufferHealthFromVideo(video) {
-  if (!video) return 0;
-
-  // 1) Native: use TimeRanges from the <video> element (best & accurate)
   try {
-    if (video.buffered && video.buffered.length > 0) {
-      // choose the last buffered range end (most commonly used)
-      const bufferEnd = video.buffered.end(video.buffered.length - 1);
-      const current = video.currentTime || 0;
-      const health = Math.max(0, bufferEnd - current);
-      // If the value looks plausible, return it
-      if (health > 0) return health;
-      // if health === 0, we'll try fallback below
-    }
-  } catch (e) {
-    // Some players / environments can throw; ignore and fallback
-    console.warn('[SwipeExtension] video.buffered read failed', e);
+    if (!video || !video.buffered || video.buffered.length === 0) return 0;
+    const bufferEnd = video.buffered.end(video.buffered.length - 1);
+    const current = video.currentTime || 0;
+    const health = Math.max(0, bufferEnd - current);
+    return Number(health.toFixed(2));
+  } catch (err) {
+    console.warn('[SwipeExtension] Failed to get buffer health:', err);
+    return 0;
   }
-
-  // 2) Fallback: try to read YouTube's progress bar DOM and map width -> seconds
-  try {
-    // Find the live-buffer element (or generic progress buffer)
-    // there are several class names used by YouTube; try a few
-    const selectors = [
-      '.ytp-progress-linear-live-buffer',
-      '.ytp-play-progress',            // played progress (use cautiously)
-      '.ytp-buffering-rod',           // other variants on some pages
-      '.ytp-progress-holder .ytp-progress' // generic holder
-    ];
-
-    // Find progress container and buffer element
-    let bufferEl = null;
-    let containerEl = null;
-
-    // try to find an element that looks like the "buffer" bar
-    for (const sel of selectors) {
-      const el = document.querySelector(sel);
-      if (!el) continue;
-
-      // If we detected a "buffer" element itself, use its parent as container
-      // otherwise try to find nearest progress bar container
-      bufferEl = el;
-      containerEl = el.parentElement || el.closest('.ytp-progress-bar') || document.querySelector('.ytp-progress-bar');
-      break;
-    }
-
-    // If not found, look for known structure (.ytp-progress-bar) and children widths
-    if (!bufferEl) {
-      const progressBar = document.querySelector('.ytp-progress-bar');
-      if (progressBar) {
-        // Try to find a child that represents buffered region by width
-        const children = Array.from(progressBar.querySelectorAll('*'));
-        // pick the widest child (heuristic)
-        let candidate = null;
-        let maxW = 0;
-        children.forEach(c => {
-          const w = c.getBoundingClientRect ? c.getBoundingClientRect().width : 0;
-          if (w > maxW) { maxW = w; candidate = c; }
-        });
-        if (candidate) {
-          bufferEl = candidate;
-          containerEl = progressBar;
-        }
-      }
-    }
-
-    if (bufferEl && containerEl) {
-      const bufRect = bufferEl.getBoundingClientRect();
-      const contRect = containerEl.getBoundingClientRect();
-      // protect against zero width
-      if (contRect.width > 2 && bufRect.width >= 0) {
-        // fraction of the bar that is buffered (heuristic)
-        const fraction = Math.min(1, Math.max(0, bufRect.width / contRect.width));
-        const duration = video.duration || 0;
-        if (duration && fraction >= 0) {
-          const bufferEndTime = fraction * duration;
-          const current = video.currentTime || 0;
-          const health = Math.max(0, bufferEndTime - current);
-          return health;
-        }
-      }
-    }
-  } catch (e) {
-    console.warn('[SwipeExtension] DOM fallback for buffer health failed', e);
-  }
-
-  // If everything failed, return 0
-  return 0;
 }
 
 
@@ -848,7 +771,7 @@ const observer = new MutationObserver(() => {
     const videoId = getVideoId();
 
     if (currentVideo && startTime) {
-
+     
       watchedTime += (Date.now() - startTime) / 1000;
 
       const duration = prevDuration || currentVideo.duration || 0;
@@ -865,8 +788,9 @@ const observer = new MutationObserver(() => {
         watchedTime: watchedTime.toFixed(2),
         duration: duration.toFixed(2),
         percent,
-        extra: { bufferHealth: Number(bufferHealth.toFixed(2)) }
+        extra: { bufferHealth }
       });
+
 
       if (duration > 0) {
         // ✅ Pass the duration as the 3rd argument
