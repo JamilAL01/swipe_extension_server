@@ -137,6 +137,34 @@ document.addEventListener('DOMContentLoaded', () => {
           wastedMB: totalWastedMB,
           dataUsagePercent: usagePercent
         });
+        
+        const ctxDataMB = document.getElementById('data-pie-chart-mb').getContext('2d');
+        new Chart(ctxDataMB, {
+          type: 'pie',
+          data: {
+            labels: ['Watched MB', 'Wasted MB'],
+            datasets: [{
+              data: [watchedMB, wastedMB],
+              backgroundColor: ['#4CAF50', '#E74C3C'],
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { position: 'bottom' },
+              tooltip: {
+                callbacks: {
+                  label: ctx => `${ctx.label}: ${ctx.raw.toFixed(1)} MB`
+                }
+              }
+            }
+          }
+        });
+
+        // Also update text
+        document.getElementById('watchedMB-text').textContent = `Watched: ${watchedMB.toFixed(1)} MB`;
+        document.getElementById('wastedMB-text').textContent = `Wasted: ${wastedMB.toFixed(1)} MB`;
       }
     }
   );

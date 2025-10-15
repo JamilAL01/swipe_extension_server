@@ -190,22 +190,42 @@
         <canvas id="watch-history-chart" aria-label="Watch history chart"></canvas>
       </div>
 
+      //
       <div class="chart-block">
         <h3>Watched vs Wasted</h3>
-        <div style="display:flex; gap:12px; align-items:center;">
-          <!-- Pie Chart -->
-          <canvas id="data-pie-chart" aria-label="Watched versus wasted pie chart" style="flex:1; max-width:160px;"></canvas>
+        <div style="display:flex; gap:12px; align-items:center; justify-content:center;">
+          <!-- Original Time Pie Chart -->
+          <div style="flex:1; text-align:center;">
+            <canvas id="data-pie-chart" aria-label="Watched vs Wasted time" style="max-width:150px;"></canvas>
+            <div class="summary-row" style="margin-top:6px; display:flex; justify-content:space-between;">
+              <div style="display:flex; align-items:center; gap:4px;">
+                <div style="width:12px; height:12px; background:#4CAF50; border-radius:3px;"></div>
+                <span id="watched-time">Watched: 0 s</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:4px;">
+                <div style="width:12px; height:12px; background:#E74C3C; border-radius:3px;"></div>
+                <span id="wasted-time">Wasted: 0 s</span>
+              </div>
+            </div>
+          </div>
 
-          <!-- Data Usage Card -->
-          <div id="data-usage-card" style="flex-shrink:0; min-width:120px;">
-            <h3>📊 Data Usage</h3>
-            <p><b>Watched:</b> <span id="watchedMB">0</span> MB</p>
-            <p><b>Wasted:</b> <span id="wastedMB">0</span> MB</p>
-            <div id="data-bar-container">
-              <div id="data-bar"></div>
+          <!-- New Data Pie Chart (MB) -->
+          <div style="flex:1; text-align:center;">
+            <canvas id="data-pie-chart-mb" aria-label="Watched vs Wasted data" style="max-width:150px;"></canvas>
+            <div class="summary-row" style="margin-top:6px; display:flex; justify-content:space-between;">
+              <div style="display:flex; align-items:center; gap:4px;">
+                <div style="width:12px; height:12px; background:#4CAF50; border-radius:3px;"></div>
+                <span id="watchedMB-text">Watched: 0 MB</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:4px;">
+                <div style="width:12px; height:12px; background:#E74C3C; border-radius:3px;"></div>
+                <span id="wastedMB-text">Wasted: 0 MB</span>
+              </div>
             </div>
           </div>
         </div>
+      </div>
+
 
         <div class="summary-row" style="margin-top:10px; display:flex; gap:10px; align-items:center;">
           <div style="display:flex; align-items:center; gap:4px;">
