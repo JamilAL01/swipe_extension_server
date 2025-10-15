@@ -819,6 +819,10 @@ const observer = new MutationObserver(() => {
 
     // Hook stall + startup delay early so we don't miss loadeddata
     attachStallAndStartupTracking(video);
+
+    // Track bitrate
+    trackVideoBitrate(video);
+
   }
 
   if (video && video.src !== lastSrc) {
