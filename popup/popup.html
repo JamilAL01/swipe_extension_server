@@ -31,25 +31,45 @@
     .full-row{grid-column:1 / -1} 
     .reset-btn{width:100%;margin-top:12px;padding:8px;border-radius:8px;border:0;background:var(--danger);color:#fff;font-weight:700;cursor:pointer}
 
-    /* NEW: Data Usage Card */
+    /* NEW: Data Usage Card (next to pie) */
     #data-usage-card {
-      background: linear-gradient(135deg, #4f46e5, #9333ea);
-      color: white;
-      padding: 14px;
-      border-radius: 14px;
-      text-align: center;
-      margin-top: 14px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      background: #f9fafc; /* neutral card background to match popup */
+      color: #111;
+      padding: 12px 16px;
+      border-radius: 12px;
+      text-align: left;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.08);
       font-family: 'Inter', sans-serif;
+      flex-shrink: 0; /* don't shrink next to pie */
+      min-width: 110px;
     }
+
     #data-usage-card h3 {
       margin-bottom: 6px;
-      font-size: 15px;
+      font-size: 14px;
     }
+
     #data-usage-card p {
-      margin: 3px 0;
+      margin: 4px 0;
       font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
+
+    /* colored square indicators for watched/wasted */
+    #data-usage-card p::before {
+      content: "";
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+    }
+
+    #watched-mb::before { background: #4CAF50; }
+    
+    #wasted-mb::before { background: #E74C3C; }
+
     #data-bar-container {
       height: 8px;
       width: 100%;
@@ -95,15 +115,15 @@
 
       <div class="chart-block">
         <h3>Watched vs Wasted</h3>
-        <canvas id="data-pie-chart" aria-label="Watched versus wasted pie chart"></canvas>
-        <div class="summary-row" style="margin-top:10px; display:flex; gap:10px; align-items:center;">
-          <div style="display:flex; align-items:center; gap:4px;">
-            <div style="width:12px; height:12px; background:#4CAF50; border-radius:3px;"></div>
-            <span id="watched-time">Watched: 0 s</span>
-          </div>
-          <div style="display:flex; align-items:center; gap:4px;">
-            <div style="width:12px; height:12px; background:#E74C3C; border-radius:3px;"></div>
-            <span id="wasted-time">Wasted: 0 s</span>
+        <div style="display:flex; align-items:center; gap:12px;">
+          <!-- Pie Chart -->
+          <canvas id="data-pie-chart" aria-label="Watched versus wasted pie chart" style="flex:1; max-width:160px;"></canvas>
+
+          <!-- Data Usage Card -->
+          <div id="data-usage-card">
+            <h3>Data Usage</h3>
+            <p id="watched-mb">Watched: 0 MB</p>
+            <p id="wasted-mb">Wasted: 0 MB</p>
           </div>
         </div>
       </div>
