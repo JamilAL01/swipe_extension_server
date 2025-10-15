@@ -137,9 +137,6 @@ document.addEventListener('DOMContentLoaded', () => {
           wastedMB: totalWastedMB,
           dataUsagePercent: usagePercent
         });
-        document.getElementById('watched-mb').textContent = `Watched: ${watchedMB.toFixed(1)} MB`;
-        document.getElementById('wasted-mb').textContent = `Wasted: ${wastedMB.toFixed(1)} MB`;
-
       }
     }
   );
