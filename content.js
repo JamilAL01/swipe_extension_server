@@ -122,7 +122,7 @@ function showConsentPopup() {
     localStorage.setItem("swipeConsent","yes");
     consent = "yes";
     popup.remove();
-    window._swipeConsentDismissedAt = performance.now();  // 👈 mark when popup closed
+    window._swipeConsentDismissedAt = performance.now();  
     console.log("[SwipeExtension] User consented ✅");
     showSurveyPopup();
   };
@@ -181,7 +181,7 @@ function showSurveyPopup() {
 
   const submitBtn = document.getElementById("survey-submit");
 
-  // ✅ Define the handler first
+  //  Define the handler first
   const handleSurveySubmit = () => {
     submitBtn.disabled = true;
 
@@ -237,7 +237,7 @@ function showSurveyPopup() {
       });
   };
 
-  // ✅ Clear any previous handlers and attach only once
+  //  Clear any previous handlers and attach only once
   submitBtn.onclick = null;
   submitBtn.addEventListener("click", handleSurveySubmit);
 }
@@ -293,7 +293,7 @@ function attachVideoEvents(video) {
   if (!video || video._hooked) return;
   video._hooked = true;
 
-  console.log(`[SwipeExtension] 🎥 Hooking into video: ${video.src} (ID: ${getVideoId()})`);
+  console.log(`[SwipeExtension]  Hooking into video: ${video.src} (ID: ${getVideoId()})`);
 
   video.addEventListener("loadedmetadata", () => {
     prevDuration = video.duration;
@@ -378,7 +378,7 @@ function attachVideoEvents(video) {
       timestamp: new Date().toISOString(),
       extra: { jumpTo: video.currentTime.toFixed(2) },
     });
-    console.log(`[SwipeExtension] video-jump ⏭️ ${video.src} (ID: ${videoId}) - Jumped to ${video.currentTime.toFixed(2)}s`);
+    console.log(`[SwipeExtension] video-jump ${video.src} (ID: ${videoId}) - Jumped to ${video.currentTime.toFixed(2)}s`);
   });
 }
 
@@ -503,7 +503,6 @@ function trackViewportChanges(video) {
 
 
 // ================== VIDEO RESOLUTION ======================
-// ================== VIDEO RESOLUTION ======================
 function getMaxResolutionAndBitrate() {
   try {
     const script = [...document.scripts].find(s =>
@@ -607,8 +606,8 @@ function trackVideoResolution(video) {
         extra: {
           current: `${currentWidth}x${currentHeight}`,
           max: maxRes,
-          currentBitrate,
-          maxBitrate,
+          //currentBitrate,
+          //maxBitrate,
           viewport: getVideoViewport(video),
         },
       });
@@ -641,8 +640,8 @@ function trackVideoResolution(video) {
             extra: {
               width: w,
               height: h,
-              currentBitrate: currentBitrateChange,
-              maxBitrate,
+              //currentBitrate: currentBitrateChange,
+              //maxBitrate,
               viewport: getVideoViewport(video),
             },
           });
@@ -679,7 +678,7 @@ function attachStallAndStartupTracking(video) {
       firstPlayTime = performance.now();
       let startupDelay = (firstPlayTime - startupStart) / 1000;
 
-      // ⛔️ Subtract any "survey popup" time if needed
+      // Subtract any "survey popup" time if needed
       const popupDismissedAt = window._swipeConsentDismissedAt || null;
       if (popupDismissedAt && popupDismissedAt > startupStart) {
         startupDelay = Math.max(0, (firstPlayTime - popupDismissedAt) / 1000);
@@ -735,26 +734,26 @@ function attachStallAndStartupTracking(video) {
 }
 
 // =============== BUFFER HEALTH ======================
-function getBufferHealth() {
-  try {
-    // Find any element containing "Buffer Health"
-    const elems = [...document.querySelectorAll("*")];
-    const target = elems.find(el =>
-      el.textContent.includes("Buffer Health")
-    );
+// function getBufferHealth() {
+//   try {
+//     // Find any element containing "Buffer Health"
+//     const elems = [...document.querySelectorAll("*")];
+//     const target = elems.find(el =>
+//       el.textContent.includes("Buffer Health")
+//     );
 
-    if (!target) return null;
+//     if (!target) return null;
 
-    // Extract numeric value like "18.71 s"
-    const match = target.textContent.match(/Buffer\s*Health\s*([0-9.]+)\s*s/i);
-    if (match) {
-      return parseFloat(match[1]);
-    }
-  } catch (err) {
-    console.warn("[SwipeExtension] Buffer health extraction failed:", err);
-  }
-  return null;
-}
+//     // Extract numeric value like "18.71 s"
+//     const match = target.textContent.match(/Buffer\s*Health\s*([0-9.]+)\s*s/i);
+//     if (match) {
+//       return parseFloat(match[1]);
+//     }
+//   } catch (err) {
+//     console.warn("[SwipeExtension] Buffer health extraction failed:", err);
+//   }
+//   return null;
+// }
 
 
 
@@ -771,7 +770,7 @@ const observer = new MutationObserver(() => {
     trackViewportChanges(video);
 
 
-    // ✅ Hook stall + startup delay early so we don't miss loadeddata
+    // Hook stall + startup delay early so we don't miss loadeddata
     attachStallAndStartupTracking(video);
   }
 
@@ -779,17 +778,17 @@ const observer = new MutationObserver(() => {
     const videoId = getVideoId();
 
     if (currentVideo && startTime) {
-      const bufferHealth = getBufferHealth();
+      //const bufferHealth = getBufferHealth();
 
-      saveEvent({
-        type: "video-buffer-health",
-        videoId: getVideoId(),
-        src: currentVideo.src,
-        timestamp: new Date().toISOString(),
-        extra: {
-          bufferHealthSec: bufferHealth
-        }
-      });
+      // saveEvent({
+      //   type: "video-buffer-health",
+      //   videoId: getVideoId(),
+      //   src: currentVideo.src,
+      //   timestamp: new Date().toISOString(),
+      //   extra: {
+      //     bufferHealthSec: bufferHealth
+      //   }
+      // });
 
       watchedTime += (Date.now() - startTime) / 1000;
 
@@ -809,7 +808,7 @@ const observer = new MutationObserver(() => {
       });
 
       if (duration > 0) {
-        // ✅ Pass the duration as the 3rd argument
+        //  Pass the duration as the 3rd argument
         updateStats(watchedTime, parseFloat(percent), duration);
       }
     }
