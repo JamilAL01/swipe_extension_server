@@ -28,11 +28,15 @@ chrome.runtime.onMessage.addListener((msg) => {
 chrome.webRequest.onCompleted.addListener(
   (details) => {
     if (details.url.includes("videoplayback")) {
-      console.log("Video segment completed:", details.url, details.type, details.statusCode);
-      // Here you can track the segment sizes (details.responseHeaders is limited in MV3)
+      const size = details.responseHeaders
+        ? parseInt(details.responseHeaders.find(h => h.name.toLowerCase() === 'content-length')?.value || 0)
+        : 0;
+
+      chrome.tabs.sendMessage(details.tabId, { type: 'segmentCompleted', size });
     }
   },
-  { urls: ["*://*.youtube.com/videoplayback*"] }
+  { urls: ["*://*.youtube.com/videoplayback*"] },
+  ["responseHeaders"]
 );
 
 
