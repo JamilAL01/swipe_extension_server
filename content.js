@@ -415,35 +415,32 @@ function attachActionEvents() {
 }
 
 // =================  STATS ========================
-function updateStats(watchedTimeSec, percentWatched, videoDurationSec) {
-  chrome.storage.local.get(
-    ["videosWatched", "totalWatchedTime", "avgPercentWatched", "videoHistory"],
-    (data) => {
-      const videosWatched = (data.videosWatched || 0) + 1;
-      const totalWatchedTime = (data.totalWatchedTime || 0) + watchedTimeSec;
+function updateStats(watchedTime, percentWatched, duration, currentBitrate = null) {
+  chrome.storage.local.get(['videosWatched', 'totalWatchedTime', 'avgPercentWatched', 'videoHistory'], (data) => {
+    const videos = (data.videosWatched || 0) + 1;
+    const totalTime = (data.totalWatchedTime || 0) + watchedTime;
+    const history = data.videoHistory || [];
 
-      const prevAvg = data.avgPercentWatched || 0;
-      const avgPercentWatched =
-        (prevAvg * (videosWatched - 1) + percentWatched) / videosWatched;
+    const avgPercent = ((data.avgPercentWatched || 0) * (videos - 1) + percentWatched) / videos;
 
-      const history = data.videoHistory || [];
-      history.push({
-        watchTime: watchedTimeSec,
-        percentWatched,
-        duration: videoDurationSec
-      });
+    // ✅ add bitrate info if available
+    history.push({
+      duration,
+      percentWatched,
+      watchedTime,
+      currentBitrate,
+      timestamp: new Date().toISOString()
+    });
 
-      if (history.length > 10) history.shift(); // keep last 10
-
-      chrome.storage.local.set({
-        videosWatched,
-        totalWatchedTime,
-        avgPercentWatched,
-        videoHistory: history,
-      });
-    }
-  );
+    chrome.storage.local.set({
+      videosWatched: videos,
+      totalWatchedTime: totalTime,
+      avgPercentWatched: avgPercent,
+      videoHistory: history
+    });
+  });
 }
+
 
 // ================== VIEWPORT =======================
 function getVideoViewport(video) {
@@ -844,12 +841,11 @@ const observer = new MutationObserver(() => {
           wastedMB
         }
       });
-
-
-
+      
+      const bitrate = lastKnownBitrate || 0;
       if (duration > 0) {
         //  Pass the duration as the 3rd argument
-        updateStats(watchedTime, parseFloat(percent), duration);
+        updateStats(watchedTime, parseFloat(percent), duration, bitrate);
       }
     }
 
