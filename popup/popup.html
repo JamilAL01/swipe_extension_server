@@ -96,9 +96,15 @@
       <div class="chart-block">
         <h3>Watched vs Wasted</h3>
         <canvas id="data-pie-chart" aria-label="Watched versus wasted pie chart"></canvas>
-        <div class="summary-row" style="margin-top:10px">
-          <span id="watched-time">Watched: 0 s</span>
-          <span id="wasted-time">Wasted: 0 s</span>
+        <div class="summary-row" style="margin-top:10px; display:flex; gap:10px; align-items:center;">
+          <div style="display:flex; align-items:center; gap:4px;">
+            <div style="width:12px; height:12px; background:#4CAF50; border-radius:3px;"></div>
+            <span id="watched-time">Watched: 0 s</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:4px;">
+            <div style="width:12px; height:12px; background:#E74C3C; border-radius:3px;"></div>
+            <span id="wasted-time">Wasted: 0 s</span>
+          </div>
         </div>
       </div>
     </div>
