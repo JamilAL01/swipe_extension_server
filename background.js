@@ -25,6 +25,14 @@ chrome.runtime.onMessage.addListener((msg) => {
   }
 });
 
+chrome.webRequest.onCompleted.addListener(
+  (details) => {
+    console.log("Request completed:", details.url);
+  },
+  { urls: ["*://*.youtube.com/videoplayback*"] }
+);
+
+
 
 // Track how many relevant tabs are open (e.g. YouTube)
 let trackedTabs = new Set();
