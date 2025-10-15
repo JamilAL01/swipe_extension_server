@@ -41,9 +41,9 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 
   // If no tracked tabs remain, reset stats
   if (trackedTabs.size === 0) {
-    chrome.storage.local.clear(() => {
-      console.log("[SwipeExtension] Stats reset because all YouTube tabs were closed");
-    });
+    // chrome.storage.local.clear(() => {
+    //   console.log("[SwipeExtension] Stats reset because all YouTube tabs were closed");
+    // });
   }
 });
 
