@@ -765,17 +765,12 @@ function trackVideoBitrate(video) {
   let segmentSizes = []; // in bytes
 
   // Listen to videoplayback network requests
-  chrome.webRequest.onCompleted.addListener(
-    (details) => {
-      if (details.url.includes("videoplayback")) {
-        // Add segment size
-        segmentSizes.push(details.responseHeaders
-          .find(h => h.name.toLowerCase() === "content-length")?.value || details.fromCache ? 0 : details.totalBytes);
-      }
-    },
-    { urls: ["*://*.youtube.com/videoplayback*"] },
-    ["responseHeaders"]
-  );
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg.type === 'segmentCompleted') {
+      console.log("Segment URL received in content script:", msg.url);
+    }
+  });
+
 
   // When video ends or user navigates away
   const sendBitrate = () => {
