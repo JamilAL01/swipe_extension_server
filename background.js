@@ -25,19 +25,6 @@ chrome.runtime.onMessage.addListener((msg) => {
   }
 });
 
-chrome.webRequest.onCompleted.addListener(
-  (details) => {
-    if (details.url.includes("videoplayback")) {
-      const size = details.responseHeaders
-        ? parseInt(details.responseHeaders.find(h => h.name.toLowerCase() === 'content-length')?.value || 0)
-        : 0;
-
-      chrome.tabs.sendMessage(details.tabId, { type: 'segmentCompleted', size });
-    }
-  },
-  { urls: ["*://*.youtube.com/videoplayback*"] },
-  ["responseHeaders"]
-);
 
 
 // Track how many relevant tabs are open (e.g. YouTube)
