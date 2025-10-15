@@ -756,134 +756,91 @@ function attachStallAndStartupTracking(video) {
 // }
 
 // === Bitrate tracking per video ===
+// ================= TRACK VIDEO BITRATE ===================
 function trackVideoBitrate(video) {
   if (!video) return;
 
-  const videoId = getVideoId(); // your function to get current video ID
+  const videoId = getVideoId();
   if (!videoId) return;
 
   let segmentSizes = []; // in bytes
 
-  // Listen to videoplayback network requests
-  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-    if (msg.type === 'segmentCompleted') {
-      console.log("Segment URL received in content script:", msg.url);
-    }
-  });
+  // --- Listen for segment sizes sent from background.js ---
+  if (!window._bitrateListenerAdded) {
+    window._bitrateListenerAdded = true;
 
+    chrome.runtime.onMessage.addListener((msg) => {
+      if (msg.type === 'segmentCompleted' && msg.size > 0) {
+        segmentSizes.push(msg.size);
+      }
+    });
+  }
 
-  // When video ends or user navigates away
+  // --- Compute and send bitrate ---
   const sendBitrate = () => {
     if (!video.duration || segmentSizes.length === 0) return;
 
-    const segmentDuration = video.duration / segmentSizes.length; // seconds
-    const segmentBitrates = segmentSizes.map(size => (size * 8) / segmentDuration); // bits/sec
-    const avgBitrate = segmentBitrates.reduce((a,b) => a+b,0) / segmentBitrates.length;
+    const segmentDuration = video.duration / segmentSizes.length; // approx seconds per segment
+    const segmentBitrates = segmentSizes
+      .filter(s => s > 0)
+      .map(size => (size * 8) / segmentDuration); // bits/sec
+    const avgBitrate = segmentBitrates.reduce((a, b) => a + b, 0) / segmentBitrates.length;
 
     saveEvent({
       type: "video-bitrate",
       videoId,
       timestamp: new Date().toISOString(),
       extra: {
-        avgBitrate,         // bits/sec
+        avgBitrate,          // bits/sec
         segmentCount: segmentSizes.length,
-        segmentSizes,       // bytes
+        segmentSizes,        // bytes
         videoDuration: video.duration
       }
     });
 
-    // Cleanup for next video
+    // Reset for next video
     segmentSizes = [];
   };
 
+  // --- Events to trigger sending bitrate ---
   video.addEventListener("ended", sendBitrate);
-  window.addEventListener("beforeunload", sendBitrate); // in case user closes tab
+  window.addEventListener("beforeunload", sendBitrate); // if tab closed
+  document.addEventListener("swipe-to-next-video", sendBitrate); // custom event on swipe
 }
 
 // ================== OBSERVE VIDEO CHANGES ==================
 const observer = new MutationObserver(() => {
   const video = document.querySelector("video");
 
-  if (video && !video._resolutionHooked) {
-    video._resolutionHooked = true;
-
-    const videoId = getVideoId(); 
-    trackVideoResolution(video, videoId);
-    trackViewportChanges(video);
-
-
-    // Hook stall + startup delay early so we don't miss loadeddata
-    attachStallAndStartupTracking(video);
-
-    // Track bitrate
+  if (video && !video._bitrateHooked) {
+    video._bitrateHooked = true;
     trackVideoBitrate(video);
-
   }
 
+  // Detect video source change (swipe)
   if (video && video.src !== lastSrc) {
     const videoId = getVideoId();
 
-    if (currentVideo && startTime) {
-      //const bufferHealth = getBufferHealth();
-
-      // saveEvent({
-      //   type: "video-buffer-health",
-      //   videoId: getVideoId(),
-      //   src: currentVideo.src,
-      //   timestamp: new Date().toISOString(),
-      //   extra: {
-      //     bufferHealthSec: bufferHealth
-      //   }
-      // });
-
-      watchedTime += (Date.now() - startTime) / 1000;
-
-      const duration = prevDuration || currentVideo.duration || 0;
-      const percent = duration
-        ? Math.min((watchedTime / duration) * 100, 100).toFixed(1)
-        : 0;
-
-      saveEvent({
-        type: "video-stopped",
-        videoId: getVideoId(),
-        src: currentVideo.src,
-        timestamp: new Date().toISOString(),
-        watchedTime: watchedTime.toFixed(2),
-        duration: duration.toFixed(2),
-        percent,
-      });
-
-      if (duration > 0) {
-        //  Pass the duration as the 3rd argument
-        updateStats(watchedTime, parseFloat(percent), duration);
-      }
-    }
-
-
     if (lastSrc) {
+      // Trigger bitrate send for previous video
+      const swipeEvent = new Event("swipe-to-next-video");
+      document.dispatchEvent(swipeEvent);
+
       saveEvent({
         type: "swiped-to-new-video",
         videoId,
         src: video.src,
         timestamp: new Date().toISOString(),
-        extra: { previous: lastSrc },
+        extra: { previous: lastSrc }
       });
     }
 
-    currentVideo = video;
     lastSrc = video.src;
-    startTime = Date.now();
-    watchedTime = 0;
-    prevDuration = video.duration || 0;
-    hasPlayed = false;
-
-    attachVideoEvents(video);
-    attachActionEvents();
   }
 });
 
-
 observer.observe(document.body, { childList: true, subtree: true });
+
 
 // ================== RE-HOOK ON URL CHANGE ==================
 setInterval(() => {
