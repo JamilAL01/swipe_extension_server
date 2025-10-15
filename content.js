@@ -782,51 +782,44 @@ function attachStallAndStartupTracking(video) {
 
 
 // ================== OBSERVE VIDEO CHANGES ==================
+// ================== OBSERVE VIDEO CHANGES ==================
 const observer = new MutationObserver(() => {
   const video = document.querySelector("video");
+  if (!video) return;
 
-  if (video && !video._resolutionHooked) {
+  // === Hook resolution & viewport tracking once per video ===
+  if (!video._resolutionHooked) {
     video._resolutionHooked = true;
 
-    const videoId = getVideoId(); 
+    const videoId = getVideoId();
     trackVideoResolution(video, videoId);
     trackViewportChanges(video);
 
-
-    // Hook stall + startup delay early so we don't miss loadeddata
+    // Hook stall + startup delay early
     attachStallAndStartupTracking(video);
-
   }
 
-  if (video && video.src !== lastSrc) {
+  // === Handle new video (when src changes) ===
+  if (video.src && video.src !== lastSrc) {
     const videoId = getVideoId();
 
+    // --- If we were watching a previous video ---
     if (currentVideo && startTime) {
-      //const bufferHealth = getBufferHealth();
-
-      // saveEvent({
-      //   type: "video-buffer-health",
-      //   videoId: getVideoId(),
-      //   src: currentVideo.src,
-      //   timestamp: new Date().toISOString(),
-      //   extra: {
-      //     bufferHealthSec: bufferHealth
-      //   }
-      // });
-
       watchedTime += (Date.now() - startTime) / 1000;
 
       const duration = prevDuration || currentVideo.duration || 0;
       const percent = duration
         ? Math.min((watchedTime / duration) * 100, 100).toFixed(1)
-        : 0;
+        : "0";
 
-      // get currentBitrate from the last "video-resolution" event you saved
-      const currentBitrate = lastKnownBitrate;
+      const currentBitrate = lastKnownBitrate || 0;
+      const { watchedMB, wastedMB } = computeDataUsageMB(
+        duration,
+        parseFloat(percent),
+        currentBitrate
+      );
 
-
-      const { watchedMB, wastedMB } = computeDataUsageMB(duration, parseFloat(percent), currentBitrate);
-
+      // ✅ Save video-stopped event with bitrate + data usage
       saveEvent({
         type: "video-stopped",
         videoId: getVideoId(),
@@ -838,18 +831,19 @@ const observer = new MutationObserver(() => {
         extra: {
           currentBitrate,
           watchedMB,
-          wastedMB
-        }
+          wastedMB,
+        },
       });
-      
-      const bitrate = lastKnownBitrate || 0;
+
+      // ✅ Update summary stats (with small delay to ensure event order)
       if (duration > 0) {
-        //  Pass the duration as the 3rd argument
-        updateStats(watchedTime, parseFloat(percent), duration, bitrate);
+        setTimeout(() => {
+          updateStats(watchedTime, parseFloat(percent), duration, currentBitrate);
+        }, 100);
       }
     }
 
-
+    // --- Save “swiped to new video” transition ---
     if (lastSrc) {
       saveEvent({
         type: "swiped-to-new-video",
@@ -860,6 +854,7 @@ const observer = new MutationObserver(() => {
       });
     }
 
+    // === Prepare for next video ===
     currentVideo = video;
     lastSrc = video.src;
     startTime = Date.now();
@@ -871,7 +866,6 @@ const observer = new MutationObserver(() => {
     attachActionEvents();
   }
 });
-
 
 observer.observe(document.body, { childList: true, subtree: true });
 
