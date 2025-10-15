@@ -606,7 +606,7 @@ function trackVideoResolution(video) {
         extra: {
           current: `${currentWidth}x${currentHeight}`,
           max: maxRes,
-          //currentBitrate,
+          currentBitrate,
           //maxBitrate,
           viewport: getVideoViewport(video),
         },
@@ -640,7 +640,7 @@ function trackVideoResolution(video) {
             extra: {
               width: w,
               height: h,
-              //currentBitrate: currentBitrateChange,
+              currentBitrate: currentBitrateChange,
               //maxBitrate,
               viewport: getVideoViewport(video),
             },
@@ -756,59 +756,6 @@ function attachStallAndStartupTracking(video) {
 // }
 
 
-// ================= TRACK VIDEO BITRATE ===================
-function trackVideoBitrate(video) {
-  if (!video) return;
-
-  const videoId = getVideoId();
-  if (!videoId) return;
-
-  let segmentSizes = []; // in bytes
-
-  // --- Listen for segment sizes sent from background.js ---
-  if (!window._bitrateListenerAdded) {
-    window._bitrateListenerAdded = true;
-
-    chrome.runtime.onMessage.addListener((msg) => {
-      if (msg.type === 'segmentCompleted' && msg.size > 0) {
-        segmentSizes.push(msg.size);
-      }
-    });
-  }
-
-  // --- Compute and send bitrate ---
-  const sendBitrate = () => {
-    if (!video.duration || segmentSizes.length === 0) return;
-
-    const segmentDuration = video.duration / segmentSizes.length; // approx seconds per segment
-    const segmentBitrates = segmentSizes
-      .filter(s => s > 0)
-      .map(size => (size * 8) / segmentDuration); // bits/sec
-    const avgBitrate = segmentBitrates.reduce((a, b) => a + b, 0) / segmentBitrates.length;
-
-    saveEvent({
-      type: "video-bitrate",
-      videoId,
-      timestamp: new Date().toISOString(),
-      extra: {
-        avgBitrate,          // bits/sec
-        segmentCount: segmentSizes.length,
-        segmentSizes,        // bytes
-        videoDuration: video.duration
-      }
-    });
-
-    // Reset for next video
-    segmentSizes = [];
-  };
-
-  // --- Events to trigger sending bitrate ---
-  video.addEventListener("ended", sendBitrate);
-  window.addEventListener("beforeunload", sendBitrate); // if tab closed
-  document.addEventListener("swipe-to-next-video", sendBitrate); // custom event on swipe
-}
-
-
 
 // ================== OBSERVE VIDEO CHANGES ==================
 const observer = new MutationObserver(() => {
@@ -828,11 +775,6 @@ const observer = new MutationObserver(() => {
     // Track bitrate
     trackVideoBitrate(video);
 
-  }
-
-  if (video && !video._bitrateHooked) {
-    video._bitrateHooked = true;
-    trackVideoBitrate(video);
   }
 
   if (video && video.src !== lastSrc) {
@@ -875,27 +817,15 @@ const observer = new MutationObserver(() => {
     }
 
 
-    // Detect video source change (swipe)
-    if (video && video.src !== lastSrc) {
-      const videoId = getVideoId();
-
-      if (lastSrc) {
-        // Trigger bitrate send for previous video
-        const swipeEvent = new Event("swipe-to-next-video");
-        document.dispatchEvent(swipeEvent);
-
-        saveEvent({
-          type: "swiped-to-new-video",
-          videoId,
-          src: video.src,
-          timestamp: new Date().toISOString(),
-          extra: { previous: lastSrc }
-        });
-      }
-
-      lastSrc = video.src;
+    if (lastSrc) {
+      saveEvent({
+        type: "swiped-to-new-video",
+        videoId,
+        src: video.src,
+        timestamp: new Date().toISOString(),
+        extra: { previous: lastSrc },
+      });
     }
-
 
     currentVideo = video;
     lastSrc = video.src;
