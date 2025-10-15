@@ -15,10 +15,9 @@ document.addEventListener('DOMContentLoaded', () => {
       // ================== WATCH HISTORY CHART ==================
       if (history.length > 0 && typeof Chart !== 'undefined') {
         const ctx = document.getElementById('watch-history-chart').getContext('2d');
-
         const percents = history.map(h => h.percentWatched);
 
-        // Simple moving average (window = 5)
+        // moving average window = 5
         const movingAvg = percents.map((val, i, arr) => {
           const start = Math.max(0, i - 4);
           const window = arr.slice(start, i + 1);
@@ -54,14 +53,8 @@ document.addEventListener('DOMContentLoaded', () => {
             responsive: true,
             animation: { duration: 800 },
             scales: {
-              y: {
-                beginAtZero: true,
-                max: 100,
-                title: { display: true, text: 'Watch %' }
-              },
-              x: {
-                title: { display: true, text: 'Last Videos' }
-              }
+              y: { beginAtZero: true, max: 100, title: { display: true, text: 'Watch %' } },
+              x: { title: { display: true, text: 'Last Videos' } }
             },
             plugins: {
               tooltip: { mode: 'index', intersect: false },
@@ -83,12 +76,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         const wastedSec = Math.max(totalAvailableSec - totalWatchedSec, 0);
-
-        // Update UI
         document.getElementById('watched-time').textContent = `${Math.round(totalWatchedSec)} s`;
         document.getElementById('wasted-time').textContent = `${Math.round(wastedSec)} s`;
 
-        // Pie Chart
         const ctxPie = document.getElementById('data-pie-chart').getContext('2d');
         new Chart(ctxPie, {
           type: 'pie',
@@ -104,13 +94,48 @@ document.addEventListener('DOMContentLoaded', () => {
             responsive: true,
             plugins: {
               legend: { position: 'bottom' },
-              tooltip: {
-                callbacks: {
-                  label: (ctx) => `${ctx.label}: ${ctx.raw.toFixed(1)} s`
-                }
-              }
+              tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${ctx.raw.toFixed(1)} s` } }
             }
           }
+        });
+      }
+
+      // ================== DATA USAGE (MB) ==================
+      if (history.length > 0) {
+        let totalWatchedMB = 0;
+        let totalWastedMB = 0;
+
+        history.forEach(v => {
+          if (!v.duration || !v.percentWatched || !v.currentBitrate) return;
+
+          // bitrate (bits/s) → MB/s
+          const bitrateMBps = v.currentBitrate / (8 * 1024 * 1024);
+          const totalDataMB = v.duration * bitrateMBps;
+          const watchedMB = totalDataMB * (v.percentWatched / 100);
+          const wastedMB = totalDataMB - watchedMB;
+
+          totalWatchedMB += watchedMB;
+          totalWastedMB += wastedMB;
+        });
+
+        totalWatchedMB = totalWatchedMB.toFixed(2);
+        totalWastedMB = totalWastedMB.toFixed(2);
+        const total = parseFloat(totalWatchedMB) + parseFloat(totalWastedMB);
+        const usagePercent = total > 0 ? (100 * totalWatchedMB / total).toFixed(1) : 0;
+
+        const watchedEl = document.getElementById('watchedMB');
+        const wastedEl = document.getElementById('wastedMB');
+        const barEl = document.getElementById('data-bar');
+        if (watchedEl && wastedEl && barEl) {
+          watchedEl.textContent = totalWatchedMB;
+          wastedEl.textContent = totalWastedMB;
+          barEl.style.width = `${usagePercent}%`;
+        }
+
+        chrome.storage.local.set({
+          watchedMB: totalWatchedMB,
+          wastedMB: totalWastedMB,
+          dataUsagePercent: usagePercent
         });
       }
     }
