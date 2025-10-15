@@ -875,15 +875,27 @@ const observer = new MutationObserver(() => {
     }
 
 
-    if (lastSrc) {
-      saveEvent({
-        type: "swiped-to-new-video",
-        videoId,
-        src: video.src,
-        timestamp: new Date().toISOString(),
-        extra: { previous: lastSrc },
-      });
+    // Detect video source change (swipe)
+    if (video && video.src !== lastSrc) {
+      const videoId = getVideoId();
+
+      if (lastSrc) {
+        // Trigger bitrate send for previous video
+        const swipeEvent = new Event("swipe-to-next-video");
+        document.dispatchEvent(swipeEvent);
+
+        saveEvent({
+          type: "swiped-to-new-video",
+          videoId,
+          src: video.src,
+          timestamp: new Date().toISOString(),
+          extra: { previous: lastSrc }
+        });
+      }
+
+      lastSrc = video.src;
     }
+
 
     currentVideo = video;
     lastSrc = video.src;
