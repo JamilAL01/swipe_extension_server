@@ -755,6 +755,56 @@ function attachStallAndStartupTracking(video) {
 //   return null;
 // }
 
+// === Bitrate tracking per video ===
+function trackVideoBitrate(video) {
+  if (!video) return;
+
+  const videoId = getVideoId(); // your function to get current video ID
+  if (!videoId) return;
+
+  let segmentSizes = []; // in bytes
+
+  // Listen to videoplayback network requests
+  chrome.webRequest.onCompleted.addListener(
+    (details) => {
+      if (details.url.includes("videoplayback")) {
+        // Add segment size
+        segmentSizes.push(details.responseHeaders
+          .find(h => h.name.toLowerCase() === "content-length")?.value || details.fromCache ? 0 : details.totalBytes);
+      }
+    },
+    { urls: ["*://*.youtube.com/videoplayback*"] },
+    ["responseHeaders"]
+  );
+
+  // When video ends or user navigates away
+  const sendBitrate = () => {
+    if (!video.duration || segmentSizes.length === 0) return;
+
+    const segmentDuration = video.duration / segmentSizes.length; // seconds
+    const segmentBitrates = segmentSizes.map(size => (size * 8) / segmentDuration); // bits/sec
+    const avgBitrate = segmentBitrates.reduce((a,b) => a+b,0) / segmentBitrates.length;
+
+    saveEvent({
+      type: "video-bitrate",
+      videoId,
+      timestamp: new Date().toISOString(),
+      extra: {
+        avgBitrate,         // bits/sec
+        segmentCount: segmentSizes.length,
+        segmentSizes,       // bytes
+        videoDuration: video.duration
+      }
+    });
+
+    // Cleanup for next video
+    segmentSizes = [];
+  };
+
+  video.addEventListener("ended", sendBitrate);
+  window.addEventListener("beforeunload", sendBitrate); // in case user closes tab
+}
+
 // ================== OBSERVE VIDEO CHANGES ==================
 const observer = new MutationObserver(() => {
   const video = document.querySelector("video");
