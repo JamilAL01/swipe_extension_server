@@ -804,13 +804,14 @@ function computeAndSendBitrate(videoElement, bufferHealthSec = null) {
       segmentCount: numSegments,
       segmentSizes: sizes,      // optional, for debugging
       videoDuration: durationSec,
-      //bufferHealth: bufferHealthSec // in seconds if you have it
+      bufferHealth: bufferHealthSec // in seconds if you have it
     }
   });
 
   // Reset stored segments for this video
   delete segmentSizes[videoId];
 }
+
 
 
 
@@ -845,10 +846,6 @@ const observer = new MutationObserver(() => {
       //     bufferHealthSec: bufferHealth
       //   }
       // });
-
-      
-
-
 
       watchedTime += (Date.now() - startTime) / 1000;
 
