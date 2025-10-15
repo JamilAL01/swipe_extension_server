@@ -734,88 +734,26 @@ function attachStallAndStartupTracking(video) {
   video.addEventListener("timeupdate", onResume);
 }
 
-// ---------- Buffer health utility ----------
-function getBufferHealthFromVideo(video) {
+// =============== BUFFER HEALTH ======================
+function getBufferHealth() {
   try {
-    if (!video) return 0;
+    // Find any element containing "Buffer Health"
+    const elems = [...document.querySelectorAll("*")];
+    const target = elems.find(el =>
+      el.textContent.includes("Buffer Health")
+    );
 
-    // If browser exposes buffered ranges (normal case)
-    if (video.buffered && video.buffered.length > 0) {
-      const now = video.currentTime || 0;
+    if (!target) return null;
 
-      // Prefer the range that contains currentTime
-      for (let i = 0; i < video.buffered.length; i++) {
-        const start = video.buffered.start(i);
-        const end = video.buffered.end(i);
-        if (now >= start && now <= end) {
-          return Number(Math.max(0, end - now).toFixed(2));
-        }
-      }
-
-      // If none contain currentTime, use the last range end
-      const lastEnd = video.buffered.end(video.buffered.length - 1);
-      return Number(Math.max(0, lastEnd - now).toFixed(2));
+    // Extract numeric value like "18.71 s"
+    const match = target.textContent.match(/Buffer\s*Health\s*([0-9.]+)\s*s/i);
+    if (match) {
+      return parseFloat(match[1]);
     }
-
-    // --- Fallback: try inspecting YouTube progress DOM (best-effort only) ---
-    // NOTE: fallback is fragile — keep only for debugging / degraded cases.
-    const progressBar = document.querySelector('.ytp-progress-linear-live-buffer, .ytp-progress-bar');
-    if (progressBar) {
-      // Attempt approximate fraction by reading computed transform/width of progress children
-      // This is heuristic and not reliable across YouTube versions.
-      const parent = progressBar.closest('.ytp-progress-bar') || progressBar;
-      const played = parent.querySelector('.ytp-play-progress') || parent.querySelector('.ytp-progress-played');
-      const liveBuf = parent.querySelector('.ytp-progress-linear-live-buffer'); // visual live buffer
-      const totalW = parent.clientWidth || (parent.getBoundingClientRect && parent.getBoundingClientRect().width) || 0;
-      const playedW = played ? (played.clientWidth || played.getBoundingClientRect().width) : 0;
-      const bufW = liveBuf ? (liveBuf.clientWidth || liveBuf.getBoundingClientRect().width) : 0;
-
-      if (totalW && !isNaN(bufW) && !isNaN(playedW)) {
-        // approximate buffered fraction (heuristic)
-        const bufferedFraction = Math.min(1, (playedW + bufW) / totalW);
-        const duration = video.duration || 0;
-        const estBufferSeconds = Number((duration * bufferedFraction - (video.currentTime || 0)).toFixed(2));
-        return Math.max(0, estBufferSeconds);
-      }
-    }
-
-    return 0;
   } catch (err) {
-    console.warn('[SwipeExtension] getBufferHealthFromVideo error', err);
-    return 0;
+    console.warn("[SwipeExtension] Buffer health extraction failed:", err);
   }
-}
-
-// ---------- Smoothed sampler (keep last N samples) ----------
-function createBufferSampler(video, opts = {}) {
-  const n = opts.window || 3;
-  const samples = [];
-  let poll = null;
-
-  function sampleNow() {
-    const v = getBufferHealthFromVideo(video);
-    samples.push(v);
-    if (samples.length > n) samples.shift();
-  }
-
-  return {
-    start(pollIntervalMs = 500) {
-      if (poll) clearInterval(poll);
-      sampleNow();
-      poll = setInterval(sampleNow, pollIntervalMs);
-    },
-    stop() {
-      if (poll) clearInterval(poll);
-      poll = null;
-      samples.length = 0;
-    },
-    getSmoothed() {
-      if (samples.length === 0) return 0;
-      const sum = samples.reduce((s, x) => s + x, 0);
-      return Number((sum / samples.length).toFixed(2));
-    },
-    last() { return samples.length ? samples[samples.length - 1] : 0; }
-  };
+  return null;
 }
 
 
@@ -841,6 +779,17 @@ const observer = new MutationObserver(() => {
     const videoId = getVideoId();
 
     if (currentVideo && startTime) {
+      const bufferHealth = getBufferHealth();
+
+      saveEvent({
+        type: "video-buffer-health",
+        videoId: getVideoId(),
+        src: currentVideo.src,
+        timestamp: new Date().toISOString(),
+        extra: {
+          bufferHealthSec: bufferHealth
+        }
+      });
 
       watchedTime += (Date.now() - startTime) / 1000;
 
@@ -849,18 +798,16 @@ const observer = new MutationObserver(() => {
         ? Math.min((watchedTime / duration) * 100, 100).toFixed(1)
         : 0;
 
-      // when you detect you're about to save video-stopped / swipe to new video:
-      const bufferSeconds = getBufferHealthFromVideo(currentVideo); // or sampler.getSmoothed()
       saveEvent({
-        type: 'video-stopped',
+        type: "video-stopped",
         videoId: getVideoId(),
         src: currentVideo.src,
         timestamp: new Date().toISOString(),
         watchedTime: watchedTime.toFixed(2),
         duration: duration.toFixed(2),
         percent,
-        extra: { bufferHealthSeconds: bufferSeconds }
       });
+
       if (duration > 0) {
         // ✅ Pass the duration as the 3rd argument
         updateStats(watchedTime, parseFloat(percent), duration);
@@ -874,8 +821,7 @@ const observer = new MutationObserver(() => {
         videoId,
         src: video.src,
         timestamp: new Date().toISOString(),
-        extra: { previous: lastSrc, bufferHealthSeconds: getBufferHealthFromVideo(currentVideo) 
- },
+        extra: { previous: lastSrc },
       });
     }
 
