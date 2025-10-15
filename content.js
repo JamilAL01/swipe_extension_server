@@ -659,6 +659,23 @@ function trackVideoResolution(video) {
 }
 
 
+// ============ VIDEO BITRATE ===================
+function computeDataUsageMB(durationSec, percentWatched, currentBitrateBps) {
+  if (!durationSec || !currentBitrateBps) return { watchedMB: 0, wastedMB: 0 };
+
+  const watchedSec = durationSec * (percentWatched / 100);
+  const wastedSec = durationSec - watchedSec;
+
+  // bits → bytes → MB
+  const watchedMB = (watchedSec * currentBitrateBps) / 8 / 1e6;
+  const wastedMB  = (wastedSec  * currentBitrateBps) / 8 / 1e6;
+
+  return {
+    watchedMB: watchedMB.toFixed(2),
+    wastedMB: wastedMB.toFixed(2)
+  };
+}
+
 // ============= START-UP DELAY & STALLS ================
 function attachStallAndStartupTracking(video) {
   if (video._stallStartupHooked) return;
@@ -798,6 +815,12 @@ const observer = new MutationObserver(() => {
         ? Math.min((watchedTime / duration) * 100, 100).toFixed(1)
         : 0;
 
+      // get currentBitrate from the last "video-resolution" event you saved
+      const lastResolutionEvent = events.findLast?.(e => e.type === "video-resolution");
+      const currentBitrate = lastResolutionEvent?.extra?.currentBitrate || 0;
+
+      const { watchedMB, wastedMB } = computeDataUsageMB(duration, parseFloat(percent), currentBitrate);
+
       saveEvent({
         type: "video-stopped",
         videoId: getVideoId(),
@@ -806,7 +829,14 @@ const observer = new MutationObserver(() => {
         watchedTime: watchedTime.toFixed(2),
         duration: duration.toFixed(2),
         percent,
+        extra: {
+          currentBitrate,
+          watchedMB,
+          wastedMB
+        }
       });
+
+
 
       if (duration > 0) {
         //  Pass the duration as the 3rd argument
