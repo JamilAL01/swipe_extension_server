@@ -755,7 +755,7 @@ function attachStallAndStartupTracking(video) {
 //   return null;
 // }
 
-// === Bitrate tracking per video ===
+
 // ================= TRACK VIDEO BITRATE ===================
 function trackVideoBitrate(video) {
   if (!video) return;
@@ -808,39 +808,97 @@ function trackVideoBitrate(video) {
   document.addEventListener("swipe-to-next-video", sendBitrate); // custom event on swipe
 }
 
+
+
 // ================== OBSERVE VIDEO CHANGES ==================
 const observer = new MutationObserver(() => {
   const video = document.querySelector("video");
+
+  if (video && !video._resolutionHooked) {
+    video._resolutionHooked = true;
+
+    const videoId = getVideoId(); 
+    trackVideoResolution(video, videoId);
+    trackViewportChanges(video);
+
+
+    // Hook stall + startup delay early so we don't miss loadeddata
+    attachStallAndStartupTracking(video);
+
+    // Track bitrate
+    trackVideoBitrate(video);
+
+  }
 
   if (video && !video._bitrateHooked) {
     video._bitrateHooked = true;
     trackVideoBitrate(video);
   }
 
-  // Detect video source change (swipe)
   if (video && video.src !== lastSrc) {
     const videoId = getVideoId();
 
-    if (lastSrc) {
-      // Trigger bitrate send for previous video
-      const swipeEvent = new Event("swipe-to-next-video");
-      document.dispatchEvent(swipeEvent);
+    if (currentVideo && startTime) {
+      //const bufferHealth = getBufferHealth();
 
+      // saveEvent({
+      //   type: "video-buffer-health",
+      //   videoId: getVideoId(),
+      //   src: currentVideo.src,
+      //   timestamp: new Date().toISOString(),
+      //   extra: {
+      //     bufferHealthSec: bufferHealth
+      //   }
+      // });
+
+      watchedTime += (Date.now() - startTime) / 1000;
+
+      const duration = prevDuration || currentVideo.duration || 0;
+      const percent = duration
+        ? Math.min((watchedTime / duration) * 100, 100).toFixed(1)
+        : 0;
+
+      saveEvent({
+        type: "video-stopped",
+        videoId: getVideoId(),
+        src: currentVideo.src,
+        timestamp: new Date().toISOString(),
+        watchedTime: watchedTime.toFixed(2),
+        duration: duration.toFixed(2),
+        percent,
+      });
+
+      if (duration > 0) {
+        //  Pass the duration as the 3rd argument
+        updateStats(watchedTime, parseFloat(percent), duration);
+      }
+    }
+
+
+    if (lastSrc) {
       saveEvent({
         type: "swiped-to-new-video",
         videoId,
         src: video.src,
         timestamp: new Date().toISOString(),
-        extra: { previous: lastSrc }
+        extra: { previous: lastSrc },
       });
     }
 
+    currentVideo = video;
     lastSrc = video.src;
+    startTime = Date.now();
+    watchedTime = 0;
+    prevDuration = video.duration || 0;
+    hasPlayed = false;
+
+    attachVideoEvents(video);
+    attachActionEvents();
   }
 });
 
-observer.observe(document.body, { childList: true, subtree: true });
 
+observer.observe(document.body, { childList: true, subtree: true });
 
 // ================== RE-HOOK ON URL CHANGE ==================
 setInterval(() => {
