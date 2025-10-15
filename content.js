@@ -288,6 +288,10 @@ function saveEvent(eventData) {
     .catch(err => console.error("[SwipeExtension] Fetch error ❌", err));
 }
 
+// Define this globally near the top of your content.js
+let lastKnownBitrate = null;
+
+
 // ================== VIDEO EVENT HOOK ==================
 function attachVideoEvents(video) {
   if (!video || video._hooked) return;
@@ -530,6 +534,7 @@ function getMaxResolutionAndBitrate() {
 
     const maxRes = `${maxFmt.width}x${maxFmt.height}`;
     const bitrate = maxFmt.averageBitrate || maxFmt.bitrate || null; // in bps
+    
 
     return { maxRes, bitrate };
   } catch (err) {
@@ -596,6 +601,9 @@ function trackVideoResolution(video) {
       const currentBitrate = currentFmt
         ? (currentFmt.averageBitrate || currentFmt.bitrate)
         : null;
+
+      lastKnownBitrate = currentBitrate || lastKnownBitrate;
+
 
       // Log initial
       saveEvent({
@@ -675,6 +683,7 @@ function computeDataUsageMB(durationSec, percentWatched, currentBitrateBps) {
     wastedMB: wastedMB.toFixed(2)
   };
 }
+
 
 // ============= START-UP DELAY & STALLS ================
 function attachStallAndStartupTracking(video) {
@@ -816,8 +825,8 @@ const observer = new MutationObserver(() => {
         : 0;
 
       // get currentBitrate from the last "video-resolution" event you saved
-      const lastResolutionEvent = events.findLast?.(e => e.type === "video-resolution");
-      const currentBitrate = lastResolutionEvent?.extra?.currentBitrate || 0;
+      const currentBitrate = lastKnownBitrate;
+
 
       const { watchedMB, wastedMB } = computeDataUsageMB(duration, parseFloat(percent), currentBitrate);
 
