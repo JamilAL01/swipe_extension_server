@@ -6,11 +6,18 @@ document.addEventListener('DOMContentLoaded', () => {
       const totalTimeSec = data.totalWatchedTime || 0;
       const avgPercent = data.avgPercentWatched || 0;
       const history = data.videoHistory || [];
+      const videoStoppedEvents = events.filter(e => e.type === "video-stopped");
+      const totalWatchedMB = videoStoppedEvents.reduce((sum, e) => sum + (parseFloat(e.extra?.watchedMB) || 0), 0);
+      const totalWastedMB = videoStoppedEvents.reduce((sum, e) => sum + (parseFloat(e.extra?.wastedMB) || 0), 0);
+
 
       // ================== BASIC STATS ==================
       document.getElementById('videos-count').textContent = videos;
       document.getElementById('watch-time').textContent = `${Math.floor(totalTimeSec / 60)} min`;
       document.getElementById('avg-percent').textContent = `${Math.round(avgPercent)}%`;
+      document.getElementById("data-usage").textContent = 
+        ` Watched: ${totalWatchedMB.toFixed(2)} MB | Wasted: ${totalWastedMB.toFixed(2)} MB`;
+
 
       // ================== WATCH HISTORY CHART ==================
       if (history.length > 0 && typeof Chart !== 'undefined') {
