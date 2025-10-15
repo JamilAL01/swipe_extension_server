@@ -288,19 +288,6 @@ function saveEvent(eventData) {
     .catch(err => console.error("[SwipeExtension] Fetch error ❌", err));
 }
 
-// keep a mapping of src -> videoId if you prefer stable lookup
-const srcToVideoId = {};
-
-function rememberSrcVideoId(src, id) {
-  if (!src || !id) return;
-  srcToVideoId[src] = id;
-}
-
-function getVideoIdForSrc(src) {
-  return srcToVideoId[src] || null;
-}
-
-
 // ================== VIDEO EVENT HOOK ==================
 function attachVideoEvents(video) {
   if (!video || video._hooked) return;
@@ -514,26 +501,6 @@ function trackViewportChanges(video) {
   setInterval(checkViewport, 2000);
 }
 
-// ================== VIDEO BITRATE ======================
-
-// store latest resolution info per videoId so observer can access currentBitrate
-const videoResolutionMap = {}; 
-
-function computeVideoDataMB(durationSec, percentWatched, currentBitrateBps) {
-  // durationSec: number (seconds)
-  // percentWatched: number (0..100)
-  // currentBitrateBps: number (bits per second)
-  if (!durationSec || !currentBitrateBps) return { watchedMB: 0, wastedMB: 0 };
-
-  const watchedTimeSec = durationSec * (Math.min(Math.max(percentWatched, 0), 100) / 100);
-  const wastedTimeSec = Math.max(0, durationSec - watchedTimeSec);
-
-  // bits/sec * seconds = bits. Divide by 8 to get bytes, divide by 1e6 to get MB
-  const watchedMB = (watchedTimeSec * currentBitrateBps) / 8 / 1e6;
-  const wastedMB  = (wastedTimeSec  * currentBitrateBps) / 8 / 1e6;
-
-  return { watchedMB, wastedMB };
-}
 
 // ================== VIDEO RESOLUTION ======================
 function getMaxResolutionAndBitrate() {
@@ -630,13 +597,6 @@ function trackVideoResolution(video) {
         ? (currentFmt.averageBitrate || currentFmt.bitrate)
         : null;
 
-      // store for later use by observer
-      videoResolutionMap[currentVideoId] = {
-        current: `${currentW}x${currentH}`,
-        max: typeof maxRes === 'string' ? maxRes : `${maxRes.width}x${maxRes.height}`,
-        currentBitrate: (maxRes && maxRes.currentBitrate) ? Number(maxRes.currentBitrate) : (typeof maxRes === 'object' && maxRes.currentBitrate ? Number(maxRes.currentBitrate) : (video.currentBitrate || 0))
-      };
-
       // Log initial
       saveEvent({
         type: "video-resolution",
@@ -651,10 +611,6 @@ function trackVideoResolution(video) {
           viewport: getVideoViewport(video),
         },
       });
-
-      videoResolutionMap[videoId] = { current: `${w}x${h}`, max: maxStr, currentBitrate: parsedCurrentBitrate };
-      rememberSrcVideoId(video.src, videoId);
-
 
       allowChanges = true;
       lastWidth = currentWidth;
@@ -801,75 +757,74 @@ function attachStallAndStartupTracking(video) {
 
 
 
-// ================== OBSERVE VIDEO CHANGES (updated) ==================
+
+// ================== OBSERVE VIDEO CHANGES ==================
 const observer = new MutationObserver(() => {
   const video = document.querySelector("video");
 
-  // Hook resolution/startup once per new video element
   if (video && !video._resolutionHooked) {
     video._resolutionHooked = true;
 
-    const videoId = getVideoId();
+    const videoId = getVideoId(); 
     trackVideoResolution(video, videoId);
     trackViewportChanges(video);
+
+
+    // Hook stall + startup delay early so we don't miss loadeddata
     attachStallAndStartupTracking(video);
+
   }
 
-  // Detect a new video source (swipe / navigation)
   if (video && video.src !== lastSrc) {
     const videoId = getVideoId();
 
     if (currentVideo && startTime) {
-      // finalize the previous video before switching
+      //const bufferHealth = getBufferHealth();
+
+      // saveEvent({
+      //   type: "video-buffer-health",
+      //   videoId: getVideoId(),
+      //   src: currentVideo.src,
+      //   timestamp: new Date().toISOString(),
+      //   extra: {
+      //     bufferHealthSec: bufferHealth
+      //   }
+      // });
+
       watchedTime += (Date.now() - startTime) / 1000;
 
-      // duration: prefer prevDuration (captured earlier), fallback to currentVideo.duration
       const duration = prevDuration || currentVideo.duration || 0;
       const percent = duration
-        ? Math.min((watchedTime / duration) * 100, 100)
+        ? Math.min((watchedTime / duration) * 100, 100).toFixed(1)
         : 0;
-
-      // Lookup bitrate for the previous videoId (if available)
-      const prevVideoId = getVideoIdForSrc(currentVideo.src) || getVideoId(); // helper below
-      const resInfo = videoResolutionMap[prevVideoId] || {};
-      const currentBitrate = Number(resInfo.currentBitrate || 0);
-
-      // Compute MB values
-      const { watchedMB, wastedMB } = computeVideoDataMB(duration, percent, currentBitrate);
 
       saveEvent({
         type: "video-stopped",
-        videoId: prevVideoId || getVideoId(),
+        videoId: getVideoId(),
         src: currentVideo.src,
         timestamp: new Date().toISOString(),
         watchedTime: watchedTime.toFixed(2),
         duration: duration.toFixed(2),
-        percent: percent.toFixed(1),
-        extra: {
-          watchedMB: Number(watchedMB.toFixed(3)),
-          wastedMB: Number(wastedMB.toFixed(3)),
-          currentBitrate, // bits/sec
-          resolution: resInfo.current || null
-        }
+        percent,
       });
 
       if (duration > 0) {
+        //  Pass the duration as the 3rd argument
         updateStats(watchedTime, parseFloat(percent), duration);
       }
     }
 
-    // Send swiped-to-new-video event for analytics
+
     if (lastSrc) {
       saveEvent({
         type: "swiped-to-new-video",
         videoId,
         src: video.src,
         timestamp: new Date().toISOString(),
-        extra: { previous: lastSrc }
+        extra: { previous: lastSrc },
       });
     }
 
-    // Update active tracking variables for the new current video
     currentVideo = video;
     lastSrc = video.src;
     startTime = Date.now();
@@ -882,8 +837,8 @@ const observer = new MutationObserver(() => {
   }
 });
 
-observer.observe(document.body, { childList: true, subtree: true });
 
+observer.observe(document.body, { childList: true, subtree: true });
 
 // ================== RE-HOOK ON URL CHANGE ==================
 setInterval(() => {
