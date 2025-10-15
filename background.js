@@ -27,11 +27,13 @@ chrome.runtime.onMessage.addListener((msg) => {
 
 chrome.webRequest.onCompleted.addListener(
   (details) => {
-    console.log("Request completed:", details.url);
+    if (details.url.includes("videoplayback")) {
+      console.log("Video segment completed:", details.url, details.type, details.statusCode);
+      // Here you can track the segment sizes (details.responseHeaders is limited in MV3)
+    }
   },
   { urls: ["*://*.youtube.com/videoplayback*"] }
 );
-
 
 
 // Track how many relevant tabs are open (e.g. YouTube)
