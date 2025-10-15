@@ -659,7 +659,6 @@ function trackVideoResolution(video) {
 }
 
 
-
 // ============= START-UP DELAY & STALLS ================
 function attachStallAndStartupTracking(video) {
   if (video._stallStartupHooked) return;
@@ -733,6 +732,7 @@ function attachStallAndStartupTracking(video) {
   video.addEventListener("timeupdate", onResume);
 }
 
+
 // =============== BUFFER HEALTH ======================
 // function getBufferHealth() {
 //   try {
@@ -755,6 +755,19 @@ function attachStallAndStartupTracking(video) {
 //   return null;
 // }
 
+// ================== WATCHED & WASTED DATA IN MB ==================
+function computeVideoDataMB(videoId, duration, percentWatched, currentBitrate) {
+  if (!duration || !currentBitrate) return { watchedMB: 0, wastedMB: 0 };
+
+  const watchedTimeSec = duration * (percentWatched / 100);
+  const wastedTimeSec = duration - watchedTimeSec;
+
+  const watchedMB = (watchedTimeSec * currentBitrate) / 8 / 1e6; // bits → bytes → MB
+  const wastedMB = (wastedTimeSec * currentBitrate) / 8 / 1e6;
+
+  return { watchedMB, wastedMB };
+}
+
 
 
 // ================== OBSERVE VIDEO CHANGES ==================
@@ -771,9 +784,6 @@ const observer = new MutationObserver(() => {
 
     // Hook stall + startup delay early so we don't miss loadeddata
     attachStallAndStartupTracking(video);
-
-    // Track bitrate
-    trackVideoBitrate(video);
 
   }
 
@@ -799,16 +809,34 @@ const observer = new MutationObserver(() => {
       const percent = duration
         ? Math.min((watchedTime / duration) * 100, 100).toFixed(1)
         : 0;
+     
+      const percentWatched = Math.min((watchedTime / duration) * 100, 100);
+      const currentBitrate = videoResolution?.currentBitrate || 0; // from video-resolution extra
+
+      const { watchedMB, wastedMB } = computeVideoDataMB(
+        videoId,
+        duration,
+        percentWatched,
+        currentBitrate
+      );
 
       saveEvent({
         type: "video-stopped",
-        videoId: getVideoId(),
+        videoId,
         src: currentVideo.src,
         timestamp: new Date().toISOString(),
         watchedTime: watchedTime.toFixed(2),
         duration: duration.toFixed(2),
-        percent,
+        percent: percentWatched.toFixed(1),
+        extra: {
+          watchedMB: watchedMB.toFixed(2),
+          wastedMB: wastedMB.toFixed(2),
+          currentBitrate,
+          resolution: videoResolution?.current || null
+        }
       });
+
+      
 
       if (duration > 0) {
         //  Pass the duration as the 3rd argument
