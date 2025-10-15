@@ -4,9 +4,7 @@
   "version": "3.0",
   "permissions": ["storage", "scripting", "webNavigation","tabs","webRequest"],
   "host_permissions": [
-    "https://www.youtube.com/*",
-    "https://www.tiktok.com/*",
-    "https://www.instagram.com/*"
+    "https://www.youtube.com/*"
   ],
   "background": { "service_worker": "background.js" },
   "content_scripts": [
