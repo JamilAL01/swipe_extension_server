@@ -756,6 +756,62 @@ function attachStallAndStartupTracking(video) {
 // }
 
 
+// ---------------------------
+// Video Bitrate Tracker
+// ---------------------------
+
+let segmentSizes = {}; // key = videoId, value = array of segment sizes
+
+// Listen to all YouTube videoplayback requests
+chrome.webRequest.onCompleted.addListener(
+  function(details) {
+    if (!details.url.includes("videoplayback")) return;
+
+    const videoIdMatch = details.url.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
+    if (!videoIdMatch) return;
+    const videoId = videoIdMatch[1];
+
+    if (!segmentSizes[videoId]) segmentSizes[videoId] = [];
+
+    // Use the encodedDataLength to get actual downloaded bytes
+    const sizeBytes = details.encodedDataLength || 0;
+    segmentSizes[videoId].push(sizeBytes);
+  },
+  { urls: ["*://*.youtube.com/*"] }
+);
+
+// Call this when the video ends or the user swipes to the next
+function computeAndSendBitrate(videoElement, bufferHealthSec = null) {
+  const videoId = getVideoId(); // your existing function to get current videoId
+  if (!videoId || !segmentSizes[videoId] || segmentSizes[videoId].length === 0) return;
+
+  const durationSec = videoElement.duration;
+  const sizes = segmentSizes[videoId];
+  const numSegments = sizes.length;
+  const segmentDuration = durationSec / numSegments;
+
+  // Per-segment bitrate in bits/sec
+  const bitrates = sizes.map(size => (size * 8) / segmentDuration);
+  const avgBitrate = bitrates.reduce((a, b) => a + b, 0) / bitrates.length;
+
+  // Send event with extra info
+  saveEvent({
+    type: "video-bitrate",
+    videoId,
+    timestamp: new Date().toISOString(),
+    extra: {
+      avgBitrate,              // bits/sec
+      segmentCount: numSegments,
+      segmentSizes: sizes,      // optional, for debugging
+      videoDuration: durationSec,
+      //bufferHealth: bufferHealthSec // in seconds if you have it
+    }
+  });
+
+  // Reset stored segments for this video
+  delete segmentSizes[videoId];
+}
+
 
 
 // ================== OBSERVE VIDEO CHANGES ==================
@@ -789,6 +845,10 @@ const observer = new MutationObserver(() => {
       //     bufferHealthSec: bufferHealth
       //   }
       // });
+
+      
+
+
 
       watchedTime += (Date.now() - startTime) / 1000;
 
