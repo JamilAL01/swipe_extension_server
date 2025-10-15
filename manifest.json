@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Swipe Video Logger",
-  "version": "1.0.0",
-  "permissions": ["storage", "scripting", "webNavigation","tabs", "webRequest","webRequestBlocking","webRequestFilterResponse"],
+  "name": "SWiPE X ",
+  "version": "3.0",
+  "permissions": ["storage", "scripting", "webNavigation","tabs","webRequest"],
   "host_permissions": [
     "https://www.youtube.com/*",
     "https://www.tiktok.com/*",
