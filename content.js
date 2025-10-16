@@ -803,6 +803,7 @@ function attachStallAndStartupTracking(video) {
 // }
 
 
+
 // ================== OBSERVE VIDEO CHANGES ==================
 const observer = new MutationObserver(() => {
   const video = document.querySelector("video");
@@ -833,7 +834,28 @@ const observer = new MutationObserver(() => {
         ? Math.min((watchedTime / duration) * 100, 100).toFixed(1)
         : "0";
 
-      // ✅ Send video-stopped (always the last event of the previous video)
+      // const currentBitrate = lastKnownBitrate || 0;
+      // const { watchedMB, wastedMB } = computeDataUsageMB(
+      //   duration,
+      //   parseFloat(percent),
+      //   currentBitrate
+      // );
+
+      // const bufferHealth = getBufferHealth();
+
+      // saveEvent({
+      //   type: "video-buffer-health",
+      //   videoId: getVideoId(),
+      //   src: currentVideo.src,
+      //   timestamp: new Date().toISOString(),
+      //   extra: {
+      //     bufferHealthSec: bufferHealth
+      //   }
+      // });
+
+
+
+      // ✅ Save video-stopped event with bitrate + data usage
       saveEvent({
         type: "video-stopped",
         videoId: getVideoId(),
@@ -842,9 +864,14 @@ const observer = new MutationObserver(() => {
         watchedTime: watchedTime.toFixed(2),
         duration: duration.toFixed(2),
         percent,
+        // extra: {
+        // //   currentBitrate,
+        // //   watchedMB,
+        // //   wastedMB,
+        // },
       });
 
-      // ✅ Update summary stats
+      // ✅ Update summary stats (with small delay to ensure event order)
       if (duration > 0) {
         setTimeout(() => {
           updateStats(watchedTime, parseFloat(percent), duration);
@@ -866,29 +893,10 @@ const observer = new MutationObserver(() => {
     // === Prepare for next video ===
     currentVideo = video;
     lastSrc = video.src;
-    startTime = null;
+    startTime = Date.now();
     watchedTime = 0;
-    prevDuration = 0;
+    prevDuration = video.duration || 0;
     hasPlayed = false;
-
-    // ✅ Wait until metadata is loaded to ensure proper duration
-    video.addEventListener(
-      "loadedmetadata",
-      () => {
-        prevDuration = video.duration || 0;
-        startTime = Date.now();
-
-        // ✅ Emit video-start event when the new video is ready
-        saveEvent({
-          type: "video-start",
-          videoId,
-          src: video.src,
-          timestamp: new Date().toISOString(),
-          duration: prevDuration.toFixed(2),
-        });
-      },
-      { once: true }
-    );
 
     attachVideoEvents(video);
     attachActionEvents();
