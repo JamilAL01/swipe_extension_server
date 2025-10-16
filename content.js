@@ -805,8 +805,6 @@ function attachStallAndStartupTracking(video) {
 
 
 // ================== OBSERVE VIDEO CHANGES ==================
-let currentVideoId = null; // track current video's ID globally
-
 const observer = new MutationObserver(() => {
   const video = document.querySelector("video");
   if (!video) return;
@@ -815,10 +813,8 @@ const observer = new MutationObserver(() => {
   if (!video._resolutionHooked) {
     video._resolutionHooked = true;
 
-    currentVideoId = getVideoId(); // current video ID
-
-    // Fire resolution event immediately
-    trackVideoResolution(video, currentVideoId);
+    const videoId = getVideoId();
+    trackVideoResolution(video, videoId);
     trackViewportChanges(video);
 
     // Hook stall + startup delay early
@@ -827,7 +823,7 @@ const observer = new MutationObserver(() => {
 
   // === Handle new video (when src changes) ===
   if (video.src && video.src !== lastSrc) {
-    const newVideoId = getVideoId();
+    const videoId = getVideoId();
 
     // --- If we were watching a previous video ---
     if (currentVideo && startTime) {
@@ -838,17 +834,44 @@ const observer = new MutationObserver(() => {
         ? Math.min((watchedTime / duration) * 100, 100).toFixed(1)
         : "0";
 
-      // ✅ Save video-stopped event using the previous video's ID
+      // const currentBitrate = lastKnownBitrate || 0;
+      // const { watchedMB, wastedMB } = computeDataUsageMB(
+      //   duration,
+      //   parseFloat(percent),
+      //   currentBitrate
+      // );
+
+      // const bufferHealth = getBufferHealth();
+
+      // saveEvent({
+      //   type: "video-buffer-health",
+      //   videoId: getVideoId(),
+      //   src: currentVideo.src,
+      //   timestamp: new Date().toISOString(),
+      //   extra: {
+      //     bufferHealthSec: bufferHealth
+      //   }
+      // });
+
+
+
+      // ✅ Save video-stopped event with bitrate + data usage
       saveEvent({
         type: "video-stopped",
-        videoId: currentVideoId,
+        videoId: getVideoId(),
         src: currentVideo.src,
         timestamp: new Date().toISOString(),
         watchedTime: watchedTime.toFixed(2),
         duration: duration.toFixed(2),
         percent,
+        // extra: {
+        // //   currentBitrate,
+        // //   watchedMB,
+        // //   wastedMB,
+        // },
       });
 
+      // ✅ Update summary stats (with small delay to ensure event order)
       if (duration > 0) {
         setTimeout(() => {
           updateStats(watchedTime, parseFloat(percent), duration);
@@ -860,7 +883,7 @@ const observer = new MutationObserver(() => {
     if (lastSrc) {
       saveEvent({
         type: "swiped-to-new-video",
-        videoId: newVideoId,
+        videoId,
         src: video.src,
         timestamp: new Date().toISOString(),
         extra: { previous: lastSrc },
@@ -869,7 +892,6 @@ const observer = new MutationObserver(() => {
 
     // === Prepare for next video ===
     currentVideo = video;
-    currentVideoId = newVideoId; // update current video ID for all future events
     lastSrc = video.src;
     startTime = Date.now();
     watchedTime = 0;
