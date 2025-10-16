@@ -302,14 +302,6 @@ function clearPreviousTrackers() {
   console.log("[SwipeExtension] Cleaned up previous trackers");
 }
 
-
-// ================== SAVE EVENT ==================
-function saveEvent(eventData) {
-  console.log("[SwipeExtension Event]", eventData);
-  // In your extension this should persist the event (e.g., sendMessage or local storage)
-}
-
-
 // ================== VIDEO EVENT HOOK ==================
 function attachVideoEvents(video) {
   if (!video || video._hooked) return;
