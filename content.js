@@ -785,24 +785,26 @@ function attachStallAndStartupTracking(video) {
 // ================= CODEC ==========================
 function getCodec() {
   try {
-    // Find any element containing "Codec"
+    // Find the element that contains exactly "Codecs"
     const elems = [...document.querySelectorAll("*")];
-    const target = elems.find(el =>
-      el.textContent.includes("Codec")
-    );
+    const labelElem = elems.find(el => el.textContent.trim() === "Codecs");
 
-    if (!target) return "unknown";
+    if (!labelElem) return "unknown";
 
-    // Extract codec string
-    const match = target.textContent.match(/Codec\s*:\s*(\S+)/i);
-    if (match) {
-      return match[1]; // e.g., "vp9", "av1", "h264"
+    // The codec info is usually the next sibling text node
+    let codecText = labelElem.nextSibling?.textContent?.trim();
+    if (!codecText) {
+      // Sometimes the nextSibling might be another element
+      codecText = labelElem.nextElementSibling?.textContent?.trim();
     }
+
+    return codecText || "unknown";
   } catch (err) {
     console.warn("[SwipeExtension] Codec extraction failed:", err);
+    return "unknown";
   }
-  return "unknown";
 }
+
 
 // ================== OBSERVE VIDEO CHANGES ==================
 const observer = new MutationObserver(() => {
@@ -841,7 +843,6 @@ const observer = new MutationObserver(() => {
       //   currentBitrate
       // );
 
-      codec = getCodec()
 
       // ✅ Save video-stopped event with bitrate + data usage
       saveEvent({
@@ -853,7 +854,7 @@ const observer = new MutationObserver(() => {
         duration: duration.toFixed(2),
         percent,
         extra: {
-             codec
+          codec: getCodec()
         //   currentBitrate,
         //   watchedMB,
         //   wastedMB,
