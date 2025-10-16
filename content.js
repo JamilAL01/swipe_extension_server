@@ -723,11 +723,12 @@ function trackVideoResolution(video) {
 // ============= START-UP DELAY & STALLS ================
 function attachStallAndStartupTracking(video) {
   if (video._stallStartupHooked) return;
-  if (videoId !== activeVideoId) return; // Ignore stale event
 
   video._stallStartupHooked = true;
 
   const videoId = getVideoId();
+  if (videoId !== activeVideoId) return; // Ignore stale event
+
 
   let firstPlayTime = null;
   let stallStart = null;
