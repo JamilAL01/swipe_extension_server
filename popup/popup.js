@@ -12,33 +12,81 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('watch-time').textContent = `${Math.floor(totalTimeSec / 60)} min`;
       document.getElementById('avg-percent').textContent = `${Math.round(avgPercent)}%`;
 
-      // ================== WATCHED vs WASTED DATA (MB) ==================
-      if (history.length > 0) {
-        let totalWatchedMB = 0;
-        let totalWastedMB = 0;
+      // ================== WATCH HISTORY CHART ==================
+      if (history.length > 0 && typeof Chart !== 'undefined') {
+        const ctx = document.getElementById('watch-history-chart').getContext('2d');
+        const percents = history.map(h => h.percentWatched);
 
-        history.forEach(v => {
-          if (!v.extra || v.extra.watchedMB === undefined || v.extra.wastedMB === undefined) return;
-          totalWatchedMB += v.extra.watchedMB;
-          totalWastedMB += v.extra.wastedMB;
+        // moving average window = 5
+        const movingAvg = percents.map((val, i, arr) => {
+          const start = Math.max(0, i - 4);
+          const window = arr.slice(start, i + 1);
+          return window.reduce((sum, v) => sum + v, 0) / window.length;
         });
 
-        // Update UI text
-        const watchedEl = document.getElementById('watched-time');
-        const wastedEl = document.getElementById('wasted-time');
-        if (watchedEl) watchedEl.textContent = `Watched: ${totalWatchedMB.toFixed(2)} MB`;
-        if (wastedEl) wastedEl.textContent = `Wasted: ${totalWastedMB.toFixed(2)} MB`;
+        new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: history.map((_, i) => i + 1),
+            datasets: [
+              {
+                label: '% Watched',
+                data: percents,
+                borderColor: 'steelblue',
+                backgroundColor: 'rgba(54,162,235,0.2)',
+                fill: true,
+                tension: 0.2,
+                pointRadius: 5
+              },
+              {
+                label: 'Moving Avg (5)',
+                data: movingAvg,
+                borderColor: 'orange',
+                borderWidth: 2,
+                fill: false,
+                tension: 0.2,
+                pointRadius: 0
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            animation: { duration: 800 },
+            scales: {
+              y: { beginAtZero: true, max: 100, title: { display: true, text: 'Watch %' } },
+              x: { title: { display: true, text: 'Last Videos' } }
+            },
+            plugins: {
+              tooltip: { mode: 'index', intersect: false },
+              legend: { display: true }
+            }
+          }
+        });
+      }
 
+      // ================== WATCHED vs WASTED TIME ==================
+      if (history.length > 0) {
+        let totalAvailableSec = 0;
+        let totalWatchedSec = 0;
 
-        // Draw SAME pie chart but for MB
+        history.forEach(v => {
+          if (!v.duration || !v.percentWatched) return;
+          totalAvailableSec += v.duration;
+          totalWatchedSec += v.duration * (v.percentWatched / 100);
+        });
+
+        const wastedSec = Math.max(totalAvailableSec - totalWatchedSec, 0);
+        document.getElementById('watched-time').textContent = `${Math.round(totalWatchedSec)} s`;
+        document.getElementById('wasted-time').textContent = `${Math.round(wastedSec)} s`;
+
         const ctxPie = document.getElementById('data-pie-chart').getContext('2d');
         new Chart(ctxPie, {
           type: 'pie',
           data: {
-            labels: ['Watched Data', 'Wasted Data'],
+            labels: ['Watched Time', 'Wasted Time'],
             datasets: [{
-              data: [totalWatchedMB, totalWastedMB],
-              backgroundColor: ['#4CAF50', '#E74C3C'], // same green/red
+              data: [totalWatchedSec, wastedSec],
+              backgroundColor: ['#4CAF50', '#E74C3C'],
               borderWidth: 1
             }]
           },
@@ -46,19 +94,53 @@ document.addEventListener('DOMContentLoaded', () => {
             responsive: true,
             plugins: {
               legend: { position: 'bottom' },
-              tooltip: {
-                callbacks: {
-                  label: (ctx) => `${ctx.label}: ${ctx.raw.toFixed(2)} MB`
-                }
-              }
+              tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${ctx.raw.toFixed(1)} s` } }
             }
           }
+        });
+      }
+
+      // ================== DATA USAGE (MB) ==================
+      if (history.length > 0) {
+        let totalWatchedMB = 0;
+        let totalWastedMB = 0;
+
+        history.forEach(v => {
+          if (!v.duration || !v.percentWatched || !v.currentBitrate) return;
+
+          // bitrate (bits/s) → MB/s
+          const bitrateMBps = v.currentBitrate / (8 * 1024 * 1024);
+          const totalDataMB = v.duration * bitrateMBps;
+          const watchedMB = totalDataMB * (v.percentWatched / 100);
+          const wastedMB = totalDataMB - watchedMB;
+
+          totalWatchedMB += watchedMB;
+          totalWastedMB += wastedMB;
+        });
+
+        totalWatchedMB = totalWatchedMB.toFixed(2);
+        totalWastedMB = totalWastedMB.toFixed(2);
+        const total = parseFloat(totalWatchedMB) + parseFloat(totalWastedMB);
+        const usagePercent = total > 0 ? (100 * totalWatchedMB / total).toFixed(1) : 0;
+
+        const watchedEl = document.getElementById('watchedMB');
+        const wastedEl = document.getElementById('wastedMB');
+        const barEl = document.getElementById('data-bar');
+        if (watchedEl && wastedEl && barEl) {
+          watchedEl.textContent = totalWatchedMB;
+          wastedEl.textContent = totalWastedMB;
+          barEl.style.width = `${usagePercent}%`;
+        }
+
+        chrome.storage.local.set({
+          watchedMB: totalWatchedMB,
+          wastedMB: totalWastedMB,
+          dataUsagePercent: usagePercent
         });
       }
     }
   );
 
-  // ================== RESET BUTTON ==================
   document.getElementById('reset-stats').addEventListener('click', () => {
     chrome.storage.local.clear(() => location.reload());
   });
