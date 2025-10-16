@@ -771,7 +771,7 @@ function attachStallAndStartupTracking(video) {
 
 //     if (!target) return null;
 
-//     // Extract numeric value like "18.71 s"
+//     // Extract numeric value
 //     const match = target.textContent.match(/Buffer\s*Health\s*([0-9.]+)\s*s/i);
 //     if (match) {
 //       return parseFloat(match[1]);
@@ -781,6 +781,28 @@ function attachStallAndStartupTracking(video) {
 //   }
 //   return null;
 // }
+
+// ================= CODEC ==========================
+function getCodec() {
+  try {
+    // Find any element containing "Codec"
+    const elems = [...document.querySelectorAll("*")];
+    const target = elems.find(el =>
+      el.textContent.includes("Codec")
+    );
+
+    if (!target) return "unknown";
+
+    // Extract codec string
+    const match = target.textContent.match(/Codec\s*:\s*(\S+)/i);
+    if (match) {
+      return match[1]; // e.g., "vp9", "av1", "h264"
+    }
+  } catch (err) {
+    console.warn("[SwipeExtension] Codec extraction failed:", err);
+  }
+  return "unknown";
+}
 
 // ================== OBSERVE VIDEO CHANGES ==================
 const observer = new MutationObserver(() => {
@@ -819,6 +841,8 @@ const observer = new MutationObserver(() => {
       //   currentBitrate
       // );
 
+      codec = getCodec()
+
       // ✅ Save video-stopped event with bitrate + data usage
       saveEvent({
         type: "video-stopped",
@@ -828,11 +852,12 @@ const observer = new MutationObserver(() => {
         watchedTime: watchedTime.toFixed(2),
         duration: duration.toFixed(2),
         percent,
-        // extra: {
+        extra: {
+             codec
         //   currentBitrate,
         //   watchedMB,
         //   wastedMB,
-        // },
+        },
       });
 
       // ✅ Update summary stats (with small delay to ensure event order)
