@@ -100,44 +100,44 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
 
-      // ================== DATA USAGE (MB) ==================
-      if (history.length > 0) {
-        let totalWatchedMB = 0;
-        let totalWastedMB = 0;
+      // // ================== DATA USAGE (MB) ==================
+      // if (history.length > 0) {
+      //   let totalWatchedMB = 0;
+      //   let totalWastedMB = 0;
 
-        history.forEach(v => {
-          if (!v.duration || !v.percentWatched || !v.currentBitrate) return;
+      //   history.forEach(v => {
+      //     if (!v.duration || !v.percentWatched || !v.currentBitrate) return;
 
-          // bitrate (bits/s) → MB/s
-          const bitrateMBps = v.currentBitrate / (8 * 1024 * 1024);
-          const totalDataMB = v.duration * bitrateMBps;
-          const watchedMB = totalDataMB * (v.percentWatched / 100);
-          const wastedMB = totalDataMB - watchedMB;
+      //     // bitrate (bits/s) → MB/s
+      //     const bitrateMBps = v.currentBitrate / (8 * 1024 * 1024);
+      //     const totalDataMB = v.duration * bitrateMBps;
+      //     const watchedMB = totalDataMB * (v.percentWatched / 100);
+      //     const wastedMB = totalDataMB - watchedMB;
 
-          totalWatchedMB += watchedMB;
-          totalWastedMB += wastedMB;
-        });
+      //     totalWatchedMB += watchedMB;
+      //     totalWastedMB += wastedMB;
+      //   });
 
-        totalWatchedMB = totalWatchedMB.toFixed(2);
-        totalWastedMB = totalWastedMB.toFixed(2);
-        const total = parseFloat(totalWatchedMB) + parseFloat(totalWastedMB);
-        const usagePercent = total > 0 ? (100 * totalWatchedMB / total).toFixed(1) : 0;
+      //   totalWatchedMB = totalWatchedMB.toFixed(2);
+      //   totalWastedMB = totalWastedMB.toFixed(2);
+      //   const total = parseFloat(totalWatchedMB) + parseFloat(totalWastedMB);
+      //   const usagePercent = total > 0 ? (100 * totalWatchedMB / total).toFixed(1) : 0;
 
-        const watchedEl = document.getElementById('watchedMB');
-        const wastedEl = document.getElementById('wastedMB');
-        const barEl = document.getElementById('data-bar');
-        if (watchedEl && wastedEl && barEl) {
-          watchedEl.textContent = totalWatchedMB;
-          wastedEl.textContent = totalWastedMB;
-          barEl.style.width = `${usagePercent}%`;
-        }
+      //   const watchedEl = document.getElementById('watchedMB');
+      //   const wastedEl = document.getElementById('wastedMB');
+      //   const barEl = document.getElementById('data-bar');
+      //   if (watchedEl && wastedEl && barEl) {
+      //     watchedEl.textContent = totalWatchedMB;
+      //     wastedEl.textContent = totalWastedMB;
+      //     barEl.style.width = `${usagePercent}%`;
+      //   }
 
-        chrome.storage.local.set({
-          watchedMB: totalWatchedMB,
-          wastedMB: totalWastedMB,
-          dataUsagePercent: usagePercent
-        });
-      }
+      //   chrome.storage.local.set({
+      //     watchedMB: totalWatchedMB,
+      //     wastedMB: totalWastedMB,
+      //     dataUsagePercent: usagePercent
+      //   });
+      // }
     }
   );
 
