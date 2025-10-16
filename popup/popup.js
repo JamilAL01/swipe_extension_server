@@ -18,22 +18,24 @@ document.addEventListener('DOMContentLoaded', () => {
         let totalWastedMB = 0;
 
         history.forEach(v => {
-          if (!v.extra || !v.extra.watchedMB || !v.extra.wastedMB) return;
+          if (!v.extra || v.extra.watchedMB === undefined || v.extra.wastedMB === undefined) return;
           totalWatchedMB += v.extra.watchedMB;
           totalWastedMB += v.extra.wastedMB;
         });
 
-        const totalDataMB = totalWatchedMB + totalWastedMB;
-        const watchedPercent = totalDataMB > 0 ? (totalWatchedMB / totalDataMB) * 100 : 0;
+        // Update UI text
+        document.getElementById('watched-time').textContent = `Watched: ${totalWatchedMB.toFixed(2)} MB`;
+        document.getElementById('wasted-time').textContent = `Wasted: ${totalWastedMB.toFixed(2)} MB`;
 
+        // Draw SAME pie chart but for MB
         const ctxPie = document.getElementById('data-pie-chart').getContext('2d');
         new Chart(ctxPie, {
           type: 'pie',
           data: {
-            labels: ['Watched Data (MB)', 'Wasted Data (MB)'],
+            labels: ['Watched Data', 'Wasted Data'],
             datasets: [{
               data: [totalWatchedMB, totalWastedMB],
-              backgroundColor: ['#4CAF50', '#E74C3C'],
+              backgroundColor: ['#4CAF50', '#E74C3C'], // same green/red
               borderWidth: 1
             }]
           },
@@ -45,10 +47,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 callbacks: {
                   label: (ctx) => `${ctx.label}: ${ctx.raw.toFixed(2)} MB`
                 }
-              },
-              title: {
-                display: true,
-                text: `Watched: ${watchedPercent.toFixed(1)}%`
               }
             }
           }
