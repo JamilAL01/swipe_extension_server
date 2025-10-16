@@ -778,9 +778,6 @@ function attachStallAndStartupTracking(video) {
 //   return null;
 // }
 
-
-
-
 // ================== OBSERVE VIDEO CHANGES ==================
 const observer = new MutationObserver(() => {
   const video = document.querySelector("video");
