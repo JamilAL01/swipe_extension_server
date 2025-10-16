@@ -288,8 +288,26 @@ function saveEvent(eventData) {
     .catch(err => console.error("[SwipeExtension] Fetch error ❌", err));
 }
 
-// Define this globally near the top of your content.js
-let lastKnownBitrate = null;
+
+
+// ================== GLOBAL STATE ==================
+let activeVideoId = null;
+let cleanupFns = []; // registered cleanups for each video
+
+
+// ================== CLEANUP HELPERS ==================
+function clearPreviousTrackers() {
+  cleanupFns.forEach(fn => fn());
+  cleanupFns = [];
+  console.log("[SwipeExtension] Cleaned up previous trackers");
+}
+
+
+// ================== SAVE EVENT ==================
+function saveEvent(eventData) {
+  console.log("[SwipeExtension Event]", eventData);
+  // In your extension this should persist the event (e.g., sendMessage or local storage)
+}
 
 
 // ================== VIDEO EVENT HOOK ==================
@@ -297,7 +315,7 @@ function attachVideoEvents(video) {
   if (!video || video._hooked) return;
   video._hooked = true;
 
-  console.log(`[SwipeExtension]  Hooking into video: ${video.src} (ID: ${getVideoId()})`);
+  console.log(`[SwipeExtension] Hooking into video: ${video.src} (ID: ${getVideoId()})`);
 
   video.addEventListener("loadedmetadata", () => {
     prevDuration = video.duration;
@@ -353,7 +371,6 @@ function attachVideoEvents(video) {
   });
 
   video.addEventListener("ended", () => {
-    // Prevent false video-jump on rewatch
     if (startTime) watchedTime += (Date.now() - startTime) / 1000;
     startTime = null;
     const videoId = getVideoId();
@@ -374,7 +391,7 @@ function attachVideoEvents(video) {
 
   video.addEventListener("seeked", () => {
     const videoId = getVideoId();
-    if (Math.abs(video.currentTime) < 0.01) return; // skip "rewatch" resets
+    if (Math.abs(video.currentTime) < 0.01) return;
     saveEvent({
       type: "video-jump",
       videoId,
@@ -382,9 +399,9 @@ function attachVideoEvents(video) {
       timestamp: new Date().toISOString(),
       extra: { jumpTo: video.currentTime.toFixed(2) },
     });
-    console.log(`[SwipeExtension] video-jump ${video.src} (ID: ${videoId}) - Jumped to ${video.currentTime.toFixed(2)}s`);
   });
 }
+
 
 // ================== LIKE / DISLIKE / SHARE ==================
 function attachActionEvents() {
@@ -414,6 +431,179 @@ function attachActionEvents() {
   }
 }
 
+
+// ================== VIEWPORT =======================
+function getVideoViewport(video) {
+  try {
+    const rect = video.getBoundingClientRect();
+    return {
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+      aspect_ratio: (rect.width / rect.height).toFixed(2),
+      orientation: rect.width > rect.height ? "landscape" : "portrait",
+    };
+  } catch {
+    return null;
+  }
+}
+
+
+// ================== VIDEO VIEWPORT TRACKING ======================
+function trackViewportChanges(video, videoId) {
+  if (!video || videoId !== activeVideoId) return;
+
+  let lastViewport = { w: 0, h: 0 };
+
+  const sendViewportEvent = (w, h) => {
+    if (videoId !== activeVideoId) return;
+    saveEvent({
+      type: "video-viewport-change",
+      videoId,
+      src: video.src,
+      timestamp: new Date().toISOString(),
+      extra: {
+        width: w,
+        height: h,
+        aspect_ratio: (w / h).toFixed(2),
+        orientation: w > h ? "landscape" : "portrait",
+      },
+    });
+  };
+
+  const checkViewport = () => {
+    if (videoId !== activeVideoId) return;
+    const vp = getVideoViewport(video);
+    if (vp && (vp.width !== lastViewport.w || vp.height !== lastViewport.h)) {
+      lastViewport = { w: vp.width, h: vp.height };
+      sendViewportEvent(vp.width, vp.height);
+    }
+  };
+
+  const interval = setInterval(checkViewport, 2000);
+  cleanupFns.push(() => clearInterval(interval));
+
+  window.addEventListener("resize", checkViewport);
+  document.addEventListener("fullscreenchange", checkViewport);
+  cleanupFns.push(() => {
+    window.removeEventListener("resize", checkViewport);
+    document.removeEventListener("fullscreenchange", checkViewport);
+  });
+
+  video.addEventListener("loadedmetadata", checkViewport);
+  cleanupFns.push(() => video.removeEventListener("loadedmetadata", checkViewport));
+}
+
+
+// ================== VIDEO RESOLUTION & BITRATE TRACKING ======================
+function trackVideoResolution(video, videoId) {
+  if (!video || videoId !== activeVideoId) return;
+
+  let lastWidth = 0;
+  let lastHeight = 0;
+  let resolutionInterval = null;
+
+  const startTracking = () => {
+    const currentWidth = video.videoWidth;
+    const currentHeight = video.videoHeight;
+
+    saveEvent({
+      type: "video-resolution",
+      videoId,
+      src: video.src,
+      timestamp: new Date().toISOString(),
+      extra: {
+        current: `${currentWidth}x${currentHeight}`,
+        viewport: getVideoViewport(video),
+      },
+    });
+
+    lastWidth = currentWidth;
+    lastHeight = currentHeight;
+
+    resolutionInterval = setInterval(() => {
+      if (videoId !== activeVideoId) return;
+      const w = video.videoWidth;
+      const h = video.videoHeight;
+      if ((w !== lastWidth || h !== lastHeight) && w && h) {
+        lastWidth = w;
+        lastHeight = h;
+        saveEvent({
+          type: "video-resolution-change",
+          videoId,
+          src: video.src,
+          timestamp: new Date().toISOString(),
+          extra: { width: w, height: h, viewport: getVideoViewport(video) },
+        });
+      }
+    }, 2000);
+    cleanupFns.push(() => clearInterval(resolutionInterval));
+  };
+
+  video.addEventListener("loadedmetadata", startTracking);
+  cleanupFns.push(() => video.removeEventListener("loadedmetadata", startTracking));
+}
+
+
+// ============= START-UP DELAY & STALLS ================
+function attachStallAndStartupTracking(video, videoId) {
+  if (!video || videoId !== activeVideoId || video._stallStartupHooked) return;
+  video._stallStartupHooked = true;
+
+  let firstPlayTime = null;
+  let stallStart = null;
+  const startupStart = performance.now();
+
+  const onPlayingFirst = () => {
+    if (!firstPlayTime && videoId === activeVideoId) {
+      firstPlayTime = performance.now();
+      const startupDelay = (firstPlayTime - startupStart) / 1000;
+      if (startupDelay > 0.2) {
+        saveEvent({
+          type: "video-startup-delay",
+          videoId,
+          timestamp: new Date().toISOString(),
+          extra: { startupDelay: startupDelay.toFixed(2) }
+        });
+      }
+      video.removeEventListener("playing", onPlayingFirst);
+    }
+  };
+
+  const onStalled = () => {
+    if (!firstPlayTime || videoId !== activeVideoId) return;
+    if (stallStart === null) stallStart = performance.now();
+  };
+
+  const onResume = () => {
+    if (stallStart !== null && videoId === activeVideoId) {
+      const stallDuration = (performance.now() - stallStart) / 1000;
+      stallStart = null;
+      if (stallDuration > 0.2) {
+        saveEvent({
+          type: "video-stall",
+          videoId,
+          timestamp: new Date().toISOString(),
+          extra: { stallDuration: stallDuration.toFixed(2) }
+        });
+      }
+    }
+  };
+
+  video.addEventListener("playing", onPlayingFirst);
+  video.addEventListener("waiting", onStalled);
+  video.addEventListener("stalled", onStalled);
+  video.addEventListener("playing", onResume);
+  video.addEventListener("timeupdate", onResume);
+
+  cleanupFns.push(() => {
+    video.removeEventListener("playing", onPlayingFirst);
+    video.removeEventListener("waiting", onStalled);
+    video.removeEventListener("stalled", onStalled);
+    video.removeEventListener("playing", onResume);
+    video.removeEventListener("timeupdate", onResume);
+  });
+}
+
 // =================  STATS ========================
 function updateStats(watchedTime, percentWatched, duration, currentBitrate = null) {
   chrome.storage.local.get(['videosWatched', 'totalWatchedTime', 'avgPercentWatched', 'videoHistory'], (data) => {
@@ -441,409 +631,21 @@ function updateStats(watchedTime, percentWatched, duration, currentBitrate = nul
   });
 }
 
-
-// ================== VIEWPORT =======================
-function getVideoViewport(video) {
-  try {
-    const rect = video.getBoundingClientRect();
-    return {
-      width: Math.round(rect.width),
-      height: Math.round(rect.height),
-      aspect_ratio: (rect.width / rect.height).toFixed(2),
-      orientation: rect.width > rect.height ? "landscape" : "portrait",
-    };
-  } catch {
-    return null;
-  }
-}
-
-// ================== VIDEO VIEWPORT TRACKING ======================
-function trackViewportChanges(video, videoId) {
-  if (!video || videoId !== activeVideoId) return;
-
-
-  let lastViewport = { w: 0, h: 0 };
-  let currentVideoId = null;
-
-  const sendViewportEvent = (w, h) => {
-    saveEvent({
-      type: "video-viewport-change",
-      videoId: getVideoId(),
-      src: video.src,
-      timestamp: new Date().toISOString(),
-      extra: {
-        width: w,
-        height: h,
-        aspect_ratio: (w / h).toFixed(2),
-        orientation: w > h ? "landscape" : "portrait",
-      },
-    });
-    console.log(`[SwipeExtension] Viewport changed: ${w}x${h}`);
-  };
-
-  const checkViewport = () => {
-    const vp = getVideoViewport(video);
-    if (vp && (vp.width !== lastViewport.w || vp.height !== lastViewport.h)) {
-      lastViewport = { w: vp.width, h: vp.height };
-      sendViewportEvent(vp.width, vp.height);
-    }
-  };
-
-  // Initial setup when video loads
-  video.addEventListener("loadedmetadata", () => {
-    currentVideoId = getVideoId();
-    checkViewport();
-  });
-
-  // Detect window resizes or fullscreen changes
-  window.addEventListener("resize", checkViewport);
-  document.addEventListener("fullscreenchange", checkViewport);
-
-  // Optional: check every few seconds for subtle UI changes
-  setInterval(checkViewport, 2000);
-  const interval = setInterval(checkViewport, 2000);
-  cleanupFns.push(() => clearInterval(interval));
-
-}
-
-// // ================= CODEC ==========================
-// function getCodec() {
-//   try {
-//     // Find the element that contains exactly "Codecs"
-//     const elems = [...document.querySelectorAll("*")];
-//     const labelElem = elems.find(el => el.textContent.trim() === "Codecs");
-
-//     if (!labelElem) return "unknown";
-
-//     // The codec info is usually the next sibling text node
-//     let codecText = labelElem.nextSibling?.textContent?.trim();
-//     if (!codecText) {
-//       // Sometimes the nextSibling might be another element
-//       codecText = labelElem.nextElementSibling?.textContent?.trim();
-//     }
-
-//     return codecText || "unknown";
-//   } catch (err) {
-//     console.warn("[SwipeExtension] Codec extraction failed:", err);
-//     return "unknown";
-//   }
-// }
-
-// ================== MAX VIDEO RESOLUTION ======================
-function getMaxResolutionAndBitrate() {
-  try {
-    const script = [...document.scripts].find(s =>
-      s.textContent.includes('ytInitialPlayerResponse')
-    );
-    if (!script) return null;
-
-    const match = script.textContent.match(/ytInitialPlayerResponse\s*=\s*(\{.*?\});/);
-    if (!match) return null;
-
-    const data = JSON.parse(match[1]);
-    const adaptiveFormats = data?.streamingData?.adaptiveFormats;
-    if (!adaptiveFormats || !adaptiveFormats.length) return null;
-
-    // Only keep valid video formats
-    const videoFormats = adaptiveFormats.filter(f => f.width && f.height && f.mimeType.includes('video'));
-    if (!videoFormats.length) return null;
-
-    // Pick the one with the largest pixel count
-    const maxFmt = videoFormats.reduce((acc, fmt) => {
-      const accPixels = acc.width * acc.height;
-      const pixels = fmt.width * fmt.height;
-      return pixels > accPixels ? fmt : acc;
-    });
-
-    const maxRes = `${maxFmt.width}x${maxFmt.height}`;
-    const bitrate = maxFmt.averageBitrate || maxFmt.bitrate || null; // in bps
-    
-
-    return { maxRes, bitrate };
-  } catch (err) {
-    console.warn('[SwipeExtension] Failed to parse ytInitialPlayerResponse:', err);
-    return null;
-  }
-}
-
-// ================== VIDEO RESOLUTION & BITRATE TRACKING ======================
-function trackVideoResolution(video, videoId) {
-  if (!video || videoId !== activeVideoId) return;
-
-  let lastWidth = 0;
-  let lastHeight = 0;
-  let allowChanges = false;
-  let currentVideoId = null;
-  let resolutionInterval = null;
-  let timeoutId = null;
-
-  const cleanup = () => {
-    clearInterval(resolutionInterval);
-    clearTimeout(timeoutId);
-    resolutionInterval = null;
-    allowChanges = false;
-  };
-
-  const startResolutionTracking = () => {
-    timeoutId = setTimeout(() => {
-      currentVideoId = getVideoId();
-      if (!currentVideoId) return;
-
-      const currentWidth = video.videoWidth;
-      const currentHeight = video.videoHeight;
-
-      // Parse ytInitialPlayerResponse
-      const script = [...document.scripts].find(s =>
-        s.textContent.includes("ytInitialPlayerResponse")
-      );
-      if (!script) return;
-
-      const match = script.textContent.match(/ytInitialPlayerResponse\s*=\s*(\{.*?\});/);
-      if (!match) return;
-
-      const data = JSON.parse(match[1]);
-      const adaptiveFormats = data?.streamingData?.adaptiveFormats || [];
-
-      // Video-only formats
-      const videoFormats = adaptiveFormats.filter(f => f.mimeType.includes("video"));
-      if (!videoFormats.length) return;
-
-      // Find max resolution + bitrate + codec
-      const maxFmt = videoFormats.reduce(
-        (acc, fmt) => (fmt.bitrate || 0) > (acc.bitrate || 0) ? fmt : acc,
-        {}
-      );
-      const maxRes = maxFmt.width && maxFmt.height
-        ? `${maxFmt.width}x${maxFmt.height}`
-        : `${currentWidth}x${currentHeight}`;
-      // const maxBitrate = maxFmt.averageBitrate || maxFmt.bitrate || null;
-
-      // // Find current bitrate
-      // const currentFmt = videoFormats.find(
-      //   f => f.width === currentWidth && f.height === currentHeight
-      // );
-      // const currentBitrate = currentFmt
-      //   ? (currentFmt.averageBitrate || currentFmt.bitrate)
-      //   : null;
-
-      // lastKnownBitrate = currentBitrate || lastKnownBitrate;
-
-
-      // Log initial
-      saveEvent({
-        type: "video-resolution",
-        videoId: currentVideoId,
-        src: video.src,
-        timestamp: new Date().toISOString(),
-        extra: {
-          current: `${currentWidth}x${currentHeight}`,
-          max: maxRes,
-          //codec: getCodec(),
-          //currentBitrate,
-          //maxBitrate,
-          viewport: getVideoViewport(video),
-        },
-      });
-
-      allowChanges = true;
-      lastWidth = currentWidth;
-      lastHeight = currentHeight;
-
-      // Periodic resolution/bitrate tracking
-      resolutionInterval = setInterval(() => {
-        if (!allowChanges || !currentVideoId || video.readyState < 2) return;
-
-        const w = video.videoWidth;
-        const h = video.videoHeight;
-
-        if ((w !== lastWidth || h !== lastHeight) && w && h) {
-          lastWidth = w;
-          lastHeight = h;
-
-          const fmt = videoFormats.find(f => f.width === w && f.height === h);
-          const currentBitrateChange = fmt
-            ? (fmt.averageBitrate || fmt.bitrate)
-            : null;
-
-          saveEvent({
-            type: "video-resolution-change",
-            videoId: currentVideoId,
-            src: video.src,
-            timestamp: new Date().toISOString(),
-            extra: {
-              width: w,
-              height: h,
-              //currentBitrate: currentBitrateChange,
-              //maxBitrate,
-              viewport: getVideoViewport(video),
-            },
-          });
-        }
-      }, 2000);
-    }, 100);
-  };
-
-  video.addEventListener("loadedmetadata", () => {
-    cleanup();
-    startResolutionTracking();
-  });
-
-  video.addEventListener("ended", cleanup);
-  cleanupFns.push(() => clearInterval(resolutionInterval));
-}
-
-
-// // ============ VIDEO BITRATE ===================
-// function computeDataUsageMB(durationSec, percentWatched, currentBitrateBps) {
-//   if (!durationSec || !currentBitrateBps) return { watchedMB: 0, wastedMB: 0 };
-
-//   const watchedSec = durationSec * (percentWatched / 100);
-//   const wastedSec = durationSec - watchedSec;
-
-//   // bits → bytes → MB
-//   const watchedMB = (watchedSec * currentBitrateBps) / 8 / 1e6;
-//   const wastedMB  = (wastedSec  * currentBitrateBps) / 8 / 1e6;
-
-//   return {
-//     watchedMB: watchedMB.toFixed(2),
-//     wastedMB: wastedMB.toFixed(2)
-//   };
-// }
-
-
-// ============= START-UP DELAY & STALLS ================
-function attachStallAndStartupTracking(video, videoId) {
-  if (!video || videoId !== activeVideoId) return;
-  if (video._stallStartupHooked) return;
-  video._stallStartupHooked = true;
-
-  const videoId = getVideoId();
-
-  let firstPlayTime = null;
-  let stallStart = null;
-
-  // -------- STARTUP DELAY ----------
-  const startupStart = performance.now();
-
-  const onPlayingFirst = () => {
-    if (!firstPlayTime) {
-      firstPlayTime = performance.now();
-      let startupDelay = (firstPlayTime - startupStart) / 1000;
-
-      // Subtract any "survey popup" time if needed
-      const popupDismissedAt = window._swipeConsentDismissedAt || null;
-      if (popupDismissedAt && popupDismissedAt > startupStart) {
-        startupDelay = Math.max(0, (firstPlayTime - popupDismissedAt) / 1000);
-      }
-
-      if (startupDelay > 0.2) {  // ignore tiny startup delays
-        saveEvent({
-          type: "video-startup-delay",
-          videoId,
-          timestamp: new Date().toISOString(),
-          extra: { startupDelay: startupDelay.toFixed(2) }
-        });
-        console.log(`[SwipeExtension] Startup delay sent: ${startupDelay.toFixed(2)}s`);
-      }
-
-      video.removeEventListener("playing", onPlayingFirst);
-    }
-  };
-
-  video.addEventListener("playing", onPlayingFirst);
-
-  // -------- STALL DETECTION ----------
-  const onStalled = () => {
-    // Ignore stalls before first playback
-    if (!firstPlayTime) return;
-    if (stallStart === null) {
-      stallStart = performance.now();
-      console.log("[SwipeExtension] Stall started…");
-    }
-  };
-
-  const onResume = () => {
-    if (stallStart !== null) {
-      const stallDuration = (performance.now() - stallStart) / 1000;
-      stallStart = null;
-
-      if (stallDuration > 0.2) {  // filter out micro-stalls
-        saveEvent({
-          type: "video-stall",
-          videoId,
-          timestamp: new Date().toISOString(),
-          extra: { stallDuration: stallDuration.toFixed(2) }
-        });
-        console.log(`[SwipeExtension] Stall ended: ${stallDuration.toFixed(2)}s`);
-      }
-    }
-  };
-
-  video.addEventListener("waiting", onStalled);
-  video.addEventListener("stalled", onStalled);
-  video.addEventListener("playing", onResume);
-  video.addEventListener("timeupdate", onResume);
-  
-  cleanupFns.push(() => {
-    video.removeEventListener("playing", onPlayingFirst);
-    video.removeEventListener("waiting", onStalled);
-    video.removeEventListener("stalled", onStalled);
-    video.removeEventListener("playing", onResume);
-    video.removeEventListener("timeupdate", onResume);
-  });
-}
-
-
-
-// // =============== BUFFER HEALTH ======================
-// function getBufferHealth() {
-//   try {
-//     // Find any element containing "Buffer Health"
-//     const elems = [...document.querySelectorAll("*")];
-//     const target = elems.find(el =>
-//       el.textContent.includes("Buffer Health")
-//     );
-
-//     if (!target) return null;
-
-//     // Extract numeric value
-//     const match = target.textContent.match(/Buffer\s*Health\s*([0-9.]+)\s*s/i);
-//     if (match) {
-//       return parseFloat(match[1]);
-//     }
-//   } catch (err) {
-//     console.warn("[SwipeExtension] Buffer health extraction failed:", err);
-//   }
-//   return null;
-// }
-
-let activeVideoId = null;
-let cleanupFns = []; // keep track of intervals/listeners to stop
-
-function clearPreviousTrackers() {
-  cleanupFns.forEach(fn => fn());
-  cleanupFns = [];
-}
-
 // ================== OBSERVE VIDEO CHANGES ==================
 const observer = new MutationObserver(() => {
   const video = document.querySelector("video");
   if (!video) return;
 
-  // === Handle new video (when src changes) ===
   if (video.src && video.src !== lastSrc) {
-    clearPreviousTrackers(); // 🧹 stop old intervals, etc.
-
+    clearPreviousTrackers(); // stop all old trackers
     const videoId = getVideoId();
-    activeVideoId = videoId; // set new context
+    activeVideoId = videoId;
 
-    // --- stop & record previous video ---
+    // Stop previous video
     if (currentVideo && startTime) {
       watchedTime += (Date.now() - startTime) / 1000;
       const duration = prevDuration || currentVideo.duration || 0;
-      const percent = duration
-        ? Math.min((watchedTime / duration) * 100, 100).toFixed(1)
-        : "0";
+      const percent = duration ? Math.min((watchedTime / duration) * 100, 100).toFixed(1) : "0";
 
       saveEvent({
         type: "video-stopped",
@@ -854,15 +656,8 @@ const observer = new MutationObserver(() => {
         duration: duration.toFixed(2),
         percent,
       });
-
-      if (duration > 0) {
-        setTimeout(() => {
-          updateStats(watchedTime, parseFloat(percent), duration);
-        }, 100);
-      }
     }
 
-    // --- log the swipe transition ---
     if (lastSrc) {
       saveEvent({
         type: "swiped-to-new-video",
@@ -873,7 +668,7 @@ const observer = new MutationObserver(() => {
       });
     }
 
-    // === prepare new video context ===
+    // Prepare new video
     currentVideo = video;
     lastSrc = video.src;
     startTime = Date.now();
@@ -881,7 +676,7 @@ const observer = new MutationObserver(() => {
     prevDuration = video.duration || 0;
     hasPlayed = false;
 
-    // ✅ guaranteed first event
+    // Guaranteed first event
     saveEvent({
       type: "video-start",
       videoId,
@@ -890,7 +685,6 @@ const observer = new MutationObserver(() => {
       duration: prevDuration.toFixed(2),
     });
 
-    // === reattach all sub-trackers with guards ===
     trackVideoResolution(video, videoId);
     trackViewportChanges(video, videoId);
     attachStallAndStartupTracking(video, videoId);
