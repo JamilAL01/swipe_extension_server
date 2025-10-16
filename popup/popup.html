@@ -2,129 +2,151 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Swipe Video Logger</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SWiPE X STATS</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="popup.css" />
   <style>
     :root { 
-      --bg: #fff; 
+      --bg: #fdfdfd; 
       --muted: #f3f4f6; 
-      --accent: #1e40af; 
-      --card: #f9fafc; 
+      --accent: #2563eb; 
+      --card: #ffffff; 
       --danger: #ef4444; 
+      --shadow: rgba(0, 0, 0, 0.08);
     }
 
     html, body {
       margin: 0;
       padding: 0;
-      font-family: Inter, Arial, sans-serif;
-      background: transparent;
+      font-family: 'Inter', Arial, sans-serif;
+      background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
     }
 
     .container {
-      width: 360px;
-      padding: 16px;
-      background: var(--bg);
-      border-radius: 12px;
-      box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+      width: 380px;
+      padding: 18px;
+      background: var(--card);
+      border-radius: 14px;
+      box-shadow: 0 8px 30px var(--shadow);
       color: #111;
+      margin: 12px auto;
     }
 
-    h1 { font-size:16px; margin:0 0 12px; text-align:center }
+    h1 {
+      font-size: 18px;
+      margin: 0 0 16px;
+      text-align: center;
+      letter-spacing: 0.5px;
+      color: var(--accent);
+    }
 
+    /* === Metrics Section === */
     .metrics {
-      display:flex;
-      flex-direction:column;
-      gap:8px;
-      margin-bottom:12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 14px;
     }
 
     .metric {
-      display:flex;
-      justify-content:space-between;
-      padding:8px;
-      border-radius:8px;
-      background:var(--muted);
-      font-size:13px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: var(--muted);
+      font-size: 13px;
+      transition: background 0.3s ease;
     }
 
-    .metric .label { color:#333 }
-    .metric .value { font-weight:700; color:var(--accent) }
+    .metric:hover {
+      background: #e5e7eb;
+    }
 
+    .metric .label { 
+      color: #333;
+      font-weight: 500;
+    }
+
+    .metric .value { 
+      font-weight: 700; 
+      color: var(--accent);
+    }
+
+    /* === Chart Layout === */
     .charts {
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:10px;
-      margin-top:10px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-top: 10px;
     }
 
     .chart-block {
       background: var(--card);
-      padding:8px;
-      border-radius:10px;
-      text-align:center;
+      border: 1px solid #e5e7eb;
+      padding: 12px;
+      border-radius: 12px;
+      text-align: center;
+      box-shadow: 0 2px 8px var(--shadow);
     }
 
     .chart-block h3 {
-      font-size:12px;
-      margin:0 0 8px;
+      font-size: 13px;
+      margin: 0 0 10px;
+      color: #222;
+      font-weight: 600;
     }
 
     canvas {
-      width:100% !important;
-      height:160px !important;
+      width: 100% !important;
+      height: 180px !important;
     }
 
     .summary-row {
-      display:flex;
-      justify-content:space-between;
-      margin-top:8px;
-      font-size:12px;
+      display: flex;
+      justify-content: space-between;
+      margin-top: 8px;
+      font-size: 12px;
     }
 
     .summary-row span {
-      background:#eef2ff;
-      padding:6px 8px;
-      border-radius:8px;
-      color:#123;
+      background: #eef2ff;
+      padding: 6px 8px;
+      border-radius: 8px;
+      color: #123;
+      font-weight: 500;
     }
-
-    .full-row { grid-column:1 / -1 } 
 
     .reset-btn {
-      width:100%;
-      margin-top:12px;
-      padding:8px;
-      border-radius:8px;
-      border:0;
-      background:var(--danger);
-      color:#fff;
-      font-weight:700;
-      cursor:pointer;
-    }
-
-    #data-bar-container {
-      height: 8px;
       width: 100%;
-      background: rgba(0,0,0,0.05);
+      margin-top: 14px;
+      padding: 10px;
       border-radius: 10px;
-      overflow: hidden;
-      margin-top:8px;
+      border: none;
+      background: var(--danger);
+      color: #fff;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.25s ease, transform 0.1s ease;
     }
 
-    #data-bar {
-      height: 100%;
-      width: 0%;
-      background: #4CAF50;
-      transition: width 0.5s ease;
+    .reset-btn:hover {
+      background: #dc2626;
+      transform: translateY(-1px);
     }
+
+    .reset-btn:active {
+      transform: translateY(0);
+    }
+
   </style>
 </head>
 <body>
   <div class="container" role="main" aria-label="Swipe stats popup">
     <h1>SWiPE X STATS</h1>
 
-    <div class="metrics" aria-hidden="false">
+    <div class="metrics">
       <div class="metric">
         <span class="label"><b>Videos Watched</b></span>
         <span id="videos-count" class="value">0</span>
@@ -141,20 +163,17 @@
       </div>
     </div>
 
-    <div class="charts" aria-hidden="false">
-      <div class="chart-block full-row">
-        <h3>Watch History</h3>
-        <canvas id="watch-history-chart" aria-label="Watch history chart"></canvas>
+    <div class="charts">
+      <div class="chart-block">
+        <h3>Watch History (All Videos)</h3>
+        <canvas id="watch-history-chart"></canvas>
       </div>
 
       <div class="chart-block">
-        <h3>Watched vs Wasted</h3>
-        <div style="display:flex; gap:12px; align-items:center;">
-          <!-- Pie Chart -->
-          <canvas id="data-pie-chart" aria-label="Watched versus wasted pie chart" style="flex:1; max-width:160px;"></canvas>
-        </div>
+        <h3>Watched vs Wasted Time</h3>
+        <canvas id="data-pie-chart"></canvas>
 
-        <div class="summary-row" style="margin-top:10px; display:flex; gap:10px; align-items:center;">
+        <div class="summary-row">
           <div style="display:flex; align-items:center; gap:4px;">
             <div style="width:12px; height:12px; background:#4CAF50; border-radius:3px;"></div>
             <span id="watched-time">Watched: 0 s</span>
@@ -167,7 +186,7 @@
       </div>
     </div>
 
-    <button id="reset-stats" class="reset-btn" aria-label="Reset statistics">Reset Stats</button>
+    <button id="reset-stats" class="reset-btn">Reset Stats</button>
   </div>
 
   <script src="chart.umd.js"></script>
