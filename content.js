@@ -259,6 +259,8 @@ let watchedTime = 0;
 let prevDuration = 0;
 let hasPlayed = false; 
 let lastUrl = window.location.href;
+let activeVideoId = null; // track current valid video context
+
 
 // ================== HELPER FUNCTIONS ==================
 function getVideoId() {
@@ -295,6 +297,8 @@ let lastKnownBitrate = null;
 // ================== VIDEO EVENT HOOK ==================
 function attachVideoEvents(video) {
   if (!video || video._hooked) return;
+  if (videoId !== activeVideoId) return; // Ignore stale event
+
   video._hooked = true;
 
   console.log(`[SwipeExtension]  Hooking into video: ${video.src} (ID: ${getVideoId()})`);
@@ -388,6 +392,8 @@ function attachVideoEvents(video) {
 
 // ================== LIKE / DISLIKE / SHARE ==================
 function attachActionEvents() {
+  if (videoId !== activeVideoId) return; // Ignore stale event
+
   const likeBtn = document.querySelector('ytd-toggle-button-renderer:nth-of-type(1) button');
   const dislikeBtn = document.querySelector('ytd-toggle-button-renderer:nth-of-type(2) button');
   const shareBtn = document.querySelector('ytd-button-renderer[button-renderer][is-icon-button] button, #share-button button');
@@ -460,6 +466,8 @@ function getVideoViewport(video) {
 // ================== VIDEO VIEWPORT TRACKING ======================
 function trackViewportChanges(video) {
   if (!video) return;
+  if (videoId !== activeVideoId) return; // Ignore stale event
+
 
   let lastViewport = { w: 0, h: 0 };
   let currentVideoId = null;
@@ -565,6 +573,8 @@ function getMaxResolutionAndBitrate() {
 // ================== VIDEO RESOLUTION & BITRATE TRACKING ======================
 function trackVideoResolution(video) {
   if (!video) return;
+  if (videoId !== activeVideoId) return; // Ignore stale event
+
 
   let lastWidth = 0;
   let lastHeight = 0;
@@ -709,6 +719,8 @@ function trackVideoResolution(video) {
 // ============= START-UP DELAY & STALLS ================
 function attachStallAndStartupTracking(video) {
   if (video._stallStartupHooked) return;
+  if (videoId !== activeVideoId) return; // Ignore stale event
+
   video._stallStartupHooked = true;
 
   const videoId = getVideoId();
@@ -803,7 +815,6 @@ function attachStallAndStartupTracking(video) {
 // }
 
 
-
 // ================== OBSERVE VIDEO CHANGES ==================
 const observer = new MutationObserver(() => {
   const video = document.querySelector("video");
@@ -824,6 +835,8 @@ const observer = new MutationObserver(() => {
   // === Handle new video (when src changes) ===
   if (video.src && video.src !== lastSrc) {
     const videoId = getVideoId();
+    activeVideoId = videoId; // new video context is active
+
 
     // --- If we were watching a previous video ---
     if (currentVideo && startTime) {
@@ -898,8 +911,21 @@ const observer = new MutationObserver(() => {
     prevDuration = video.duration || 0;
     hasPlayed = false;
 
+    // ✅ Immediately record the start
+    saveEvent({
+      type: "video-start",
+      videoId,
+      src: video.src,
+      timestamp: new Date().toISOString(),
+      duration: prevDuration.toFixed(2),
+    });
+
+    trackVideoResolution(video, videoId);
+    trackViewportChanges(video);
+    attachStallAndStartupTracking(video);
     attachVideoEvents(video);
     attachActionEvents();
+
   }
 });
 
