@@ -64,28 +64,24 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
 
-      // ================== WATCHED vs WASTED TIME ==================
+      // ================== WATCHED vs WASTED DATA (MB) ==================
       if (history.length > 0) {
-        let totalAvailableSec = 0;
-        let totalWatchedSec = 0;
+        let totalWatchedMB = 0;
+        let totalWastedMB = 0;
 
         history.forEach(v => {
-          if (!v.duration || !v.percentWatched) return;
-          totalAvailableSec += v.duration;
-          totalWatchedSec += v.duration * (v.percentWatched / 100);
+          if (!v.extra || !v.extra.watchedMB || !v.extra.wastedMB) return;
+          totalWatchedMB += v.extra.watchedMB;
+          totalWastedMB += v.extra.wastedMB;
         });
-
-        const wastedSec = Math.max(totalAvailableSec - totalWatchedSec, 0);
-        document.getElementById('watched-time').textContent = `${Math.round(totalWatchedSec)} s`;
-        document.getElementById('wasted-time').textContent = `${Math.round(wastedSec)} s`;
 
         const ctxPie = document.getElementById('data-pie-chart').getContext('2d');
         new Chart(ctxPie, {
           type: 'pie',
           data: {
-            labels: ['Watched Time', 'Wasted Time'],
+            labels: ['Watched Data (MB)', 'Wasted Data (MB)'],
             datasets: [{
-              data: [totalWatchedSec, wastedSec],
+              data: [totalWatchedMB, totalWastedMB],
               backgroundColor: ['#4CAF50', '#E74C3C'],
               borderWidth: 1
             }]
@@ -94,11 +90,16 @@ document.addEventListener('DOMContentLoaded', () => {
             responsive: true,
             plugins: {
               legend: { position: 'bottom' },
-              tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${ctx.raw.toFixed(1)} s` } }
+              tooltip: {
+                callbacks: {
+                  label: (ctx) => `${ctx.label}: ${ctx.raw.toFixed(2)} MB`
+                }
+              }
             }
           }
         });
       }
+
 
       // ================== DATA USAGE (MB) ==================
       if (history.length > 0) {
