@@ -502,8 +502,30 @@ function trackViewportChanges(video) {
   setInterval(checkViewport, 2000);
 }
 
+// ================= CODEC ==========================
+function getCodec() {
+  try {
+    // Find the element that contains exactly "Codecs"
+    const elems = [...document.querySelectorAll("*")];
+    const labelElem = elems.find(el => el.textContent.trim() === "Codecs");
 
-// ================== VIDEO RESOLUTION ======================
+    if (!labelElem) return "unknown";
+
+    // The codec info is usually the next sibling text node
+    let codecText = labelElem.nextSibling?.textContent?.trim();
+    if (!codecText) {
+      // Sometimes the nextSibling might be another element
+      codecText = labelElem.nextElementSibling?.textContent?.trim();
+    }
+
+    return codecText || "unknown";
+  } catch (err) {
+    console.warn("[SwipeExtension] Codec extraction failed:", err);
+    return "unknown";
+  }
+}
+
+// ================== MAX VIDEO RESOLUTION ======================
 function getMaxResolutionAndBitrate() {
   try {
     const script = [...document.scripts].find(s =>
@@ -539,6 +561,7 @@ function getMaxResolutionAndBitrate() {
     return null;
   }
 }
+
 // ================== VIDEO RESOLUTION & BITRATE TRACKING ======================
 function trackVideoResolution(video) {
   if (!video) return;
@@ -610,6 +633,7 @@ function trackVideoResolution(video) {
         timestamp: new Date().toISOString(),
         extra: {
           current: `${currentWidth}x${currentHeight}`,
+          codec: getCodec(),
           max: maxRes,
           //currentBitrate,
           //maxBitrate,
@@ -757,49 +781,27 @@ function attachStallAndStartupTracking(video) {
 
 
 // =============== BUFFER HEALTH ======================
-// function getBufferHealth() {
-//   try {
-//     // Find any element containing "Buffer Health"
-//     const elems = [...document.querySelectorAll("*")];
-//     const target = elems.find(el =>
-//       el.textContent.includes("Buffer Health")
-//     );
-
-//     if (!target) return null;
-
-//     // Extract numeric value
-//     const match = target.textContent.match(/Buffer\s*Health\s*([0-9.]+)\s*s/i);
-//     if (match) {
-//       return parseFloat(match[1]);
-//     }
-//   } catch (err) {
-//     console.warn("[SwipeExtension] Buffer health extraction failed:", err);
-//   }
-//   return null;
-// }
-
-// ================= CODEC ==========================
-function getCodec() {
+function getBufferHealth() {
   try {
-    // Find the element that contains exactly "Codecs"
+    // Find any element containing "Buffer Health"
     const elems = [...document.querySelectorAll("*")];
-    const labelElem = elems.find(el => el.textContent.trim() === "Codecs");
+    const target = elems.find(el =>
+      el.textContent.includes("Buffer Health")
+    );
 
-    if (!labelElem) return "unknown";
+    if (!target) return null;
 
-    // The codec info is usually the next sibling text node
-    let codecText = labelElem.nextSibling?.textContent?.trim();
-    if (!codecText) {
-      // Sometimes the nextSibling might be another element
-      codecText = labelElem.nextElementSibling?.textContent?.trim();
+    // Extract numeric value
+    const match = target.textContent.match(/Buffer\s*Health\s*([0-9.]+)\s*s/i);
+    if (match) {
+      return parseFloat(match[1]);
     }
-
-    return codecText || "unknown";
   } catch (err) {
-    console.warn("[SwipeExtension] Codec extraction failed:", err);
-    return "unknown";
+    console.warn("[SwipeExtension] Buffer health extraction failed:", err);
   }
+  return null;
 }
+
 
 
 // ================== OBSERVE VIDEO CHANGES ==================
@@ -839,6 +841,19 @@ const observer = new MutationObserver(() => {
       //   currentBitrate
       // );
 
+      const bufferHealth = getBufferHealth();
+
+      saveEvent({
+        type: "video-buffer-health",
+        videoId: getVideoId(),
+        src: currentVideo.src,
+        timestamp: new Date().toISOString(),
+        extra: {
+          bufferHealthSec: bufferHealth
+        }
+      });
+
+
 
       // ✅ Save video-stopped event with bitrate + data usage
       saveEvent({
@@ -849,12 +864,11 @@ const observer = new MutationObserver(() => {
         watchedTime: watchedTime.toFixed(2),
         duration: duration.toFixed(2),
         percent,
-        extra: {
-          codec: getCodec()
-        //   currentBitrate,
-        //   watchedMB,
-        //   wastedMB,
-        },
+        // extra: {
+        // //   currentBitrate,
+        // //   watchedMB,
+        // //   wastedMB,
+        // },
       });
 
       // ✅ Update summary stats (with small delay to ensure event order)
