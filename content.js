@@ -297,7 +297,6 @@ let lastKnownBitrate = null;
 // ================== VIDEO EVENT HOOK ==================
 function attachVideoEvents(video) {
   if (!video || video._hooked) return;
-  if (videoId !== activeVideoId) return; // Ignore stale event
 
   video._hooked = true;
 
@@ -310,6 +309,7 @@ function attachVideoEvents(video) {
   video.addEventListener("play", () => {
     setTimeout(() => {
       const videoId = getVideoId();
+      if (videoId !== activeVideoId) return; // Ignore stale event
       if (!hasPlayed) {
         saveEvent({ type: "video-start", videoId, src: video.src, timestamp: new Date().toISOString() });
         hasPlayed = true;
@@ -324,6 +324,7 @@ function attachVideoEvents(video) {
     if (startTime) watchedTime += (Date.now() - startTime) / 1000;
     startTime = null;
     const videoId = getVideoId();
+    if (videoId !== activeVideoId) return; // Ignore stale event
     const watchPercent = prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100) : 0;
     saveEvent({
       type: "video-paused",
@@ -342,6 +343,8 @@ function attachVideoEvents(video) {
 
     if (prevDuration && watchedTime >= prevDuration) {
       const videoId = getVideoId();
+      if (videoId !== activeVideoId) return; // Ignore stale event
+
       saveEvent({
         type: "video-watched-100",
         videoId,
@@ -361,6 +364,8 @@ function attachVideoEvents(video) {
     if (startTime) watchedTime += (Date.now() - startTime) / 1000;
     startTime = null;
     const videoId = getVideoId();
+    if (videoId !== activeVideoId) return; // Ignore stale event
+
     if (prevDuration && Math.abs(watchedTime - prevDuration) < 2) {
       saveEvent({
         type: "video-watched-100",
@@ -378,6 +383,8 @@ function attachVideoEvents(video) {
 
   video.addEventListener("seeked", () => {
     const videoId = getVideoId();
+    if (videoId !== activeVideoId) return; // Ignore stale event
+
     if (Math.abs(video.currentTime) < 0.01) return; // skip "rewatch" resets
     saveEvent({
       type: "video-jump",
@@ -392,7 +399,6 @@ function attachVideoEvents(video) {
 
 // ================== LIKE / DISLIKE / SHARE ==================
 function attachActionEvents() {
-  if (videoId !== activeVideoId) return; // Ignore stale event
 
   const likeBtn = document.querySelector('ytd-toggle-button-renderer:nth-of-type(1) button');
   const dislikeBtn = document.querySelector('ytd-toggle-button-renderer:nth-of-type(2) button');
@@ -466,7 +472,6 @@ function getVideoViewport(video) {
 // ================== VIDEO VIEWPORT TRACKING ======================
 function trackViewportChanges(video) {
   if (!video) return;
-  if (videoId !== activeVideoId) return; // Ignore stale event
 
 
   let lastViewport = { w: 0, h: 0 };
@@ -573,7 +578,6 @@ function getMaxResolutionAndBitrate() {
 // ================== VIDEO RESOLUTION & BITRATE TRACKING ======================
 function trackVideoResolution(video) {
   if (!video) return;
-  if (videoId !== activeVideoId) return; // Ignore stale event
 
 
   let lastWidth = 0;
