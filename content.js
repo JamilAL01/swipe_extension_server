@@ -253,6 +253,7 @@ if (!consent) {
 // ================== USER & SESSION SETUP ==================
 
 let currentVideo = null;
+let currentVideoId = null;
 let lastSrc = null;
 let startTime = null;
 let watchedTime = 0;
@@ -803,100 +804,81 @@ function attachStallAndStartupTracking(video) {
 // }
 
 
+// ================== OBSERVE VIDEO CHANGES  ====================
 
-// ================== OBSERVE VIDEO CHANGES ==================
 const observer = new MutationObserver(() => {
   const video = document.querySelector("video");
   if (!video) return;
 
-  // === Hook resolution & viewport tracking once per video ===
-  if (!video._resolutionHooked) {
-    video._resolutionHooked = true;
-
-    const videoId = getVideoId();
-    trackVideoResolution(video, videoId);
-    trackViewportChanges(video);
-
-    // Hook stall + startup delay early
-    attachStallAndStartupTracking(video);
-  }
-
   // === Handle new video (when src changes) ===
   if (video.src && video.src !== lastSrc) {
-    const videoId = getVideoId();
+    console.log("[Sync] Detected new video src →", video.src);
 
-    // --- If we were watching a previous video ---
+    // --- Stop previous video cleanly ---
     if (currentVideo && startTime) {
-      watchedTime += (Date.now() - startTime) / 1000;
-
+      const stopId = currentVideoId || getVideoId();
       const duration = prevDuration || currentVideo.duration || 0;
-      const percent = duration
-        ? Math.min((watchedTime / duration) * 100, 100).toFixed(1)
-        : "0";
+      const watched = (Date.now() - startTime) / 1000;
+      const percent = duration ? Math.min((watched / duration) * 100, 100).toFixed(1) : "0";
 
-      // const currentBitrate = lastKnownBitrate || 0;
-      // const { watchedMB, wastedMB } = computeDataUsageMB(
-      //   duration,
-      //   parseFloat(percent),
-      //   currentBitrate
-      // );
-
-      // const bufferHealth = getBufferHealth();
-
-      // saveEvent({
-      //   type: "video-buffer-health",
-      //   videoId: getVideoId(),
-      //   src: currentVideo.src,
-      //   timestamp: new Date().toISOString(),
-      //   extra: {
-      //     bufferHealthSec: bufferHealth
-      //   }
-      // });
-
-
-
-      // ✅ Save video-stopped event with bitrate + data usage
       saveEvent({
         type: "video-stopped",
-        videoId: getVideoId(),
+        videoId: stopId,
         src: currentVideo.src,
         timestamp: new Date().toISOString(),
-        watchedTime: watchedTime.toFixed(2),
+        watchedTime: watched.toFixed(2),
         duration: duration.toFixed(2),
         percent,
-        // extra: {
-        // //   currentBitrate,
-        // //   watchedMB,
-        // //   wastedMB,
-        // },
       });
 
-      // ✅ Update summary stats (with small delay to ensure event order)
-      if (duration > 0) {
-        setTimeout(() => {
-          updateStats(watchedTime, parseFloat(percent), duration);
-        }, 100);
-      }
+      // Update popup stats
+      if (duration > 0) updateStats(watched, parseFloat(percent), duration);
     }
 
-    // --- Save “swiped to new video” transition ---
+    // --- Transition event (swipe) ---
     if (lastSrc) {
       saveEvent({
         type: "swiped-to-new-video",
-        videoId,
+        videoId: currentVideoId,
         src: video.src,
         timestamp: new Date().toISOString(),
         extra: { previous: lastSrc },
       });
     }
 
-    // === Prepare for next video ===
-    currentVideo = video;
+    // === Prepare new video ===
     lastSrc = video.src;
-    startTime = Date.now();
+    currentVideo = video;
+    currentVideoId = getVideoId();
+    startTime = null;
     watchedTime = 0;
-    prevDuration = video.duration || 0;
+    prevDuration = 0;
     hasPlayed = false;
+
+    // === Setup resolution/viewport tracking ===
+    if (!video._resolutionHooked) {
+      video._resolutionHooked = true;
+      trackVideoResolution(video, currentVideoId);
+      trackViewportChanges(video);
+      attachStallAndStartupTracking(video);
+    }
+
+    // === Wait until metadata is ready then start session ===
+    video.addEventListener("loadedmetadata", () => {
+      prevDuration = video.duration || 0;
+
+      saveEvent({
+        type: "video-start",
+        videoId: currentVideoId,
+        src: video.src,
+        timestamp: new Date().toISOString(),
+        duration: prevDuration.toFixed(2),
+      });
+
+      startTime = Date.now();
+
+      console.log(`[Sync] Started tracking video ${currentVideoId}`);
+    });
 
     attachVideoEvents(video);
     attachActionEvents();
@@ -905,12 +887,14 @@ const observer = new MutationObserver(() => {
 
 observer.observe(document.body, { childList: true, subtree: true });
 
-// ================== RE-HOOK ON URL CHANGE ==================
+// ================== HANDLE URL CHANGE (for Shorts page reloads) ==================
 setInterval(() => {
   if (window.location.href !== lastUrl) {
     lastUrl = window.location.href;
     const video = document.querySelector("video");
-    if (video) attachVideoEvents(video);
-    attachActionEvents();
+    if (video) {
+      attachVideoEvents(video);
+      attachActionEvents();
+    }
   }
 }, 1000);
