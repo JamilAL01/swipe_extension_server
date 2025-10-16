@@ -581,7 +581,7 @@ function trackVideoResolution(video) {
       const videoFormats = adaptiveFormats.filter(f => f.mimeType.includes("video"));
       if (!videoFormats.length) return;
 
-      // Find max resolution + bitrate
+      // Find max resolution + bitrate + codec
       const maxFmt = videoFormats.reduce(
         (acc, fmt) => (fmt.bitrate || 0) > (acc.bitrate || 0) ? fmt : acc,
         {}
@@ -589,17 +589,20 @@ function trackVideoResolution(video) {
       const maxRes = maxFmt.width && maxFmt.height
         ? `${maxFmt.width}x${maxFmt.height}`
         : `${currentWidth}x${currentHeight}`;
-      const maxBitrate = maxFmt.averageBitrate || maxFmt.bitrate || null;
+      // const maxBitrate = maxFmt.averageBitrate || maxFmt.bitrate || null;
 
-      // Find current bitrate
-      const currentFmt = videoFormats.find(
-        f => f.width === currentWidth && f.height === currentHeight
-      );
-      const currentBitrate = currentFmt
-        ? (currentFmt.averageBitrate || currentFmt.bitrate)
-        : null;
+      // // Find current bitrate
+      // const currentFmt = videoFormats.find(
+      //   f => f.width === currentWidth && f.height === currentHeight
+      // );
+      // const currentBitrate = currentFmt
+      //   ? (currentFmt.averageBitrate || currentFmt.bitrate)
+      //   : null;
 
-      lastKnownBitrate = currentBitrate || lastKnownBitrate;
+      // lastKnownBitrate = currentBitrate || lastKnownBitrate;
+
+      const codec = video.videoTracks?.[0]?.label || "unknown"; // <-- get codec if available
+
 
 
       // Log initial
@@ -614,6 +617,7 @@ function trackVideoResolution(video) {
           //currentBitrate,
           //maxBitrate,
           viewport: getVideoViewport(video),
+          codec: codec
         },
       });
 
