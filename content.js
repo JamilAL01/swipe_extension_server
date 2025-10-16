@@ -894,9 +894,6 @@ const observer = new MutationObserver(() => {
         ? Math.min((watchedTime / duration) * 100, 100).toFixed(1)
         : 0;
 
-      const currentBitrate = lastKnownBitrate;
-
-      const { watchedMB, wastedMB } = computeDataUsageMB(duration, parseFloat(percent), currentBitrate);
 
       // Send video-stopped event **with buffer health only**
       const bufferHealth = getBufferHealth();
