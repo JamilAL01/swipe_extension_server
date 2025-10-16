@@ -601,9 +601,6 @@ function trackVideoResolution(video) {
 
       // lastKnownBitrate = currentBitrate || lastKnownBitrate;
 
-      const codec = video.videoTracks?.[0]?.label || "unknown"; // <-- get codec if available
-
-
 
       // Log initial
       saveEvent({
@@ -617,7 +614,6 @@ function trackVideoResolution(video) {
           //currentBitrate,
           //maxBitrate,
           viewport: getVideoViewport(video),
-          codec: codec
         },
       });
 
