@@ -116,8 +116,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         const wastedSec = Math.max(totalAvailableSec - totalWatchedSec, 0);
-        document.getElementById('watched-MB').textContent = `${Math.round(totalWatchedSec)} s`;
-        document.getElementById('wasted-MB').textContent = `${Math.round(wastedSec)} s`;
+        document.getElementById('watched-MB').textContent = `${Math.round(watchedMB)} s`;
+        document.getElementById('wasted-MB').textContent = `${Math.round(wastedMB)} s`;
 
         const ctxPie = document.getElementById('data-pie-chart').getContext('2d');
         new Chart(ctxPie, {
