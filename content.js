@@ -802,128 +802,95 @@ function attachStallAndStartupTracking(video) {
 //   return null;
 // }
 
-// content.js
-
-function getCodec() {
-  try {
-    const elems = [...document.querySelectorAll("*")];
-    const target = elems.find(el => el.textContent.includes("Codecs"));
-    if (!target) return null;
-
-    // Extract text after "Codecs"
-    const match = target.textContent.match(/Codecs\s*(.+)/i);
-    return match ? match[1].trim() : null;
-  } catch (err) {
-    console.warn("Codec extraction failed:", err);
-    return null;
-  }
-}
-
-function getBufferHealth(video) {
-  if (!video) return 0;
-  try {
-    const buffered = video.buffered;
-    if (!buffered.length) return 0;
-    return Math.max(0, buffered.end(buffered.length - 1) - video.currentTime);
-  } catch (err) {
-    console.warn("Buffer health computation failed:", err);
-    return 0;
-  }
-}
-
-function collectStats(video) {
-  if (!video) return null;
-
-  const bufferHealth = getBufferHealth(video);
-  const codec = getCodec();
-
-  // Approximate bitrate in bits/sec
-  const bitrate = video.webkitVideoDecodedByteCount && video.currentTime
-    ? (video.webkitVideoDecodedByteCount * 8) / video.currentTime
-    : 0;
-
-  return {
-    src: video.currentSrc,
-    duration: video.duration,
-    currentTime: video.currentTime,
-    bufferHealth,
-    codec,
-    bitrate
-  };
-}
 
 
 // ================== OBSERVE VIDEO CHANGES ==================
 const observer = new MutationObserver(() => {
   const video = document.querySelector("video");
+  if (!video) return;
 
-  if (video && !video._resolutionHooked) {
+  // === Hook resolution & viewport tracking once per video ===
+  if (!video._resolutionHooked) {
     video._resolutionHooked = true;
 
     const videoId = getVideoId();
-
-    // Collect codec info
-    let codec = null;
-    try {
-      const codecElem = [...document.querySelectorAll("*")].find(el =>
-        el.textContent.includes("Codecs")
-      );
-      if (codecElem) {
-        const match = codecElem.textContent.match(/Codecs\s*(.+)/i);
-        if (match) codec = match[1].trim();
-      }
-    } catch {}
-
-    // Send resolution event with codec
-    trackVideoResolution(video, videoId, { codec });
-
+    trackVideoResolution(video, videoId);
     trackViewportChanges(video);
 
-    // Hook stall + startup delay
+    // Hook stall + startup delay early
     attachStallAndStartupTracking(video);
   }
 
-  if (video && video.src !== lastSrc) {
+  // === Handle new video (when src changes) ===
+  if (video.src && video.src !== lastSrc) {
     const videoId = getVideoId();
 
+    // --- If we were watching a previous video ---
     if (currentVideo && startTime) {
       watchedTime += (Date.now() - startTime) / 1000;
 
       const duration = prevDuration || currentVideo.duration || 0;
       const percent = duration
         ? Math.min((watchedTime / duration) * 100, 100).toFixed(1)
-        : 0;
+        : "0";
+
+      // const currentBitrate = lastKnownBitrate || 0;
+      // const { watchedMB, wastedMB } = computeDataUsageMB(
+      //   duration,
+      //   parseFloat(percent),
+      //   currentBitrate
+      // );
+
+      // const bufferHealth = getBufferHealth();
+
+      // saveEvent({
+      //   type: "video-buffer-health",
+      //   videoId: getVideoId(),
+      //   src: currentVideo.src,
+      //   timestamp: new Date().toISOString(),
+      //   extra: {
+      //     bufferHealthSec: bufferHealth
+      //   }
+      // });
 
 
-      // Send video-stopped event **with buffer health only**
-      const bufferHealth = getBufferHealth();
+
+      // ✅ Save video-stopped event with bitrate + data usage
       saveEvent({
         type: "video-stopped",
         videoId: getVideoId(),
         src: currentVideo.src,
         timestamp: new Date().toISOString(),
-        extra: {
-          bufferHealth
-        }
+        watchedTime: watchedTime.toFixed(2),
+        duration: duration.toFixed(2),
+        percent,
+        // extra: {
+        // //   currentBitrate,
+        // //   watchedMB,
+        // //   wastedMB,
+        // },
       });
 
-      // Update stats UI
-      const bitrate = lastKnownBitrate || 0;
+      // ✅ Update summary stats (with small delay to ensure event order)
       if (duration > 0) {
-        updateStats(watchedTime, parseFloat(percent), duration, bitrate);
+        setTimeout(() => {
+          updateStats(watchedTime, parseFloat(percent), duration);
+        }, 100);
       }
     }
 
+    // --- Save “swiped to new video” transition ---
     if (lastSrc) {
       saveEvent({
         type: "swiped-to-new-video",
         videoId,
         src: video.src,
         timestamp: new Date().toISOString(),
-        extra: { previous: lastSrc }
+        extra: { previous: lastSrc },
       });
     }
 
+    // === Prepare for next video ===
     currentVideo = video;
     lastSrc = video.src;
     startTime = Date.now();
@@ -937,7 +904,6 @@ const observer = new MutationObserver(() => {
 });
 
 observer.observe(document.body, { childList: true, subtree: true });
-
 
 // ================== RE-HOOK ON URL CHANGE ==================
 setInterval(() => {
