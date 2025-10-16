@@ -22,7 +22,7 @@
     }
 
     .container {
-      width: 360px;
+      width: 400px;
       padding: 16px;
       background: var(--bg);
       border-radius: 12px;
@@ -54,7 +54,7 @@
     .charts {
       display:grid;
       grid-template-columns:1fr 1fr;
-      gap:10px;
+      gap:14px;
       margin-top:10px;
     }
 
@@ -63,6 +63,11 @@
       padding:8px;
       border-radius:10px;
       text-align:center;
+    }
+    
+    .chart-block canvas {
+      width: 100% !important;
+      height: 140px !important; /* slightly smaller to avoid vertical overflow */
     }
 
     .chart-block h3 {
