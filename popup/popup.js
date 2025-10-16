@@ -64,42 +64,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
 
-      // ================== WATCHED vs WASTED TIME ==================
-      if (history.length > 0) {
-        let totalAvailableSec = 0;
-        let totalWatchedSec = 0;
-
-        history.forEach(v => {
-          if (!v.duration || !v.percentWatched) return;
-          totalAvailableSec += v.duration;
-          totalWatchedSec += v.duration * (v.percentWatched / 100);
-        });
-
-        const wastedSec = Math.max(totalAvailableSec - totalWatchedSec, 0);
-        document.getElementById('watched-time').textContent = `${Math.round(totalWatchedSec)} s`;
-        document.getElementById('wasted-time').textContent = `${Math.round(wastedSec)} s`;
-
-        const ctxPie = document.getElementById('data-pie-chart').getContext('2d');
-        new Chart(ctxPie, {
-          type: 'pie',
-          data: {
-            labels: ['Watched Time', 'Wasted Time'],
-            datasets: [{
-              data: [totalWatchedSec, wastedSec],
-              backgroundColor: ['#4CAF50', '#E74C3C'],
-              borderWidth: 1
-            }]
-          },
-          options: {
-            responsive: true,
-            plugins: {
-              legend: { position: 'bottom' },
-              tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${ctx.raw.toFixed(1)} s` } }
-            }
-          }
-        });
-      }
-
       // ================== DATA USAGE (MB) ==================
       if (history.length > 0) {
         let totalWatchedMB = 0;
@@ -136,6 +100,43 @@ document.addEventListener('DOMContentLoaded', () => {
           watchedMB: totalWatchedMB,
           wastedMB: totalWastedMB,
           dataUsagePercent: usagePercent
+        });
+      }
+
+
+      // ================== WATCHED vs WASTED TIME ==================
+      if (history.length > 0) {
+        let totalAvailableSec = 0;
+        let totalWatchedSec = 0;
+
+        history.forEach(v => {
+          if (!v.duration || !v.percentWatched) return;
+          totalAvailableSec += v.duration;
+          totalWatchedSec += v.duration * (v.percentWatched / 100);
+        });
+
+        const wastedSec = Math.max(totalAvailableSec - totalWatchedSec, 0);
+        document.getElementById('watched-MB').textContent = `${Math.round(totalWatchedSec)} s`;
+        document.getElementById('wasted-MB').textContent = `${Math.round(wastedSec)} s`;
+
+        const ctxPie = document.getElementById('data-pie-chart').getContext('2d');
+        new Chart(ctxPie, {
+          type: 'pie',
+          data: {
+            labels: ['Watched MB', 'Wasted MB'],
+            datasets: [{
+              data: [watchedMB, wastedMB],
+              backgroundColor: ['#4CAF50', '#E74C3C'],
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { position: 'bottom' },
+              tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${ctx.raw.toFixed(1)} s` } }
+            }
+          }
         });
       }
     }
