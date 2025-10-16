@@ -259,8 +259,6 @@ let watchedTime = 0;
 let prevDuration = 0;
 let hasPlayed = false; 
 let lastUrl = window.location.href;
-let activeVideoId = null; // track current valid video context
-
 
 // ================== HELPER FUNCTIONS ==================
 function getVideoId() {
@@ -309,7 +307,6 @@ function attachVideoEvents(video) {
   video.addEventListener("play", () => {
     setTimeout(() => {
       const videoId = getVideoId();
-      if (videoId !== activeVideoId) return; // Ignore stale event
       if (!hasPlayed) {
         saveEvent({ type: "video-start", videoId, src: video.src, timestamp: new Date().toISOString() });
         hasPlayed = true;
@@ -324,7 +321,6 @@ function attachVideoEvents(video) {
     if (startTime) watchedTime += (Date.now() - startTime) / 1000;
     startTime = null;
     const videoId = getVideoId();
-    if (videoId !== activeVideoId) return; // Ignore stale event
     const watchPercent = prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100) : 0;
     saveEvent({
       type: "video-paused",
@@ -343,8 +339,6 @@ function attachVideoEvents(video) {
 
     if (prevDuration && watchedTime >= prevDuration) {
       const videoId = getVideoId();
-      if (videoId !== activeVideoId) return; // Ignore stale event
-
       saveEvent({
         type: "video-watched-100",
         videoId,
@@ -364,8 +358,6 @@ function attachVideoEvents(video) {
     if (startTime) watchedTime += (Date.now() - startTime) / 1000;
     startTime = null;
     const videoId = getVideoId();
-    if (videoId !== activeVideoId) return; // Ignore stale event
-
     if (prevDuration && Math.abs(watchedTime - prevDuration) < 2) {
       saveEvent({
         type: "video-watched-100",
@@ -383,8 +375,6 @@ function attachVideoEvents(video) {
 
   video.addEventListener("seeked", () => {
     const videoId = getVideoId();
-    if (videoId !== activeVideoId) return; // Ignore stale event
-
     if (Math.abs(video.currentTime) < 0.01) return; // skip "rewatch" resets
     saveEvent({
       type: "video-jump",
@@ -727,8 +717,6 @@ function attachStallAndStartupTracking(video) {
   video._stallStartupHooked = true;
 
   const videoId = getVideoId();
-  if (videoId !== activeVideoId) return; // Ignore stale event
-
 
   let firstPlayTime = null;
   let stallStart = null;
@@ -819,6 +807,7 @@ function attachStallAndStartupTracking(video) {
 //   return null;
 // }
 
+let activeVideoId = null; // track current valid video context
 
 // ================== OBSERVE VIDEO CHANGES ==================
 const observer = new MutationObserver(() => {
