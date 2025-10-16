@@ -665,11 +665,20 @@ function trackVideoResolution(video) {
 
 
 // ============ VIDEO BITRATE ===================
-function computeDataUsageMB(durationSec, watchedPercent, bitrateKbps) {
-  const totalMB = (bitrateKbps * durationSec) / (8 * 1024);
-  const watchedMB = totalMB * (watchedPercent / 100);
-  const wastedMB = totalMB - watchedMB;
-  return { watchedMB, wastedMB };
+function computeDataUsageMB(durationSec, percentWatched, currentBitrateBps) {
+  if (!durationSec || !currentBitrateBps) return { watchedMB: 0, wastedMB: 0 };
+
+  const watchedSec = durationSec * (percentWatched / 100);
+  const wastedSec = durationSec - watchedSec;
+
+  // bits → bytes → MB
+  const watchedMB = (watchedSec * currentBitrateBps) / 8 / 1e6;
+  const wastedMB  = (wastedSec  * currentBitrateBps) / 8 / 1e6;
+
+  return {
+    watchedMB: watchedMB.toFixed(2),
+    wastedMB: wastedMB.toFixed(2)
+  };
 }
 
 
@@ -772,15 +781,6 @@ function attachStallAndStartupTracking(video) {
 
 
 
-function getEstimatedBitrate(video) {
-  // Very rough default fallback if no resolution event yet
-  const res = (video.videoHeight || 720);
-  if (res >= 1080) return 5000; // kbps
-  if (res >= 720) return 2500;
-  if (res >= 480) return 1000;
-  return 700;
-}
-
 // ================== OBSERVE VIDEO CHANGES ==================
 const observer = new MutationObserver(() => {
   const video = document.querySelector("video");
@@ -811,7 +811,7 @@ const observer = new MutationObserver(() => {
         ? Math.min((watchedTime / duration) * 100, 100).toFixed(1)
         : "0";
 
-      const currentBitrate = lastKnownBitrate || getEstimatedBitrate(video);
+      const currentBitrate = lastKnownBitrate || 0;
       const { watchedMB, wastedMB } = computeDataUsageMB(
         duration,
         parseFloat(percent),
