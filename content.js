@@ -813,12 +813,12 @@ const observer = new MutationObserver(() => {
   if (!video._resolutionHooked) {
     video._resolutionHooked = true;
 
+    // Hook stall + startup delay early
+    attachStallAndStartupTracking(video);
+    
     const videoId = getVideoId();
     trackVideoResolution(video, videoId);
     trackViewportChanges(video);
-
-    // Hook stall + startup delay early
-    attachStallAndStartupTracking(video);
   }
 
   // === Handle new video (when src changes) ===
@@ -864,14 +864,9 @@ const observer = new MutationObserver(() => {
         watchedTime: watchedTime.toFixed(2),
         duration: duration.toFixed(2),
         percent,
-        // extra: {
-        // //   currentBitrate,
-        // //   watchedMB,
-        // //   wastedMB,
-        // },
       });
 
-      // ✅ Update summary stats (with small delay to ensure event order)
+      // Update summary stats (with small delay to ensure event order)
       if (duration > 0) {
         setTimeout(() => {
           updateStats(watchedTime, parseFloat(percent), duration);
@@ -879,7 +874,7 @@ const observer = new MutationObserver(() => {
       }
     }
 
-    // --- Save “swiped to new video” transition ---
+    // --- Save transition ---
     if (lastSrc) {
       saveEvent({
         type: "swiped-to-new-video",
