@@ -24,8 +24,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         // Update UI text
-        document.getElementById('watched-time').textContent = `Watched: ${totalWatchedMB.toFixed(2)} MB`;
-        document.getElementById('wasted-time').textContent = `Wasted: ${totalWastedMB.toFixed(2)} MB`;
+        const watchedEl = document.getElementById('watched-time');
+        const wastedEl = document.getElementById('wasted-time');
+        if (watchedEl) watchedEl.textContent = `Watched: ${totalWatchedMB.toFixed(2)} MB`;
+        if (wastedEl) wastedEl.textContent = `Wasted: ${totalWastedMB.toFixed(2)} MB`;
+
 
         // Draw SAME pie chart but for MB
         const ctxPie = document.getElementById('data-pie-chart').getContext('2d');
