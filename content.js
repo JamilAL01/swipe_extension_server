@@ -458,8 +458,9 @@ function getVideoViewport(video) {
 }
 
 // ================== VIDEO VIEWPORT TRACKING ======================
-function trackViewportChanges(video) {
-  if (!video) return;
+function trackViewportChanges(video, videoId) {
+  if (!video || videoId !== activeVideoId) return;
+
 
   let lastViewport = { w: 0, h: 0 };
   let currentVideoId = null;
@@ -500,6 +501,9 @@ function trackViewportChanges(video) {
 
   // Optional: check every few seconds for subtle UI changes
   setInterval(checkViewport, 2000);
+  const interval = setInterval(checkViewport, 2000);
+  cleanupFns.push(() => clearInterval(interval));
+
 }
 
 // // ================= CODEC ==========================
@@ -563,8 +567,8 @@ function getMaxResolutionAndBitrate() {
 }
 
 // ================== VIDEO RESOLUTION & BITRATE TRACKING ======================
-function trackVideoResolution(video) {
-  if (!video) return;
+function trackVideoResolution(video, videoId) {
+  if (!video || videoId !== activeVideoId) return;
 
   let lastWidth = 0;
   let lastHeight = 0;
@@ -685,6 +689,7 @@ function trackVideoResolution(video) {
   });
 
   video.addEventListener("ended", cleanup);
+  cleanupFns.push(() => clearInterval(resolutionInterval));
 }
 
 
@@ -707,7 +712,8 @@ function trackVideoResolution(video) {
 
 
 // ============= START-UP DELAY & STALLS ================
-function attachStallAndStartupTracking(video) {
+function attachStallAndStartupTracking(video, videoId) {
+  if (!video || videoId !== activeVideoId) return;
   if (video._stallStartupHooked) return;
   video._stallStartupHooked = true;
 
@@ -777,7 +783,16 @@ function attachStallAndStartupTracking(video) {
   video.addEventListener("stalled", onStalled);
   video.addEventListener("playing", onResume);
   video.addEventListener("timeupdate", onResume);
+  
+  cleanupFns.push(() => {
+    video.removeEventListener("playing", onPlayingFirst);
+    video.removeEventListener("waiting", onStalled);
+    video.removeEventListener("stalled", onStalled);
+    video.removeEventListener("playing", onResume);
+    video.removeEventListener("timeupdate", onResume);
+  });
 }
+
 
 
 // // =============== BUFFER HEALTH ======================
@@ -802,62 +817,34 @@ function attachStallAndStartupTracking(video) {
 //   return null;
 // }
 
-let activeVideoId = null; // track current valid video context
+let activeVideoId = null;
+let cleanupFns = []; // keep track of intervals/listeners to stop
+
+function clearPreviousTrackers() {
+  cleanupFns.forEach(fn => fn());
+  cleanupFns = [];
+}
 
 // ================== OBSERVE VIDEO CHANGES ==================
 const observer = new MutationObserver(() => {
   const video = document.querySelector("video");
   if (!video) return;
 
-  // === Hook resolution & viewport tracking once per video ===
-  if (!video._resolutionHooked) {
-    video._resolutionHooked = true;
-
-    const videoId = getVideoId();
-    trackVideoResolution(video, videoId);
-    trackViewportChanges(video);
-
-    // Hook stall + startup delay early
-    attachStallAndStartupTracking(video);
-  }
-
   // === Handle new video (when src changes) ===
   if (video.src && video.src !== lastSrc) {
+    clearPreviousTrackers(); // 🧹 stop old intervals, etc.
+
     const videoId = getVideoId();
-    activeVideoId = videoId; // new video context is active
+    activeVideoId = videoId; // set new context
 
-
-    // --- If we were watching a previous video ---
+    // --- stop & record previous video ---
     if (currentVideo && startTime) {
       watchedTime += (Date.now() - startTime) / 1000;
-
       const duration = prevDuration || currentVideo.duration || 0;
       const percent = duration
         ? Math.min((watchedTime / duration) * 100, 100).toFixed(1)
         : "0";
 
-      // const currentBitrate = lastKnownBitrate || 0;
-      // const { watchedMB, wastedMB } = computeDataUsageMB(
-      //   duration,
-      //   parseFloat(percent),
-      //   currentBitrate
-      // );
-
-      // const bufferHealth = getBufferHealth();
-
-      // saveEvent({
-      //   type: "video-buffer-health",
-      //   videoId: getVideoId(),
-      //   src: currentVideo.src,
-      //   timestamp: new Date().toISOString(),
-      //   extra: {
-      //     bufferHealthSec: bufferHealth
-      //   }
-      // });
-
-
-
-      // ✅ Save video-stopped event with bitrate + data usage
       saveEvent({
         type: "video-stopped",
         videoId: getVideoId(),
@@ -866,14 +853,8 @@ const observer = new MutationObserver(() => {
         watchedTime: watchedTime.toFixed(2),
         duration: duration.toFixed(2),
         percent,
-        // extra: {
-        // //   currentBitrate,
-        // //   watchedMB,
-        // //   wastedMB,
-        // },
       });
 
-      // ✅ Update summary stats (with small delay to ensure event order)
       if (duration > 0) {
         setTimeout(() => {
           updateStats(watchedTime, parseFloat(percent), duration);
@@ -881,7 +862,7 @@ const observer = new MutationObserver(() => {
       }
     }
 
-    // --- Save “swiped to new video” transition ---
+    // --- log the swipe transition ---
     if (lastSrc) {
       saveEvent({
         type: "swiped-to-new-video",
@@ -892,7 +873,7 @@ const observer = new MutationObserver(() => {
       });
     }
 
-    // === Prepare for next video ===
+    // === prepare new video context ===
     currentVideo = video;
     lastSrc = video.src;
     startTime = Date.now();
@@ -900,7 +881,7 @@ const observer = new MutationObserver(() => {
     prevDuration = video.duration || 0;
     hasPlayed = false;
 
-    // ✅ Immediately record the start
+    // ✅ guaranteed first event
     saveEvent({
       type: "video-start",
       videoId,
@@ -909,12 +890,17 @@ const observer = new MutationObserver(() => {
       duration: prevDuration.toFixed(2),
     });
 
+    // === reattach all sub-trackers with guards ===
+    trackVideoResolution(video, videoId);
+    trackViewportChanges(video, videoId);
+    attachStallAndStartupTracking(video, videoId);
     attachVideoEvents(video);
     attachActionEvents();
   }
 });
 
 observer.observe(document.body, { childList: true, subtree: true });
+
 
 // ================== RE-HOOK ON URL CHANGE ==================
 setInterval(() => {
