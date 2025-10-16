@@ -17,7 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const ctx = document.getElementById('watch-history-chart').getContext('2d');
         const percents = history.map(h => h.percentWatched);
 
-        // moving average window = 5
+        // Moving average window = 5
         const movingAvg = percents.map((val, i, arr) => {
           const start = Math.max(0, i - 4);
           const window = arr.slice(start, i + 1);
@@ -64,51 +64,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
 
-      // ================== DATA USAGE (MB) ==================
-      if (history.length > 0) {
-        let totalWatchedMB = 0;
-        let totalWastedMB = 0;
-
-        history.forEach(v => {
-          if (!v.duration || !v.percentWatched || !v.currentBitrate) return;
-
-          // bitrate (bits/s) → MB/s
-          const bitrateMBps = v.currentBitrate / (8 * 1024 * 1024);
-          const totalDataMB = v.duration * bitrateMBps;
-          const watchedMB = totalDataMB * (v.percentWatched / 100);
-          const wastedMB = totalDataMB - watchedMB;
-
-          totalWatchedMB += watchedMB;
-          totalWastedMB += wastedMB;
-        });
-
-        totalWatchedMB = totalWatchedMB.toFixed(2);
-        totalWastedMB = totalWastedMB.toFixed(2);
-        const total = parseFloat(totalWatchedMB) + parseFloat(totalWastedMB);
-        const usagePercent = total > 0 ? (100 * totalWatchedMB / total).toFixed(1) : 0;
-
-        const watchedEl = document.getElementById('watchedMB');
-        const wastedEl = document.getElementById('wastedMB');
-        const barEl = document.getElementById('data-bar');
-        if (watchedEl && wastedEl && barEl) {
-          watchedEl.textContent = totalWatchedMB;
-          wastedEl.textContent = totalWastedMB;
-          barEl.style.width = `${usagePercent}%`;
-        }
-
-        chrome.storage.local.set({
-          watchedMB: totalWatchedMB,
-          wastedMB: totalWastedMB,
-          dataUsagePercent: usagePercent
-        });
-      }
-
-
       // ================== WATCHED vs WASTED TIME ==================
-      if (history.length > 0) {
-        let totalAvailableSec = 0;
-        let totalWatchedSec = 0;
+      let totalAvailableSec = 0;
+      let totalWatchedSec = 0;
 
+      if (history.length > 0) {
         history.forEach(v => {
           if (!v.duration || !v.percentWatched) return;
           totalAvailableSec += v.duration;
@@ -116,16 +76,17 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         const wastedSec = Math.max(totalAvailableSec - totalWatchedSec, 0);
-        document.getElementById('watched-MB').textContent = `${Math.round(watchedMB)} s`;
-        document.getElementById('wasted-MB').textContent = `${Math.round(wastedMB)} s`;
+        document.getElementById('watched-time').textContent = `${Math.round(totalWatchedSec)} s`;
+        document.getElementById('wasted-time').textContent = `${Math.round(wastedSec)} s`;
 
+        // 🥧 Time Pie
         const ctxPie = document.getElementById('data-pie-chart').getContext('2d');
         new Chart(ctxPie, {
           type: 'pie',
           data: {
-            labels: ['Watched MB', 'Wasted MB'],
+            labels: ['Watched Time', 'Wasted Time'],
             datasets: [{
-              data: [watchedMB, wastedMB],
+              data: [totalWatchedSec, wastedSec],
               backgroundColor: ['#4CAF50', '#E74C3C'],
               borderWidth: 1
             }]
@@ -134,7 +95,56 @@ document.addEventListener('DOMContentLoaded', () => {
             responsive: true,
             plugins: {
               legend: { position: 'bottom' },
-              tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${ctx.raw.toFixed(1)} s` } }
+              tooltip: {
+                callbacks: {
+                  label: (ctx) => `${ctx.label}: ${ctx.raw.toFixed(1)} s`
+                }
+              }
+            }
+          }
+        });
+      }
+
+      // ================== CO₂ EMISSIONS (Watched vs Wasted) ==================
+      if (history.length > 0 && typeof Chart !== 'undefined') {
+        let totalWatchedMB = 0;
+        let totalWastedMB = 0;
+
+        history.forEach(v => {
+          if (!v.duration || !v.percentWatched || !v.currentBitrate) return;
+          const bitrateMBps = v.currentBitrate / (8 * 1024 * 1024); // bits/s → MB/s
+          const totalDataMB = v.duration * bitrateMBps;
+          const watchedMB = totalDataMB * (v.percentWatched / 100);
+          const wastedMB = totalDataMB - watchedMB;
+
+          totalWatchedMB += watchedMB;
+          totalWastedMB += wastedMB;
+        });
+
+        // CO₂: 55 g per GB
+        const watchedCO2g = (totalWatchedMB / 1024) * 55;
+        const wastedCO2g = (totalWastedMB / 1024) * 55;
+
+        const ctxPieCO2 = document.getElementById('co2-pie-chart').getContext('2d');
+        new Chart(ctxPieCO2, {
+          type: 'pie',
+          data: {
+            labels: ['Watched CO₂', 'Wasted CO₂'],
+            datasets: [{
+              data: [watchedCO2g, wastedCO2g],
+              backgroundColor: ['#16A34A', '#9CA3AF'], // green & gray
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { position: 'bottom' },
+              tooltip: {
+                callbacks: {
+                  label: (ctx) => `${ctx.label}: ${ctx.raw.toFixed(2)} g CO₂`
+                }
+              }
             }
           }
         });
