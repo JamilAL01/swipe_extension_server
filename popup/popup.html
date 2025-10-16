@@ -11,37 +11,35 @@
       --muted: #f3f4f6; 
       --accent: #1e40af; 
       --card: #f9fafc; 
-      --danger:#ef4444; 
-    }
-    html,body{
-      margin:0;padding:0;
-      font-family:Inter,Arial,sans-serif;
-      background:transparent;
+      --danger: #ef4444; 
     }
 
-    .container{
-      width:400px;
-      padding:16px;
-      background:var(--bg);
-      border-radius:12px;
-      box-shadow:0 6px 20px rgba(0,0,0,0.08);
-      color:#111;
+    html, body {
+      margin: 0;
+      padding: 0;
+      font-family: Inter, Arial, sans-serif;
+      background: transparent;
     }
 
-    h1{
-      font-size:16px;
-      margin:0 0 12px;
-      text-align:center;
+    .container {
+      width: 360px;
+      padding: 16px;
+      background: var(--bg);
+      border-radius: 12px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+      color: #111;
     }
 
-    .metrics{
+    h1 { font-size:16px; margin:0 0 12px; text-align:center }
+
+    .metrics {
       display:flex;
       flex-direction:column;
       gap:8px;
       margin-bottom:12px;
     }
 
-    .metric{
+    .metric {
       display:flex;
       justify-content:space-between;
       padding:8px;
@@ -50,54 +48,60 @@
       font-size:13px;
     }
 
-    .metric .label{color:#333}
-    .metric .value{font-weight:700;color:var(--accent)}
+    .metric .label { color:#333 }
+    .metric .value { font-weight:700; color:var(--accent) }
 
-    /* Two side-by-side charts */
-    .charts{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:14px;
+    /* Charts layout: each chart-block centered and full-width */
+    .charts {
+      display:flex;
+      flex-direction:column;
+      gap:16px;
+      align-items:center;
       margin-top:10px;
     }
 
-    .chart-block{
-      background:var(--card);
-      padding:8px;
+    .chart-block {
+      width: 100%;
+      max-width: 320px;
+      background: var(--card);
+      padding:10px;
       border-radius:10px;
       text-align:center;
       display:flex;
       flex-direction:column;
       align-items:center;
+      gap:12px;
     }
 
-    .chart-block h3{
+    .chart-block h3 {
       font-size:12px;
       margin:0 0 8px;
     }
 
-    canvas{
+    canvas {
       width:100% !important;
-      height:140px !important;
+      max-width: 280px;
+      height:160px !important;
     }
 
-    .summary-row{
+    .summary-row {
       display:flex;
       justify-content:space-between;
       margin-top:8px;
       font-size:12px;
+      width:100%;
     }
 
-    .summary-row span{
+    .summary-row span {
       background:#eef2ff;
       padding:6px 8px;
       border-radius:8px;
       color:#123;
     }
 
-    .reset-btn{
+    .reset-btn {
       width:100%;
-      margin-top:16px;
+      margin-top:12px;
       padding:8px;
       border-radius:8px;
       border:0;
@@ -106,13 +110,74 @@
       font-weight:700;
       cursor:pointer;
     }
+
+    /* Data Usage Card */
+    #data-usage-card {
+      background: var(--card);
+      color: #111;
+      padding: 16px;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+      text-align: center;
+      font-family: 'Inter', sans-serif;
+      width: 100%;
+      max-width: 280px;
+    }
+
+    #data-usage-card h3 {
+      font-size:12px;
+      margin-bottom:6px;
+      text-align:center;
+    }
+
+    #data-usage-card p {
+      margin:4px 0;
+      font-size:14px;
+      display:flex;
+      align-items:center;
+      justify-content: center;
+      gap:6px;
+    }
+
+    #watchedMB::before {
+      content:"";
+      display:inline-block;
+      width:12px;
+      height:12px;
+      border-radius:3px;
+      background:#4CAF50;
+    }
+
+    #wastedMB::before {
+      content:"";
+      display:inline-block;
+      width:12px;
+      height:12px;
+      border-radius:3px;
+      background:#E74C3C;
+    }
+
+    #data-bar-container {
+      height: 8px;
+      width: 100%;
+      background: rgba(0,0,0,0.05);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-top:8px;
+    }
+
+    #data-bar {
+      height: 100%;
+      width: 0%;
+      background: #4CAF50;
+      transition: width 0.5s ease;
+    }
   </style>
 </head>
 <body>
   <div class="container" role="main" aria-label="Swipe stats popup">
     <h1>SWiPE X STATS</h1>
 
-    <!-- ===== BASIC METRICS ===== -->
     <div class="metrics">
       <div class="metric">
         <span class="label"><b>Videos Watched</b></span>
@@ -130,25 +195,35 @@
       </div>
     </div>
 
-    <!-- ===== CHARTS ===== -->
     <div class="charts">
-      <!-- Watched vs Wasted Time -->
+      <div class="chart-block">
+        <h3>Watch History</h3>
+        <canvas id="watch-history-chart" aria-label="Watch history chart"></canvas>
+      </div>
+
       <div class="chart-block">
         <h3>Watched vs Wasted Time</h3>
         <canvas id="data-pie-chart" aria-label="Watched versus wasted pie chart"></canvas>
-        <div class="summary-row">
-          <span id="watched-time">Watched: 0 s</span>
-          <span id="wasted-time">Wasted: 0 s</span>
-        </div>
-      </div>
 
-      <!-- CO₂ Emissions -->
-      <div class="chart-block">
-        <h3>CO₂ Emissions</h3>
-        <canvas id="co2-pie-chart" aria-label="CO2 emission pie chart"></canvas>
+        <!-- Data Usage Card below the pie -->
+        <div id="data-usage-card">
+          <h3> Data Usage</h3>
+          <p><b>Watched:</b> <span id="watchedMB">0</span> MB</p>
+          <p><b>Wasted:</b> <span id="wastedMB">0</span> MB</p>
+          <div id="data-bar-container">
+            <div id="data-bar"></div>
+          </div>
+        </div>
+
         <div class="summary-row">
-          <span id="co2-watched">Watched: 0 g</span>
-          <span id="co2-wasted">Wasted: 0 g</span>
+          <div style="display:flex; align-items:center; gap:4px;">
+            <div style="width:12px; height:12px; background:#4CAF50; border-radius:3px;"></div>
+            <span id="watched-time">Watched: 0 s</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:4px;">
+            <div style="width:12px; height:12px; background:#E74C3C; border-radius:3px;"></div>
+            <span id="wasted-time">Wasted: 0 s</span>
+          </div>
         </div>
       </div>
     </div>
