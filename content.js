@@ -611,7 +611,7 @@ function trackVideoResolution(video) {
         extra: {
           current: `${currentWidth}x${currentHeight}`,
           max: maxRes,
-          currentBitrate,
+          //currentBitrate,
           //maxBitrate,
           viewport: getVideoViewport(video),
         },
@@ -645,7 +645,7 @@ function trackVideoResolution(video) {
             extra: {
               width: w,
               height: h,
-              currentBitrate: currentBitrateChange,
+              //currentBitrate: currentBitrateChange,
               //maxBitrate,
               viewport: getVideoViewport(video),
             },
@@ -664,22 +664,22 @@ function trackVideoResolution(video) {
 }
 
 
-// ============ VIDEO BITRATE ===================
-function computeDataUsageMB(durationSec, percentWatched, currentBitrateBps) {
-  if (!durationSec || !currentBitrateBps) return { watchedMB: 0, wastedMB: 0 };
+// // ============ VIDEO BITRATE ===================
+// function computeDataUsageMB(durationSec, percentWatched, currentBitrateBps) {
+//   if (!durationSec || !currentBitrateBps) return { watchedMB: 0, wastedMB: 0 };
 
-  const watchedSec = durationSec * (percentWatched / 100);
-  const wastedSec = durationSec - watchedSec;
+//   const watchedSec = durationSec * (percentWatched / 100);
+//   const wastedSec = durationSec - watchedSec;
 
-  // bits → bytes → MB
-  const watchedMB = (watchedSec * currentBitrateBps) / 8 / 1e6;
-  const wastedMB  = (wastedSec  * currentBitrateBps) / 8 / 1e6;
+//   // bits → bytes → MB
+//   const watchedMB = (watchedSec * currentBitrateBps) / 8 / 1e6;
+//   const wastedMB  = (wastedSec  * currentBitrateBps) / 8 / 1e6;
 
-  return {
-    watchedMB: watchedMB.toFixed(2),
-    wastedMB: wastedMB.toFixed(2)
-  };
-}
+//   return {
+//     watchedMB: watchedMB.toFixed(2),
+//     wastedMB: wastedMB.toFixed(2)
+//   };
+// }
 
 
 // ============= START-UP DELAY & STALLS ================
@@ -808,12 +808,12 @@ const observer = new MutationObserver(() => {
         ? Math.min((watchedTime / duration) * 100, 100).toFixed(1)
         : "0";
 
-      const currentBitrate = lastKnownBitrate || 0;
-      const { watchedMB, wastedMB } = computeDataUsageMB(
-        duration,
-        parseFloat(percent),
-        currentBitrate
-      );
+      // const currentBitrate = lastKnownBitrate || 0;
+      // const { watchedMB, wastedMB } = computeDataUsageMB(
+      //   duration,
+      //   parseFloat(percent),
+      //   currentBitrate
+      // );
 
       // ✅ Save video-stopped event with bitrate + data usage
       saveEvent({
@@ -824,17 +824,17 @@ const observer = new MutationObserver(() => {
         watchedTime: watchedTime.toFixed(2),
         duration: duration.toFixed(2),
         percent,
-        extra: {
-          currentBitrate,
-          watchedMB,
-          wastedMB,
-        },
+        // extra: {
+        //   currentBitrate,
+        //   watchedMB,
+        //   wastedMB,
+        // },
       });
 
       // ✅ Update summary stats (with small delay to ensure event order)
       if (duration > 0) {
         setTimeout(() => {
-          updateStats(watchedTime, parseFloat(percent), duration, currentBitrate);
+          updateStats(watchedTime, parseFloat(percent), duration);
         }, 100);
       }
     }
