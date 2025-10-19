@@ -13,6 +13,38 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('avg-percent').textContent = `${Math.round(avgPercent)}%`;
 
       
+      // === Session Timer ===
+      let sessionStart = Date.now();
+      function updateSessionTimer() {
+        const elapsed = Math.floor((Date.now() - sessionStart) / 1000);
+        const mins = String(Math.floor(elapsed / 60)).padStart(2, '0');
+        const secs = String(elapsed % 60).padStart(2, '0');
+        document.getElementById('session-time').textContent = `${mins}:${secs}`;
+        document.getElementById('footer-session').textContent = `${Math.floor(elapsed / 60)}m`;
+      }
+      setInterval(updateSessionTimer, 1000);
+
+      // === Example: progress bar demo ===
+      let totalWatchMinutes = 0;
+      setInterval(() => {
+        totalWatchMinutes = (totalWatchMinutes + 1) % 100;
+        document.getElementById('progress-fill').style.width = `${totalWatchMinutes}%`;
+        document.getElementById('progress-label').textContent = `${totalWatchMinutes} min watched today`;
+      }, 2000);
+
+      // === Animate value updates ===
+      function flashUpdate(el) {
+        el.classList.add('updated');
+        setTimeout(() => el.classList.remove('updated'), 400);
+      }
+
+      // === Theme Toggle ===
+      const toggleBtn = document.getElementById('theme-toggle');
+      toggleBtn.addEventListener('click', () => {
+        document.body.classList.toggle('dark');
+        toggleBtn.textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
+      });
+
 
       // ================== WATCH HISTORY CHART ==================
       if (history.length > 0 && typeof Chart !== 'undefined') {
