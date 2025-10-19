@@ -12,6 +12,8 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('watch-time').textContent = `${Math.floor(totalTimeSec / 60)} min`;
       document.getElementById('avg-percent').textContent = `${Math.round(avgPercent)}%`;
 
+      
+
       // ================== WATCH HISTORY CHART ==================
       if (history.length > 0 && typeof Chart !== 'undefined') {
         const ctx = document.getElementById('watch-history-chart').getContext('2d');

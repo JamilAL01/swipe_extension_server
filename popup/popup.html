@@ -4,43 +4,131 @@
   <meta charset="UTF-8" />
   <title>SWiPE X STATS</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="stylesheet" href="popup.css" />
   <style>
-    :root { 
-      --bg: #fdfdfd; 
-      --muted: #f3f4f6; 
-      --accent: #2563eb; 
-      --card: #ffffff; 
-      --danger: #ef4444; 
+    :root {
+      --bg: #f8fafc;
+      --muted: #f3f4f6;
+      --accent: #2563eb;
+      --card: #ffffff;
+      --danger: #ef4444;
       --shadow: rgba(0, 0, 0, 0.08);
+      --text: #111;
+    }
+
+    body.dark {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --muted: #334155;
+      --accent: #60a5fa;
+      --danger: #f87171;
+      --text: #f1f5f9;
+      --shadow: rgba(0, 0, 0, 0.3);
     }
 
     html, body {
       margin: 0;
       padding: 0;
       font-family: 'Inter', Arial, sans-serif;
-      background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+      background: linear-gradient(180deg, var(--bg) 0%, #eef2ff 100%);
+      color: var(--text);
+      transition: background 0.4s ease, color 0.3s ease;
     }
 
     .container {
+      position: relative;
       width: 380px;
       padding: 18px;
       background: var(--card);
       border-radius: 14px;
       box-shadow: 0 8px 30px var(--shadow);
-      color: #111;
-      margin: 12px auto;
+      margin: 18px auto;
+      overflow: hidden;
+      transition: background 0.4s ease;
+    }
+
+    /* === Theme Toggle === */
+    .theme-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      font-size: 20px;
+      transition: transform 0.2s ease;
+      color: var(--accent);
+    }
+
+    .theme-btn:hover {
+      transform: rotate(15deg);
+    }
+
+    /* === Header === */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      animation: fadeIn 0.6s ease;
+    }
+
+    .header img {
+      width: 50px;
+      height: 50px;
+      border-radius: 6px;
     }
 
     h1 {
       font-size: 18px;
-      margin: 0 0 16px;
-      text-align: center;
+      margin: 0;
       letter-spacing: 0.5px;
       color: var(--accent);
     }
 
-    /* === Metrics Section === */
+    .header::after {
+      content: "";
+      display: block;
+      height: 1px;
+      width: 80%;
+      margin: 10px auto 0;
+      background: linear-gradient(to right, transparent, #dbeafe, transparent);
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* === Progress Bar === */
+    .session-progress {
+      margin-bottom: 16px;
+      text-align: center;
+    }
+
+    .bar {
+      background: var(--muted);
+      border-radius: 6px;
+      height: 6px;
+      width: 100%;
+      overflow: hidden;
+      margin-bottom: 6px;
+    }
+
+    #progress-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--accent);
+      border-radius: 6px;
+      transition: width 0.4s ease;
+    }
+
+    #progress-label {
+      font-size: 11px;
+      color: #555;
+    }
+
+    /* === Metrics === */
     .metrics {
       display: flex;
       flex-direction: column;
@@ -59,21 +147,14 @@
       transition: background 0.3s ease;
     }
 
-    .metric:hover {
-      background: #e5e7eb;
-    }
+    .metric:hover { background: #e5e7eb; }
 
-    .metric .label { 
-      color: #333;
-      font-weight: 500;
-    }
+    .label { font-weight: 500; }
+    .value { font-weight: 700; color: var(--accent); transition: transform 0.2s ease, color 0.3s ease; }
 
-    .metric .value { 
-      font-weight: 700; 
-      color: var(--accent);
-    }
+    .value.updated { transform: scale(1.15); }
 
-    /* === Chart Layout === */
+    /* === Charts === */
     .charts {
       display: flex;
       flex-direction: column;
@@ -93,22 +174,11 @@
     .chart-block h3 {
       font-size: 13px;
       margin: 0 0 10px;
-      color: #222;
       font-weight: 600;
     }
 
-    canvas {
-      width: 100% !important;
-      height: 180px !important;
-    }
-
-    /* === Smaller Pie Chart Styling === */
-    #data-pie-chart {
-      display: block;
-      margin: 0 auto;
-      width: 140px !important;
-      height: 140px !important;
-    }
+    canvas { width: 100% !important; height: 180px !important; }
+    #data-pie-chart { width: 140px !important; height: 140px !important; margin: 0 auto; }
 
     .summary-row {
       display: flex;
@@ -139,22 +209,39 @@
       transition: background 0.25s ease, transform 0.1s ease;
     }
 
-    .reset-btn:hover {
-      background: #dc2626;
-      transform: translateY(-1px);
-    }
+    .reset-btn:hover { background: #dc2626; transform: translateY(-1px); }
+    .reset-btn:active { transform: translateY(0); }
 
-    .reset-btn:active {
-      transform: translateY(0);
+    /* === Footer Note === */
+    .footer-note {
+      text-align: center;
+      font-size: 12px;
+      color: #555;
+      margin-top: 12px;
+      opacity: 0.85;
     }
-
   </style>
 </head>
 <body>
   <div class="container" role="main" aria-label="Swipe stats popup">
-    <h1>SWiPE X STATS</h1>
+    <button id="theme-toggle" class="theme-btn" title="Toggle theme">🌙</button>
+
+    <div class="header">
+      <img src="C:/Users/jaboulta/swipe_extension/icon-1.png" alt="App Logo" />
+      <h1>SWiPE X STATS</h1>
+    </div>
+
+    <!-- <div class="session-progress">
+      <div class="bar"><div id="progress-fill"></div></div>
+      <span id="progress-label">0 min watched today</span>
+    </div> -->
 
     <div class="metrics">
+      <div class="metric">
+        <span class="label"><b>Session Duration</b></span>
+        <span id="session-time" class="value">00:00</span>
+      </div>
+
       <div class="metric">
         <span class="label"><b>Videos Watched</b></span>
         <span id="videos-count" class="value">0</span>
@@ -195,9 +282,45 @@
     </div>
 
     <button id="reset-stats" class="reset-btn">Reset Stats</button>
+
+    <p class="footer-note">🕒 Active for <span id="footer-session">0m</span> - keep it up!</p>
   </div>
 
   <script src="chart.umd.js"></script>
   <script src="popup.js"></script>
+
+  <script>
+    // === Session Timer ===
+    let sessionStart = Date.now();
+    function updateSessionTimer() {
+      const elapsed = Math.floor((Date.now() - sessionStart) / 1000);
+      const mins = String(Math.floor(elapsed / 60)).padStart(2, '0');
+      const secs = String(elapsed % 60).padStart(2, '0');
+      document.getElementById('session-time').textContent = `${mins}:${secs}`;
+      document.getElementById('footer-session').textContent = `${Math.floor(elapsed / 60)}m`;
+    }
+    setInterval(updateSessionTimer, 1000);
+
+    // // === Example: progress bar demo ===
+    // let totalWatchMinutes = 0;
+    // setInterval(() => {
+    //   totalWatchMinutes = (totalWatchMinutes + 1) % 100;
+    //   document.getElementById('progress-fill').style.width = `${totalWatchMinutes}%`;
+    //   document.getElementById('progress-label').textContent = `${totalWatchMinutes} min watched today`;
+    // }, 2000);
+
+    // // === Animate value updates ===
+    // function flashUpdate(el) {
+    //   el.classList.add('updated');
+    //   setTimeout(() => el.classList.remove('updated'), 400);
+    // }
+
+    // === Theme Toggle ===
+    const toggleBtn = document.getElementById('theme-toggle');
+    toggleBtn.addEventListener('click', () => {
+      document.body.classList.toggle('dark');
+      toggleBtn.textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
+    });
+  </script>
 </body>
 </html>
