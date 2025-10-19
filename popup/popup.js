@@ -13,16 +13,29 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('avg-percent').textContent = `${Math.round(avgPercent)}%`;
 
       
-      // === Session Timer ===
-      let sessionStart = Date.now();
-      function updateSessionTimer() {
-        const elapsed = Math.floor((Date.now() - sessionStart) / 1000);
-        const mins = String(Math.floor(elapsed / 60)).padStart(2, '0');
-        const secs = String(elapsed % 60).padStart(2, '0');
-        document.getElementById('session-time').textContent = `${mins}:${secs}`;
-        document.getElementById('footer-session').textContent = `${Math.floor(elapsed / 60)}m`;
+      // === Persistent Session Timer ===
+      function initializeSessionTimer() {
+        const storedStart = localStorage.getItem('sessionStart');
+        let sessionStart = storedStart ? Number(storedStart) : Date.now();
+
+        // if it didn't exist, save the current time
+        if (!storedStart) {
+          localStorage.setItem('sessionStart', sessionStart);
+        }
+
+        function updateSessionTimer() {
+          const elapsed = Math.floor((Date.now() - sessionStart) / 1000);
+          const mins = String(Math.floor(elapsed / 60)).padStart(2, '0');
+          const secs = String(elapsed % 60).padStart(2, '0');
+          document.getElementById('session-time').textContent = `${mins}:${secs}`;
+          document.getElementById('footer-session').textContent = `${Math.floor(elapsed / 60)}m`;
+        }
+
+        setInterval(updateSessionTimer, 1000);
+        updateSessionTimer();
       }
-      setInterval(updateSessionTimer, 1000);
+
+      initializeSessionTimer();
 
       // === Example: progress bar demo ===
       let totalWatchMinutes = 0;
@@ -44,6 +57,27 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.classList.toggle('dark');
         toggleBtn.textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
       });
+
+      // === Reset Stats + Timer ===
+      document.getElementById('reset-stats').addEventListener('click', () => {
+        localStorage.removeItem('sessionStart');
+        location.reload();
+      });
+
+      chrome.storage.local.get('sessionStart', (data) => {
+      let sessionStart = data.sessionStart || Date.now();
+      if (!data.sessionStart) chrome.storage.local.set({ sessionStart });
+
+      setInterval(() => {
+        const elapsed = Math.floor((Date.now() - sessionStart) / 1000);
+        const mins = String(Math.floor(elapsed / 60)).padStart(2, '0');
+        const secs = String(elapsed % 60).padStart(2, '0');
+        document.getElementById('session-time').textContent = `${mins}:${secs}`;
+        document.getElementById('footer-session').textContent = `${Math.floor(elapsed / 60)}m`;
+      }, 1000);
+    });
+
+
 
 
       // ================== WATCH HISTORY CHART ==================
