@@ -37,19 +37,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
       initializeSessionTimer();
 
-      // === Example: progress bar demo ===
-      let totalWatchMinutes = 0;
-      setInterval(() => {
-        totalWatchMinutes = (totalWatchMinutes + 1) % 100;
-        document.getElementById('progress-fill').style.width = `${totalWatchMinutes}%`;
-        document.getElementById('progress-label').textContent = `${totalWatchMinutes} min watched today`;
-      }, 2000);
-
-      // === Animate value updates ===
-      function flashUpdate(el) {
-        el.classList.add('updated');
-        setTimeout(() => el.classList.remove('updated'), 400);
-      }
 
       // === Theme Toggle ===
       const toggleBtn = document.getElementById('theme-toggle');
