@@ -48,4 +48,62 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   }
 });
 
+// update-checker.js
+const UPDATE_CHECK_INTERVAL_HOURS = 6;
+const VERSION_URL = 'https://github.com/JamilAL01/swipe_extension_server/version.json'; // <-- change this
+const CURRENT_VERSION = chrome.runtime.getManifest().version;
 
+// Compare semantic versions (e.g., 1.2.3 < 1.3.0)
+function isNewerVersion(latest, current) {
+  const a = latest.split('.').map(Number);
+  const b = current.split('.').map(Number);
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const diff = (a[i] || 0) - (b[i] || 0);
+    if (diff > 0) return true;
+    if (diff < 0) return false;
+  }
+  return false;
+}
+
+async function checkForUpdates() {
+  try {
+    const res = await fetch(VERSION_URL, { cache: 'no-cache' });
+    if (!res.ok) throw new Error('Cannot fetch version.json');
+    const info = await res.json();
+
+    if (isNewerVersion(info.latest, CURRENT_VERSION)) {
+      console.log(`[Update Checker] New version ${info.latest} available (current ${CURRENT_VERSION})`);
+
+      // Save info for popup or dashboard (optional)
+      chrome.storage.local.set({ updateInfo: info, updateAvailable: true });
+
+      // Show Chrome notification
+      chrome.notifications.create('update_available', {
+        type: 'basic',
+        iconUrl: 'icon128.png',
+        title: 'New Version Available!',
+        message: info.message || `A new version (${info.latest}) is available.`,
+        priority: 2
+      });
+
+      // Handle click → open GitHub release
+      chrome.notifications.onClicked.addListener((id) => {
+        if (id === 'update_available') {
+          chrome.tabs.create({ url: info.changelog || 'https://github.com/yourusername/your-extension' });
+          chrome.notifications.clear(id);
+        }
+      });
+    } else {
+      console.log('[Update Checker] You are on the latest version.');
+    }
+  } catch (err) {
+    console.error('[Update Checker] Error:', err);
+  }
+}
+
+// Run once on startup or install
+chrome.runtime.onInstalled.addListener(checkForUpdates);
+chrome.runtime.onStartup.addListener(checkForUpdates);
+
+// Periodic check (every few hours)
+setInterval(checkForUpdates, 1000 * 60 * 60 * UPDATE_CHECK_INTERVAL_HOURS);
