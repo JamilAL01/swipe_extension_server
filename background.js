@@ -48,12 +48,12 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   }
 });
 
-// update-checker.js
+// send notification
 const UPDATE_CHECK_INTERVAL_HOURS = 6;
-const VERSION_URL = 'https://github.com/JamilAL01/swipe_extension_server/version.json'; // <-- change this
+const VERSION_URL = 'https://raw.githubusercontent.com/JamilAL01/swipe_extension_server/main/version.json';
 const CURRENT_VERSION = chrome.runtime.getManifest().version;
 
-// Compare semantic versions (e.g., 1.2.3 < 1.3.0)
+// Compare semantic versions
 function isNewerVersion(latest, current) {
   const a = latest.split('.').map(Number);
   const b = current.split('.').map(Number);
@@ -80,16 +80,17 @@ async function checkForUpdates() {
       // Show Chrome notification
       chrome.notifications.create('update_available', {
         type: 'basic',
-        iconUrl: 'icon128.png',
+        iconUrl: chrome.runtime.getURL('icon-1.png'),
         title: 'New Version Available!',
         message: info.message || `A new version (${info.latest}) is available.`,
         priority: 2
       });
 
+
       // Handle click → open GitHub release
       chrome.notifications.onClicked.addListener((id) => {
         if (id === 'update_available') {
-          chrome.tabs.create({ url: info.changelog || 'https://github.com/yourusername/your-extension' });
+          chrome.tabs.create({ url: info.changelog || 'https://raw.githubusercontent.com/JamilAL01/swipe_extension_server' });
           chrome.notifications.clear(id);
         }
       });
