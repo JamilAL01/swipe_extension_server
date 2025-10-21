@@ -8,18 +8,18 @@
     :root {
       --bg: #f8fafc;
       --muted: #f3f4f6;
-      --accent: #2563eb;
+      --accent: #002250;
       --card: #ffffff;
       --danger: #ef4444;
       --shadow: rgba(0, 0, 0, 0.08);
-      --text: #111;
+      --text: #002250;
     }
 
     body.dark {
       --bg: #0f172a;
       --card: #1e293b;
       --muted: #334155;
-      --accent: #60a5fa;
+      --accent: #ffffff;
       --danger: #f87171;
       --text: #f1f5f9;
       --shadow: rgba(0, 0, 0, 0.3);
@@ -216,7 +216,7 @@
     .footer-note {
       text-align: center;
       font-size: 12px;
-      color: #555;
+      color: #f2a659;
       margin-top: 12px;
       opacity: 0.85;
     }
@@ -233,10 +233,10 @@
 
 
     <div class="metrics">
-      <div class="metric">
+      <!-- <div class="metric">
         <span class="label"><b>Session Duration</b></span>
         <span id="session-time" class="value">00:00</span>
-      </div>
+      </div> -->
 
       <div class="metric">
         <span class="label"><b>Videos Watched</b></span>
@@ -256,7 +256,7 @@
 
     <div class="charts">
       <div class="chart-block">
-        <h3>Watch History</h3>
+        <h3>Watch & Engagement History</h3>
         <canvas id="watch-history-chart"></canvas>
       </div>
 
@@ -279,7 +279,7 @@
 
     <button id="reset-stats" class="reset-btn">Reset Stats</button>
 
-    <p class="footer-note">🕒 Active for <span id="footer-session">0m</span> - keep it up!</p>
+    <!-- <p class="footer-note">🕒 Active for <span id="footer-session">0m</span> - keep it up!</p> -->
   </div>
 
   <script src="chart.umd.js"></script>
