@@ -368,7 +368,7 @@ function attachVideoEvents(video) {
   state.viewportIntervalId = setInterval(() => {
     // only if video dimensions have changed
     sendResolutionSnapshot();
-  }, 3000);
+  }, 30000);
 
   // keep reference for future cleanup
   const cleanup = () => {
