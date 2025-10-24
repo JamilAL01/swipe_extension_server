@@ -288,6 +288,21 @@ function saveEvent(eventData) {
     .catch(err => console.error("[SwipeExtension] Fetch error ❌", err));
 }
 
+// ================== KEEP VIDEO ID UPDATED ==================
+let currentVideoId = null;
+
+// Watch URL and DOM to keep videoId always fresh
+function updateCurrentVideoId() {
+  const newId = getVideoId();
+  if (newId && newId !== currentVideoId) {
+    currentVideoId = newId;
+    console.log(`[SwipeExtension] 🔁 Updated videoId: ${currentVideoId}`);
+  }
+}
+
+// Update every time URL or video element changes
+setInterval(updateCurrentVideoId, 500);
+
 // ================== VIDEO EVENT HOOK (FIXED VIDEO-ID UPDATES) ==================
 function attachVideoEvents(video) {
   if (!video || video._hooked) return;
