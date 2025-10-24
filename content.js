@@ -437,16 +437,75 @@ function updateStats(watchedTime, percentWatched, duration, currentBitrate = nul
   });
 }
 
-// ================== VIDEO RESOLUTION ======================
-function getMaxResolutionFromInitialData() {
+
+// ================== VIEWPORT =======================
+function getVideoViewport(video) {
   try {
-    // Find the <script> tag that contains ytInitialPlayerResponse
+    const rect = video.getBoundingClientRect();
+    return {
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+      aspect_ratio: (rect.width / rect.height).toFixed(2),
+      orientation: rect.width > rect.height ? "landscape" : "portrait",
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ================== VIDEO VIEWPORT TRACKING ======================
+function trackViewportChanges(video) {
+  if (!video) return;
+
+  let lastViewport = { w: 0, h: 0 };
+  let currentVideoId = null;
+
+  const sendViewportEvent = (w, h) => {
+    saveEvent({
+      type: "video-viewport-change",
+      videoId: getVideoId(),
+      src: video.src,
+      timestamp: new Date().toISOString(),
+      extra: {
+        width: w,
+        height: h,
+        aspect_ratio: (w / h).toFixed(2),
+        orientation: w > h ? "landscape" : "portrait",
+      },
+    });
+    console.log(`[SwipeExtension] Viewport changed: ${w}x${h}`);
+  };
+
+  const checkViewport = () => {
+    const vp = getVideoViewport(video);
+    if (vp && (vp.width !== lastViewport.w || vp.height !== lastViewport.h)) {
+      lastViewport = { w: vp.width, h: vp.height };
+      sendViewportEvent(vp.width, vp.height);
+    }
+  };
+
+  // Initial setup when video loads
+  video.addEventListener("loadedmetadata", () => {
+    currentVideoId = getVideoId();
+    checkViewport();
+  });
+
+  // Detect window resizes or fullscreen changes
+  window.addEventListener("resize", checkViewport);
+  document.addEventListener("fullscreenchange", checkViewport);
+
+  // Optional: check every few seconds for subtle UI changes
+  setInterval(checkViewport, 2000);
+}
+
+// ================== MAX VIDEO RESOLUTION ======================
+function getMaxResolutionAndBitrate() {
+  try {
     const script = [...document.scripts].find(s =>
       s.textContent.includes('ytInitialPlayerResponse')
     );
     if (!script) return null;
 
-    // Extract JSON content
     const match = script.textContent.match(/ytInitialPlayerResponse\s*=\s*(\{.*?\});/);
     if (!match) return null;
 
@@ -454,28 +513,29 @@ function getMaxResolutionFromInitialData() {
     const adaptiveFormats = data?.streamingData?.adaptiveFormats;
     if (!adaptiveFormats || !adaptiveFormats.length) return null;
 
-    // Pick the format with the largest resolution
-    let maxFmt = adaptiveFormats.reduce(
-      (acc, fmt) => {
-        if (fmt.width && fmt.height) {
-          const pixels = fmt.width * fmt.height;
-          const accPixels = acc.width * acc.height;
-          if (pixels > accPixels) return fmt;
-        }
-        return acc;
-      },
-      { width: 0, height: 0 }
-    );
+    // Only keep valid video formats
+    const videoFormats = adaptiveFormats.filter(f => f.width && f.height && f.mimeType.includes('video'));
+    if (!videoFormats.length) return null;
 
-    return maxFmt.width && maxFmt.height
-      ? `${maxFmt.width}x${maxFmt.height}`
-      : null;
+    // Pick the one with the largest pixel count
+    const maxFmt = videoFormats.reduce((acc, fmt) => {
+      const accPixels = acc.width * acc.height;
+      const pixels = fmt.width * fmt.height;
+      return pixels > accPixels ? fmt : acc;
+    });
+
+    const maxRes = `${maxFmt.width}x${maxFmt.height}`;
+    const bitrate = maxFmt.averageBitrate || maxFmt.bitrate || null; // in bps
+    
+
+    return { maxRes, bitrate };
   } catch (err) {
     console.warn('[SwipeExtension] Failed to parse ytInitialPlayerResponse:', err);
     return null;
   }
 }
 
+// ================== VIDEO RESOLUTION & BITRATE TRACKING ======================
 function trackVideoResolution(video) {
   if (!video) return;
 
@@ -494,7 +554,6 @@ function trackVideoResolution(video) {
   };
 
   const startResolutionTracking = () => {
-    // Delay slightly to let YouTube update videoId properly
     timeoutId = setTimeout(() => {
       currentVideoId = getVideoId();
       if (!currentVideoId) return;
@@ -502,64 +561,92 @@ function trackVideoResolution(video) {
       const currentWidth = video.videoWidth;
       const currentHeight = video.videoHeight;
 
-      // ✅ Use ytInitialPlayerResponse to get true max available resolution
-      const maxRes =
-        getMaxResolutionFromInitialData() ||
-        `${currentWidth}x${currentHeight}`;
-
-      console.log(
-        `[SwipeExtension] [${currentVideoId}] Initial resolution: ${currentWidth}x${currentHeight}, max available: ${maxRes}`
+      // Parse ytInitialPlayerResponse
+      const script = [...document.scripts].find(s =>
+        s.textContent.includes("ytInitialPlayerResponse")
       );
+      if (!script) return;
 
+      const match = script.textContent.match(/ytInitialPlayerResponse\s*=\s*(\{.*?\});/);
+      if (!match) return;
+
+      const data = JSON.parse(match[1]);
+      const adaptiveFormats = data?.streamingData?.adaptiveFormats || [];
+
+      // Video-only formats
+      const videoFormats = adaptiveFormats.filter(f => f.mimeType.includes("video"));
+      if (!videoFormats.length) return;
+
+      // Find max resolution + bitrate + codec
+      const maxFmt = videoFormats.reduce(
+        (acc, fmt) => (fmt.bitrate || 0) > (acc.bitrate || 0) ? fmt : acc,
+        {}
+      );
+      const maxRes = maxFmt.width && maxFmt.height
+        ? `${maxFmt.width}x${maxFmt.height}`
+        : `${currentWidth}x${currentHeight}`;
+      
+
+
+      // Log initial
       saveEvent({
-        type: 'video-resolution',
+        type: "video-resolution",
         videoId: currentVideoId,
         src: video.src,
         timestamp: new Date().toISOString(),
         extra: {
           current: `${currentWidth}x${currentHeight}`,
-          max: maxRes
-        }
+          max: maxRes,
+          
+          viewport: getVideoViewport(video),
+        },
       });
 
       allowChanges = true;
       lastWidth = currentWidth;
       lastHeight = currentHeight;
 
-      // Start tracking resolution changes
-      if (resolutionInterval) clearInterval(resolutionInterval);
+      // Periodic resolution/bitrate tracking
       resolutionInterval = setInterval(() => {
-        if (!allowChanges || !currentVideoId) return;
+        if (!allowChanges || !currentVideoId || video.readyState < 2) return;
 
         const w = video.videoWidth;
         const h = video.videoHeight;
+
         if ((w !== lastWidth || h !== lastHeight) && w && h) {
           lastWidth = w;
           lastHeight = h;
 
-          console.log(
-            `[SwipeExtension] [${currentVideoId}] Resolution changed: ${w}x${h}`
-          );
+          const fmt = videoFormats.find(f => f.width === w && f.height === h);
+          const currentBitrateChange = fmt
+            ? (fmt.averageBitrate || fmt.bitrate)
+            : null;
+
           saveEvent({
-            type: 'video-resolution-change',
+            type: "video-resolution-change",
             videoId: currentVideoId,
             src: video.src,
             timestamp: new Date().toISOString(),
-            extra: { width: w, height: h }
+            extra: {
+              width: w,
+              height: h,
+           
+              viewport: getVideoViewport(video),
+            },
           });
         }
       }, 2000);
     }, 100);
   };
 
-  // Triggered when a new video loads
-  video.addEventListener('loadedmetadata', () => {
+  video.addEventListener("loadedmetadata", () => {
     cleanup();
     startResolutionTracking();
   });
 
-  video.addEventListener('ended', cleanup);
+  video.addEventListener("ended", cleanup);
 }
+
 
 // ============= START-UP DELAY & STALLS ================
 function attachStallAndStartupTracking(video) {
@@ -634,9 +721,6 @@ function attachStallAndStartupTracking(video) {
   video.addEventListener("timeupdate", onResume);
 }
 
-
-
-
 // ================== OBSERVE VIDEO CHANGES ==================
 const observer = new MutationObserver(() => {
   const video = document.querySelector("video");
@@ -645,7 +729,8 @@ const observer = new MutationObserver(() => {
     video._resolutionHooked = true;
 
     const videoId = getVideoId(); 
-    trackVideoResolution(video, videoId); 
+    trackVideoResolution(video, videoId);
+    trackViewportChanges(video); 
 
     // ✅ Hook stall + startup delay early so we don't miss loadeddata
     attachStallAndStartupTracking(video);
@@ -673,7 +758,9 @@ const observer = new MutationObserver(() => {
       });
 
       if (duration > 0) {
-        updateStats(watchedTime, parseFloat(percent));
+        setTimeout(() => {
+          updateStats(watchedTime, parseFloat(percent), duration);
+        }, 100);
       }
     }
 
