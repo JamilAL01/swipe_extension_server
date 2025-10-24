@@ -386,39 +386,71 @@ function attachVideoEvents(video) {
   });
 }
 
-// ================== ACTION BUTTONS (LIKE / DISLIKE / SHARE) ==================
-let actionHooks = new WeakSet();
+// ================== LIKE / DISLIKE / SHARE (FIXED) ==================
 function attachActionEvents() {
-  // try multiple selectors - YouTube markup evolves frequently; we attempt a few fallbacks
-  const selectors = [
-    'ytd-toggle-button-renderer:nth-of-type(1) button', // like common
-    '#top-level-buttons-computed ytd-toggle-button-renderer:nth-of-type(1) button', // alternative
-    'button[aria-label*="like"], button[aria-label*="Like"]'
-  ];
-  const dislikeSelectors = [
-    'ytd-toggle-button-renderer:nth-of-type(2) button',
-    'button[aria-label*="dislike"], button[aria-label*="Dislike"]'
-  ];
-  const shareSelectors = [
-    '#share-button button, ytd-button-renderer#share-icon-button button, button[aria-label*="Share"]'
-  ];
+  const videoId = getVideoId();
+  if (!videoId) return;
 
-  function tryAttach(selList, eventType) {
-    for (const sel of selList) {
-      const btn = document.querySelector(sel);
-      if (btn && !actionHooks.has(btn)) {
-        btn.addEventListener("click", () => {
-          saveEvent({ type: eventType, videoId: getVideoId(), src: (document.querySelector("video")?.currentSrc || document.querySelector("video")?.src), timestamp: new Date().toISOString() });
-        });
-        actionHooks.add(btn);
-      }
-    }
+  // Store last event timestamps per video to prevent duplicates
+  window._swipeActionCache = window._swipeActionCache || {};
+
+  const recordAction = (type) => {
+    const now = Date.now();
+    const key = `${videoId}-${type}`;
+    const lastTime = window._swipeActionCache[key] || 0;
+
+    // Prevent duplicates within 1 second
+    if (now - lastTime < 1000) return;
+
+    window._swipeActionCache[key] = now;
+
+    saveEvent({
+      type,
+      videoId,
+      src: currentVideo?.src,
+      timestamp: new Date().toISOString()
+    });
+  };
+
+  // Find all relevant buttons freshly each time (YouTube often re-renders)
+  const likeBtn = document.querySelector(
+    'ytd-toggle-button-renderer:nth-of-type(1) button'
+  );
+  const dislikeBtn = document.querySelector(
+    'ytd-toggle-button-renderer:nth-of-type(2) button'
+  );
+  const shareBtn = document.querySelector(
+    'ytd-button-renderer[is-icon-button][button-renderer] button, #share-button button'
+  );
+
+  if (likeBtn && !likeBtn._swipeAttached) {
+    likeBtn._swipeAttached = true;
+    likeBtn.addEventListener("click", () => {
+      const currentVid = getVideoId();
+      recordAction("video-like");
+      console.log(`[SwipeExtension] 👍 Liked video ${currentVid}`);
+    });
   }
 
-  tryAttach(selectors, "video-like");
-  tryAttach(dislikeSelectors, "video-dislike");
-  tryAttach(shareSelectors, "video-share");
+  if (dislikeBtn && !dislikeBtn._swipeAttached) {
+    dislikeBtn._swipeAttached = true;
+    dislikeBtn.addEventListener("click", () => {
+      const currentVid = getVideoId();
+      recordAction("video-dislike");
+      console.log(`[SwipeExtension] 👎 Disliked video ${currentVid}`);
+    });
+  }
+
+  if (shareBtn && !shareBtn._swipeAttached) {
+    shareBtn._swipeAttached = true;
+    shareBtn.addEventListener("click", () => {
+      const currentVid = getVideoId();
+      recordAction("video-share");
+      console.log(`[SwipeExtension] 📤 Shared video ${currentVid}`);
+    });
+  }
 }
+
 // =================  STATS ========================
 function updateStats(watchedTime, percentWatched, duration, currentBitrate = null) {
   chrome.storage.local.get(['videosWatched', 'totalWatchedTime', 'avgPercentWatched', 'videoHistory'], (data) => {
