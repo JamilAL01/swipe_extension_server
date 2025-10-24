@@ -1,6 +1,3 @@
-// content.js - fixed full script (video events + ordered sending + correct videoId)
-// Your original header & translations are preserved, only internals after them are changed/rewired.
-
 console.log("[SwipeExtension] Content script injected ✅");
 
 // ================== TRANSLATIONS ==================
@@ -71,9 +68,184 @@ window._swipeUserId = userId;
 window._swipeSessionId = sessionId;
 
 // ================== CONSENT POPUP ==================
-// (Keep your original showConsentPopup and showSurveyPopup functions — copy them from your original file.)
-// For brevity I'll assume they are unchanged and already present in the file (your original code). 
-// If you want the full unchanged functions included here I can paste them — you already provided them earlier.
+function showConsentPopup() {
+  const t = translations[selectedLang];
+
+  // Remove existing popup if any
+  const old = document.getElementById("swipe-consent-popup");
+  if (old) old.remove();
+
+  const popup = document.createElement("div");
+  popup.id = "swipe-consent-popup";
+  popup.style = `
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 500px;
+    padding: 25px;
+    background: white;
+    border: 2px solid #444;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    z-index: 9999;
+    font-size: 16px;
+    font-family: Arial, sans-serif;
+    text-align: center;
+  `;
+
+  popup.innerHTML = `
+    <h2 style="margin-top:0; font-size:20px;">${t.consentTitle}</h2>
+    <p style="margin-bottom:10px; margin-top:15px;">Select language / Choisir la langue:</p>
+    <select id="lang-select" style="margin-bottom:20px; padding:8px 10px;">
+      <option value="en" ${selectedLang==="en"?"selected":""}>English</option>
+      <option value="fr" ${selectedLang==="fr"?"selected":""}>Français</option>
+    </select>
+    <p style="line-height:1.5;">${t.consentText}</p>
+    <p><b>${t.consentQuestion}</b></p>
+    <button id="consent-yes" style="margin:10px; padding:10px 20px; cursor:pointer;">${t.yes}</button>
+    <button id="consent-no" style="margin:10px; padding:10px 20px; cursor:pointer;">${t.no}</button>
+  `;
+
+  document.body.appendChild(popup);
+
+  // Language change handler
+  document.getElementById("lang-select").onchange = (e) => {
+    selectedLang = e.target.value;
+    localStorage.setItem("swipeLang", selectedLang);
+    showConsentPopup(); // re-render popup in new language
+  };
+
+  document.getElementById("consent-yes").onclick = () => {
+    localStorage.setItem("swipeConsent","yes");
+    consent = "yes";
+    popup.remove();
+    window._swipeConsentDismissedAt = performance.now();  
+    console.log("[SwipeExtension] User consented ✅");
+    showSurveyPopup();
+  };
+
+
+  document.getElementById("consent-no").onclick = () => {
+    localStorage.setItem("swipeConsent","no");
+    consent = "no";
+    popup.remove();
+    console.log("[SwipeExtension] User declined ❌");
+  };
+}
+
+// ================== SURVEY POPUP ==================
+function showSurveyPopup() {
+  if (localStorage.getItem("surveyDone")) return;
+
+  const t = translations[selectedLang];
+
+  const popup = document.createElement("div");
+  popup.id = "survey-popup";
+  popup.style = `
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 500px;
+    padding: 25px;
+    background: white;
+    border: 2px solid #444;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    z-index: 10000;
+    font-size: 16px;
+    font-family: Arial, sans-serif;
+    text-align: left;
+    max-height: 80vh;
+    overflow-y: auto;
+  `;
+
+  popup.innerHTML = `
+    <h2 style="margin-top:0; font-size:20px;">${t.surveyTitle}</h2>
+    <p>${t.surveyText}</p>
+    ${["q1","q2","q3","q4","q5"].map(q=>{
+      return `<label>${t[q]}</label><br>
+              <select id="${q}" style="width:100%; padding:5px; margin:5px 0;">
+                ${t[q+"Options"].map(opt=>`<option value="${opt}">${opt}</option>`).join('')}
+              </select><br><br>`;
+    }).join('')}
+    <label>${t.q6}</label><br>
+    <textarea id="q6" rows="3" style="width:100%;"></textarea><br><br>
+    <button id="survey-submit" style="padding:10px 20px; cursor:pointer;">${t.submit}</button>
+  `;
+
+  document.body.appendChild(popup);
+
+  const submitBtn = document.getElementById("survey-submit");
+
+  //  Define the handler first
+  const handleSurveySubmit = () => {
+    submitBtn.disabled = true;
+
+    const answers = ["q1","q2","q3","q4","q5","q6"].reduce((acc,key)=>{
+      acc[key] = document.getElementById(key).value;
+      return acc;
+    }, {});
+
+    if (!answers.q1 || !answers.q2 || !answers.q3 || !answers.q4 || !answers.q5 ||
+        answers.q1.startsWith("--") || answers.q2.startsWith("--") ||
+        answers.q3.startsWith("--") || answers.q4.startsWith("--") ||
+        answers.q5.startsWith("--")) {
+      alert(t.alertIncomplete);
+      submitBtn.disabled = false;
+      return;
+    }
+
+    if (!window._swipeUserId || !window._swipeSessionId) {
+      console.warn("[SwipeExtension] ❌ Survey submission delayed — user/session not initialized yet");
+      setTimeout(() => submitBtn.click(), 500);
+      return;
+    }
+
+    const screenInfo = `${window.innerWidth}x${window.innerHeight}`;
+    const deviceType = window.innerWidth <= 768 ? "mobile" :
+                  window.innerWidth <= 1024 ? "tablet" :
+                  window.innerWidth <= 1440 ? "laptop" : "desktop";
+
+    fetch("https://swipe-extension-server-2.onrender.com/api/surveys", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: window._swipeUserId,
+        sessionId: window._swipeSessionId,
+        answers,
+        screen_size: screenInfo,
+        device_type: deviceType,
+        timestamp: new Date().toISOString()
+      })
+    })
+      .then(res => {
+        if (!res.ok) throw new Error("Survey save failed");
+        console.log("[SwipeExtension] Survey saved ✅", answers);
+        localStorage.setItem("surveyDone","true");
+        popup.remove();
+      })
+      .catch(err => {
+        console.error("[SwipeExtension] Survey error ❌", err);
+        submitBtn.disabled = false;
+      })
+      .finally(() => {
+        submitBtn.removeEventListener("click", handleSurveySubmit);
+      });
+  };
+
+  //  Clear any previous handlers and attach only once
+  submitBtn.onclick = null;
+  submitBtn.addEventListener("click", handleSurveySubmit);
+}
+
+// ================== CONSENT CHECK ==================
+if (!consent) {
+  showConsentPopup();
+} else if (consent === "yes") {
+  showSurveyPopup();
+}
 
 // ================== USER & SESSION SETUP ==================
 let currentVideo = null; // DOM element
