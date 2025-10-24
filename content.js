@@ -1,256 +1,195 @@
 console.log("[SwipeExtension] Content script injected ✅");
 
-// ================== TRANSLATIONS ==================
-const translations = {
-  en: {
-    consentTitle: "🔒 Data Collection Notice",
-    consentText: `This extension <b>SWiPE X</b> records your interactions with YouTube Shorts
-      (<b>play, pause, skips, watch time, likes, shares</b>, etc.) for research purposes.
-      Your identity remains completely anonymous. A randomly generated ID is stored locally only to recognize repeated usage across sessions.`,
-    consentQuestion: "Do you agree?",
-    yes: "✅ Yes",
-    no: "❌ No",
-    surveyTitle: "📝 Quick Survey",
-    surveyText: "Please answer a few short questions:",
-    submit: "Submit ✅",
-    alertIncomplete: "⚠️ Please answer all required questions before submitting.",
-    q1: "1. How often do you watch YouTube Shorts?",
-    q1Options: ["-- Select --","Daily","Several times per week","Rarely","Never","Prefer not to say"],
-    q2: "2. What device do you usually use?",
-    q2Options: ["-- Select --","Desktop computer","Laptop","Smartphone","Tablet","Prefer not to say"],
-    q3: "3. What type of content do you prefer?",
-    q3Options: ["-- Select --","Comedy & Entertainment","Fashion & Lifestyle","Movies & Animation","Science & Technology","Gaming","Prefer not to say"],
-    q4: "4. Your age group?",
-    q4Options: ["-- Select --","Under 18","18-25","26-35","36 and above","Prefer not to say"],
-    q5: "5. Do you often interact with Shorts?",
-    q5Options: ["-- Select --","Like or dislike","Comment on videos","Share with others","All of the above","I usually just watch without engaging","Prefer not to say"],
-    q6: "6. Any other comments?"
-  },
-  fr: {
-    consentTitle: "🔒 Avis de collecte de données",
-    consentText: `Cette extension <b>SWiPE X</b> enregistre vos interactions avec YouTube Shorts
-      (<b>lecture, pause, saut, temps de visionnage, likes, partages</b>, etc.) à des fins de recherche.
-      Votre identité reste complètement anonyme. Un ID aléatoire est stocké localement uniquement pour reconnaître les utilisations répétées.`,
-    consentQuestion: "Êtes-vous d'accord ?",
-    yes: "✅ Oui",
-    no: "❌ Non",
-    surveyTitle: "📝 Questionnaire rapide",
-    surveyText: "Veuillez répondre à quelques questions courtes :",
-    submit: "Envoyer ✅",
-    alertIncomplete: "⚠️ Veuillez répondre à toutes les questions obligatoires avant de soumettre.",
-    q1: "1. À quelle fréquence regardez-vous les YouTube Shorts ?",
-    q1Options: ["-- Sélectionner --","Quotidien","Plusieurs fois par semaine","Rarement","Jamais","Je préfère ne pas répondre"],
-    q2: "2. Quel appareil utilisez-vous habituellement ?",
-    q2Options: ["-- Sélectionner --","Ordinateur de bureau","Ordinateur portable","Smartphone","Tablette","Je préfère ne pas répondre"],
-    q3: "3. Quel type de contenu préférez-vous ?",
-    q3Options: ["-- Sélectionner --","Comédie & Divertissement","Mode & Style de vie","Films & Animation","Science & Technologie","Jeux vidéo","Je préfère ne pas répondre"],
-    q4: "4. Votre tranche d'âge ?",
-    q4Options: ["-- Sélectionner --","Moins de 18 ans","18-25","26-35","36 ans et plus","Je préfère ne pas répondre"],
-    q5: "5. Interagissez-vous souvent avec les Shorts ?",
-    q5Options: ["-- Sélectionner --","Aimer ou ne pas aimer","Commenter les vidéos","Partager avec d'autres","Toutes les réponses ci-dessus","Je regarde généralement sans interagir","Je préfère ne pas répondre"],
-    q6: "6. Autres commentaires ?"
-  }
-};
-
-// ================== LANGUAGE ==================
-let selectedLang = localStorage.getItem("swipeLang") || (navigator.language.startsWith("fr") ? "fr" : "en");
+// ================== GDPR CONSENT ==================
 let consent = localStorage.getItem("swipeConsent");
 
-// ================== GLOBAL USER & SESSION ID ==================
-let userId = localStorage.getItem("swipeUserId");
-if (!userId) {
-  userId = crypto.randomUUID();
-  localStorage.setItem("swipeUserId", userId);
-}
-let sessionId = crypto.randomUUID();
-
-// For backward compatibility (some parts may use window._swipeUserId)
-window._swipeUserId = userId;
-window._swipeSessionId = sessionId;
-
-
-// ================== CONSENT POPUP ==================
 function showConsentPopup() {
-  const t = translations[selectedLang];
-
-  // Remove existing popup if any
-  const old = document.getElementById("swipe-consent-popup");
-  if (old) old.remove();
+  if (document.getElementById("swipe-consent-popup")) return;
 
   const popup = document.createElement("div");
   popup.id = "swipe-consent-popup";
-  popup.style = `
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 500px;
-    padding: 25px;
-    background: white;
-    border: 2px solid #444;
-    border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-    z-index: 9999;
-    font-size: 16px;
-    font-family: Arial, sans-serif;
-    text-align: center;
-  `;
+  popup.style.position = "fixed";
+  popup.style.top = "50%";
+  popup.style.left = "50%";
+  popup.style.transform = "translate(-50%, -50%)";
+  popup.style.width = "500px";
+  popup.style.padding = "25px";
+  popup.style.background = "white";
+  popup.style.border = "2px solid #444";
+  popup.style.borderRadius = "12px";
+  popup.style.boxShadow = "0 4px 20px rgba(0,0,0,0.3)";
+  popup.style.zIndex = "9999";
+  popup.style.fontSize = "16px";
+  popup.style.fontFamily = "Arial, sans-serif";
+  popup.style.textAlign = "center";
 
   popup.innerHTML = `
-    <h2 style="margin-top:0; font-size:20px;">${t.consentTitle}</h2>
-    <p style="margin-bottom:10px; margin-top:15px;">Select language / Choisir la langue:</p>
-    <select id="lang-select" style="margin-bottom:20px; padding:8px 10px;">
-      <option value="en" ${selectedLang==="en"?"selected":""}>English</option>
-      <option value="fr" ${selectedLang==="fr"?"selected":""}>Français</option>
-    </select>
-    <p style="line-height:1.5;">${t.consentText}</p>
-    <p><b>${t.consentQuestion}</b></p>
-    <button id="consent-yes" style="margin:10px; padding:10px 20px; cursor:pointer;">${t.yes}</button>
-    <button id="consent-no" style="margin:10px; padding:10px 20px; cursor:pointer;">${t.no}</button>
+    <h2 style="margin-top:0; font-size:20px;">🔒 Data Collection Notice</h2>
+    <p style="line-height:1.5;">
+      This extension records your interactions with YouTube Shorts
+      (<b>play, pause, skips, watch time, likes, shares</b>, etc.) for research purposes.
+      Your identity remains completely anonymous. A randomly generated ID is stored locally only to recognize repeated usage across sessions.
+    </p>
+    <p><b>Do you agree?</b></p>
+    <button id="consent-yes" style="margin:10px; padding:10px 20px; font-size:16px; cursor:pointer;">✅ Yes</button>
+    <button id="consent-no" style="margin:10px; padding:10px 20px; font-size:16px; cursor:pointer;">❌ No</button>
   `;
 
   document.body.appendChild(popup);
 
-  // Language change handler
-  document.getElementById("lang-select").onchange = (e) => {
-    selectedLang = e.target.value;
-    localStorage.setItem("swipeLang", selectedLang);
-    showConsentPopup(); // re-render popup in new language
-  };
-
   document.getElementById("consent-yes").onclick = () => {
-    localStorage.setItem("swipeConsent","yes");
+    localStorage.setItem("swipeConsent", "yes");
     consent = "yes";
     popup.remove();
-    window._swipeConsentDismissedAt = performance.now();  // 👈 mark when popup closed
     console.log("[SwipeExtension] User consented ✅");
-    showSurveyPopup();
+    showSurveyPopup(); // show survey only after consent
   };
 
-
   document.getElementById("consent-no").onclick = () => {
-    localStorage.setItem("swipeConsent","no");
+    localStorage.setItem("swipeConsent", "no");
     consent = "no";
     popup.remove();
     console.log("[SwipeExtension] User declined ❌");
   };
 }
 
-// ================== SURVEY POPUP ==================
-function showSurveyPopup() {
-  if (localStorage.getItem("surveyDone")) return;
-
-  const t = translations[selectedLang];
-
-  const popup = document.createElement("div");
-  popup.id = "survey-popup";
-  popup.style = `
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 500px;
-    padding: 25px;
-    background: white;
-    border: 2px solid #444;
-    border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-    z-index: 10000;
-    font-size: 16px;
-    font-family: Arial, sans-serif;
-    text-align: left;
-    max-height: 80vh;
-    overflow-y: auto;
-  `;
-
-  popup.innerHTML = `
-    <h2 style="margin-top:0; font-size:20px;">${t.surveyTitle}</h2>
-    <p>${t.surveyText}</p>
-    ${["q1","q2","q3","q4","q5"].map(q=>{
-      return `<label>${t[q]}</label><br>
-              <select id="${q}" style="width:100%; padding:5px; margin:5px 0;">
-                ${t[q+"Options"].map(opt=>`<option value="${opt}">${opt}</option>`).join('')}
-              </select><br><br>`;
-    }).join('')}
-    <label>${t.q6}</label><br>
-    <textarea id="q6" rows="3" style="width:100%;"></textarea><br><br>
-    <button id="survey-submit" style="padding:10px 20px; cursor:pointer;">${t.submit}</button>
-  `;
-
-  document.body.appendChild(popup);
-
-  const submitBtn = document.getElementById("survey-submit");
-
-  // ✅ Define the handler first
-  const handleSurveySubmit = () => {
-    submitBtn.disabled = true;
-
-    const answers = ["q1","q2","q3","q4","q5","q6"].reduce((acc,key)=>{
-      acc[key] = document.getElementById(key).value;
-      return acc;
-    }, {});
-
-    if (!answers.q1 || !answers.q2 || !answers.q3 || !answers.q4 || !answers.q5 ||
-        answers.q1.startsWith("--") || answers.q2.startsWith("--") ||
-        answers.q3.startsWith("--") || answers.q4.startsWith("--") ||
-        answers.q5.startsWith("--")) {
-      alert(t.alertIncomplete);
-      submitBtn.disabled = false;
-      return;
-    }
-
-    if (!window._swipeUserId || !window._swipeSessionId) {
-      console.warn("[SwipeExtension] ❌ Survey submission delayed — user/session not initialized yet");
-      setTimeout(() => submitBtn.click(), 500);
-      return;
-    }
-
-    const screenInfo = `${window.innerWidth}x${window.innerHeight}`;
-    const deviceType = window.innerWidth <= 768 ? "mobile" :
-                  window.innerWidth <= 1024 ? "tablet" :
-                  window.innerWidth <= 1440 ? "laptop" : "desktop";
-
-    fetch("https://swipe-extension-server-2.onrender.com/api/surveys", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userId: window._swipeUserId,
-        sessionId: window._swipeSessionId,
-        answers,
-        screen_size: screenInfo,
-        device_type: deviceType,
-        timestamp: new Date().toISOString()
-      })
-    })
-      .then(res => {
-        if (!res.ok) throw new Error("Survey save failed");
-        console.log("[SwipeExtension] Survey saved ✅", answers);
-        localStorage.setItem("surveyDone","true");
-        popup.remove();
-      })
-      .catch(err => {
-        console.error("[SwipeExtension] Survey error ❌", err);
-        submitBtn.disabled = false;
-      })
-      .finally(() => {
-        submitBtn.removeEventListener("click", handleSurveySubmit);
-      });
-  };
-
-  // ✅ Clear any previous handlers and attach only once
-  submitBtn.onclick = null;
-  submitBtn.addEventListener("click", handleSurveySubmit);
-}
-
-// ================== CONSENT CHECK ==================
+// Show popup if no choice made yet
 if (!consent) {
   showConsentPopup();
 } else if (consent === "yes") {
   showSurveyPopup();
 }
 
+// ================== SURVEY POPUP ==================
+function showSurveyPopup() {
+  if (localStorage.getItem("surveyDone")) return; // only once per user
+
+  const popup = document.createElement("div");
+  popup.id = "survey-popup";
+  popup.style.position = "fixed";
+  popup.style.top = "50%";
+  popup.style.left = "50%";
+  popup.style.transform = "translate(-50%, -50%)";
+  popup.style.width = "500px";
+  popup.style.padding = "25px";
+  popup.style.background = "white";
+  popup.style.border = "2px solid #444";
+  popup.style.borderRadius = "12px";
+  popup.style.boxShadow = "0 4px 20px rgba(0,0,0,0.3)";
+  popup.style.zIndex = "10000";
+  popup.style.fontSize = "16px";
+  popup.style.fontFamily = "Arial, sans-serif";
+  popup.style.textAlign = "left";
+  popup.style.maxHeight = "80vh";
+  popup.style.overflowY = "auto";
+
+  popup.innerHTML = `
+    <h2 style="margin-top:0; font-size:20px;">📝 Quick Survey</h2>
+    <p>Please answer a few short questions:</p>
+
+    <label>1. How often do you watch YouTube Shorts?</label><br>
+    <select id="q1" style="width:100%; padding:5px; margin:5px 0;">
+      <option value="">-- Select --</option>
+      <option value="Daily">Daily</option>
+      <option value="Several times per week">Several times per week</option>
+      <option value="Rarely">Rarely</option>
+      <option value="Never">Never</option>
+    </select><br><br>
+
+    <label>2. What device do you usually use?</label><br>
+    <select id="q2" style="width:100%; padding:5px; margin:5px 0;">
+      <option value="">-- Select --</option>
+      <option value="Desktop computer">Desktop computer</option>
+      <option value="Laptop">Laptop</option>
+      <option value="Smartphone">Smartphone</option>
+      <option value="Tablet">Tablet</option>
+    </select><br><br>
+
+    <label>3. What type of content do you prefer?</label><br>
+    <select id="q3" style="width:100%; padding:5px; margin:5px 0;">
+      <option value="">-- Select --</option>
+      <option value="Comedy & Entertainment">Comedy & Entertainment</option>
+      <option value="Fashion & Lifestyle">Fashion & Lifestyle</option>
+      <option value="Movies & Animation">Movies & Animation</option>
+      <option value="Science & Technology">Science & Technology</option>
+      <option value="Gaming">Gaming</option>
+    </select><br><br>
+
+    <label>4. Your age group?</label><br>
+    <select id="q4" style="width:100%; padding:5px; margin:5px 0;">
+      <option value="">-- Select --</option>
+      <option value="Under 18">Under 18</option>
+      <option value="18-25">18-25</option>
+      <option value="26-35">26-35</option>
+      <option value="36 and above">36 and above</option>
+    </select><br><br>
+
+    <label>5. Do you often interact with Shorts?</label><br>
+    <select id="q5" style="width:100%; padding:5px; margin:5px 0;">
+      <option value="">-- Select --</option>
+      <option value="Like or dislike">Like or dislike</option>
+      <option value="Comment on videos">Comment on videos</option>
+      <option value="Share with others">Share with others</option>
+      <option value="All of the above">All of the above</option>
+      <option value="I usually just watch without engaging">I usually just watch without engaging</option>
+    </select><br><br>
+
+    <label>6. Any other comments?</label><br>
+    <textarea id="q6" rows="3" style="width:100%;"></textarea><br><br>
+
+    <button id="survey-submit" style="padding:10px 20px; font-size:16px; cursor:pointer;">Submit ✅</button>
+  `;
+
+  document.body.appendChild(popup);
+
+  document.getElementById("survey-submit").onclick = () => {
+    const answers = {
+      q1: document.getElementById("q1").value,
+      q2: document.getElementById("q2").value,
+      q3: document.getElementById("q3").value,
+      q4: document.getElementById("q4").value,
+      q5: document.getElementById("q5").value,
+      q6: document.getElementById("q6").value,
+    };
+
+    if (!answers.q1 || !answers.q2 || !answers.q3 || !answers.q4 || !answers.q5) {
+      alert("⚠️ Please answer all required questions before submitting.");
+      return;
+    }
+
+    fetch("https://swipe-extension-server-2.onrender.com/api/surveys", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId,
+        sessionId,
+        answers,
+        timestamp: new Date().toISOString(),
+      }),
+    })
+      .then(res => res.json())
+      .then(() => {
+        console.log("[SwipeExtension] Survey saved ✅", answers);
+        localStorage.setItem("surveyDone", "true");
+        popup.remove();
+      })
+      .catch(err => console.error("[SwipeExtension] Survey error ❌", err));
+  };
+}
+
 
 // ================== USER & SESSION SETUP ==================
+let userId = localStorage.getItem("swipeUserId");
+if (!userId) {
+  userId = crypto.randomUUID();
+  localStorage.setItem("swipeUserId", userId);
+}
+
+let sessionId = sessionStorage.getItem("swipeSessionId");
+if (!sessionId) {
+  sessionId = crypto.randomUUID();
+  sessionStorage.setItem("swipeSessionId", sessionId);
+}
 
 let currentVideo = null;
 let lastSrc = null;
@@ -288,27 +227,12 @@ function saveEvent(eventData) {
     .catch(err => console.error("[SwipeExtension] Fetch error ❌", err));
 }
 
-// ================== KEEP VIDEO ID UPDATED ==================
-let currentVideoId = null;
-
-// Watch URL and DOM to keep videoId always fresh
-function updateCurrentVideoId() {
-  const newId = getVideoId();
-  if (newId && newId !== currentVideoId) {
-    currentVideoId = newId;
-    console.log(`[SwipeExtension] 🔁 Updated videoId: ${currentVideoId}`);
-  }
-}
-
-// Update every time URL or video element changes
-setInterval(updateCurrentVideoId, 500);
-
-// ================== VIDEO EVENT HOOK (FIXED VIDEO-ID UPDATES) ==================
+// ================== VIDEO EVENT HOOK ==================
 function attachVideoEvents(video) {
   if (!video || video._hooked) return;
   video._hooked = true;
 
-  console.log(`[SwipeExtension] 🎥 Hooking into video: ${video.src} (ID: ${currentVideoId || getVideoId()})`);
+  console.log(`[SwipeExtension] 🎥 Hooking into video: ${video.src} (ID: ${getVideoId()})`);
 
   video.addEventListener("loadedmetadata", () => {
     prevDuration = video.duration;
@@ -316,23 +240,12 @@ function attachVideoEvents(video) {
 
   video.addEventListener("play", () => {
     setTimeout(() => {
-      // Always use the dynamically updated ID
-      const videoId = currentVideoId || getVideoId();
+      const videoId = getVideoId();
       if (!hasPlayed) {
-        saveEvent({
-          type: "video-start",
-          videoId,
-          src: video.src,
-          timestamp: new Date().toISOString()
-        });
+        saveEvent({ type: "video-start", videoId, src: video.src, timestamp: new Date().toISOString() });
         hasPlayed = true;
       } else {
-        saveEvent({
-          type: "video-resume",
-          videoId,
-          src: video.src,
-          timestamp: new Date().toISOString()
-        });
+        saveEvent({ type: "video-resume", videoId, src: video.src, timestamp: new Date().toISOString() });
       }
     }, 100);
     startTime = Date.now();
@@ -341,11 +254,8 @@ function attachVideoEvents(video) {
   video.addEventListener("pause", () => {
     if (startTime) watchedTime += (Date.now() - startTime) / 1000;
     startTime = null;
-    const videoId = currentVideoId || getVideoId();
-    const watchPercent = prevDuration
-      ? Math.min((watchedTime / prevDuration) * 100, 100)
-      : 0;
-
+    const videoId = getVideoId();
+    const watchPercent = prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100) : 0;
     saveEvent({
       type: "video-paused",
       videoId,
@@ -362,7 +272,7 @@ function attachVideoEvents(video) {
     startTime = Date.now();
 
     if (prevDuration && watchedTime >= prevDuration) {
-      const videoId = currentVideoId || getVideoId();
+      const videoId = getVideoId();
       saveEvent({
         type: "video-watched-100",
         videoId,
@@ -372,21 +282,16 @@ function attachVideoEvents(video) {
         duration: prevDuration.toFixed(2),
         percent: 100,
       });
-      saveEvent({
-        type: "video-rewatch",
-        videoId,
-        src: video.src,
-        timestamp: new Date().toISOString()
-      });
+      saveEvent({ type: "video-rewatch", videoId, src: video.src, timestamp: new Date().toISOString() });
       watchedTime = 0;
     }
   });
 
   video.addEventListener("ended", () => {
+    // Prevent false video-jump on rewatch
     if (startTime) watchedTime += (Date.now() - startTime) / 1000;
     startTime = null;
-    const videoId = currentVideoId || getVideoId();
-
+    const videoId = getVideoId();
     if (prevDuration && Math.abs(watchedTime - prevDuration) < 2) {
       saveEvent({
         type: "video-watched-100",
@@ -397,18 +302,13 @@ function attachVideoEvents(video) {
         duration: prevDuration.toFixed(2),
         percent: 100,
       });
-      saveEvent({
-        type: "video-rewatch",
-        videoId,
-        src: video.src,
-        timestamp: new Date().toISOString()
-      });
+      saveEvent({ type: "video-rewatch", videoId, src: video.src, timestamp: new Date().toISOString() });
     }
     watchedTime = 0;
   });
 
   video.addEventListener("seeked", () => {
-    const videoId = currentVideoId || getVideoId();
+    const videoId = getVideoId();
     if (Math.abs(video.currentTime) < 0.01) return; // skip "rewatch" resets
     saveEvent({
       type: "video-jump",
@@ -417,394 +317,55 @@ function attachVideoEvents(video) {
       timestamp: new Date().toISOString(),
       extra: { jumpTo: video.currentTime.toFixed(2) },
     });
-    console.log(`[SwipeExtension] ⏭️ Jumped to ${video.currentTime.toFixed(2)}s (ID: ${videoId})`);
+    console.log(`[SwipeExtension] video-jump ⏭️ ${video.src} (ID: ${videoId}) - Jumped to ${video.currentTime.toFixed(2)}s`);
   });
 }
 
-// ================== ACTION BUTTONS (LIKE / DISLIKE / SHARE) ==================
-let actionHooks = new WeakSet();
+// ================== LIKE / DISLIKE / SHARE ==================
 function attachActionEvents() {
-  // try multiple selectors - YouTube markup evolves frequently; we attempt a few fallbacks
-  const selectors = [
-    'ytd-toggle-button-renderer:nth-of-type(1) button', // like common
-    '#top-level-buttons-computed ytd-toggle-button-renderer:nth-of-type(1) button', // alternative
-    'button[aria-label*="like"], button[aria-label*="Like"]'
-  ];
-  const dislikeSelectors = [
-    'ytd-toggle-button-renderer:nth-of-type(2) button',
-    'button[aria-label*="dislike"], button[aria-label*="Dislike"]'
-  ];
-  const shareSelectors = [
-    '#share-button button, ytd-button-renderer#share-icon-button button, button[aria-label*="Share"]'
-  ];
+  const likeBtn = document.querySelector('ytd-toggle-button-renderer:nth-of-type(1) button');
+  const dislikeBtn = document.querySelector('ytd-toggle-button-renderer:nth-of-type(2) button');
+  const shareBtn = document.querySelector('ytd-button-renderer[button-renderer][is-icon-button] button, #share-button button');
 
-  function tryAttach(selList, eventType) {
-    for (const sel of selList) {
-      const btn = document.querySelector(sel);
-      if (btn && !actionHooks.has(btn)) {
-        btn.addEventListener("click", () => {
-          saveEvent({ type: eventType, videoId: getVideoId(), src: (document.querySelector("video")?.currentSrc || document.querySelector("video")?.src), timestamp: new Date().toISOString() });
-        });
-        actionHooks.add(btn);
-      }
-    }
+  if (likeBtn && !likeBtn._hooked) {
+    likeBtn._hooked = true;
+    likeBtn.addEventListener("click", () => {
+      saveEvent({ type: "video-like", videoId: getVideoId(), src: currentVideo?.src, timestamp: new Date().toISOString() });
+    });
   }
 
-  tryAttach(selectors, "video-like");
-  tryAttach(dislikeSelectors, "video-dislike");
-  tryAttach(shareSelectors, "video-share");
-}
-
-// =================  STATS ========================
-function updateStats(watchedTime, percentWatched, duration, currentBitrate = null) {
-  chrome.storage.local.get(['videosWatched', 'totalWatchedTime', 'avgPercentWatched', 'videoHistory'], (data) => {
-    const videos = (data.videosWatched || 0) + 1;
-    const totalTime = (data.totalWatchedTime || 0) + watchedTime;
-    const history = data.videoHistory || [];
-
-    const avgPercent = ((data.avgPercentWatched || 0) * (videos - 1) + percentWatched) / videos;
-
-    // ✅ add bitrate info if available
-    history.push({
-      duration,
-      percentWatched,
-      watchedTime,
-      currentBitrate,
-      timestamp: new Date().toISOString()
+  if (dislikeBtn && !dislikeBtn._hooked) {
+    dislikeBtn._hooked = true;
+    dislikeBtn.addEventListener("click", () => {
+      saveEvent({ type: "video-dislike", videoId: getVideoId(), src: currentVideo?.src, timestamp: new Date().toISOString() });
     });
-
-    chrome.storage.local.set({
-      videosWatched: videos,
-      totalWatchedTime: totalTime,
-      avgPercentWatched: avgPercent,
-      videoHistory: history
-    });
-  });
-}
-
-
-// ================== VIEWPORT =======================
-function getVideoViewport(video) {
-  try {
-    const rect = video.getBoundingClientRect();
-    return {
-      width: Math.round(rect.width),
-      height: Math.round(rect.height),
-      aspect_ratio: (rect.width / rect.height).toFixed(2),
-      orientation: rect.width > rect.height ? "landscape" : "portrait",
-    };
-  } catch {
-    return null;
   }
-}
 
-// ================== VIDEO VIEWPORT TRACKING ======================
-function trackViewportChanges(video) {
-  if (!video) return;
-
-  let lastViewport = { w: 0, h: 0 };
-  let currentVideoId = null;
-
-  const sendViewportEvent = (w, h) => {
-    saveEvent({
-      type: "video-viewport-change",
-      videoId: getVideoId(),
-      src: video.src,
-      timestamp: new Date().toISOString(),
-      extra: {
-        width: w,
-        height: h,
-        aspect_ratio: (w / h).toFixed(2),
-        orientation: w > h ? "landscape" : "portrait",
-      },
+  if (shareBtn && !shareBtn._hooked) {
+    shareBtn._hooked = true;
+    shareBtn.addEventListener("click", () => {
+      saveEvent({ type: "video-share", videoId: getVideoId(), src: currentVideo?.src, timestamp: new Date().toISOString() });
     });
-    console.log(`[SwipeExtension] Viewport changed: ${w}x${h}`);
-  };
-
-  const checkViewport = () => {
-    const vp = getVideoViewport(video);
-    if (vp && (vp.width !== lastViewport.w || vp.height !== lastViewport.h)) {
-      lastViewport = { w: vp.width, h: vp.height };
-      sendViewportEvent(vp.width, vp.height);
-    }
-  };
-
-  // Initial setup when video loads
-  video.addEventListener("loadedmetadata", () => {
-    currentVideoId = getVideoId();
-    checkViewport();
-  });
-
-  // Detect window resizes or fullscreen changes
-  window.addEventListener("resize", checkViewport);
-  document.addEventListener("fullscreenchange", checkViewport);
-
-  // Optional: check every few seconds for subtle UI changes
-  setInterval(checkViewport, 2000);
-}
-
-// ================== MAX VIDEO RESOLUTION ======================
-function getMaxResolutionAndBitrate() {
-  try {
-    const script = [...document.scripts].find(s =>
-      s.textContent.includes('ytInitialPlayerResponse')
-    );
-    if (!script) return null;
-
-    const match = script.textContent.match(/ytInitialPlayerResponse\s*=\s*(\{.*?\});/);
-    if (!match) return null;
-
-    const data = JSON.parse(match[1]);
-    const adaptiveFormats = data?.streamingData?.adaptiveFormats;
-    if (!adaptiveFormats || !adaptiveFormats.length) return null;
-
-    // Only keep valid video formats
-    const videoFormats = adaptiveFormats.filter(f => f.width && f.height && f.mimeType.includes('video'));
-    if (!videoFormats.length) return null;
-
-    // Pick the one with the largest pixel count
-    const maxFmt = videoFormats.reduce((acc, fmt) => {
-      const accPixels = acc.width * acc.height;
-      const pixels = fmt.width * fmt.height;
-      return pixels > accPixels ? fmt : acc;
-    });
-
-    const maxRes = `${maxFmt.width}x${maxFmt.height}`;
-    const bitrate = maxFmt.averageBitrate || maxFmt.bitrate || null; // in bps
-    
-
-    return { maxRes, bitrate };
-  } catch (err) {
-    console.warn('[SwipeExtension] Failed to parse ytInitialPlayerResponse:', err);
-    return null;
   }
-}
-
-// ================== VIDEO RESOLUTION & BITRATE TRACKING ======================
-function trackVideoResolution(video) {
-  if (!video) return;
-
-  let lastWidth = 0;
-  let lastHeight = 0;
-  let allowChanges = false;
-  let resolutionInterval = null;
-  let timeoutId = null;
-
-  const cleanup = () => {
-    clearInterval(resolutionInterval);
-    clearTimeout(timeoutId);
-    resolutionInterval = null;
-    allowChanges = false;
-  };
-
-  const startResolutionTracking = () => {
-    timeoutId = setTimeout(() => {
-      const videoId = currentVideoId || getVideoId(); // ✅ always use up-to-date ID
-      if (!videoId) return;
-
-      const currentWidth = video.videoWidth;
-      const currentHeight = video.videoHeight;
-
-      // Parse ytInitialPlayerResponse
-      const script = [...document.scripts].find(s =>
-        s.textContent.includes("ytInitialPlayerResponse")
-      );
-      if (!script) return;
-
-      const match = script.textContent.match(/ytInitialPlayerResponse\s*=\s*(\{.*?\});/);
-      if (!match) return;
-
-      let data;
-      try {
-        data = JSON.parse(match[1]);
-      } catch (err) {
-        console.warn("[SwipeExtension] Failed to parse ytInitialPlayerResponse:", err);
-        return;
-      }
-
-      const adaptiveFormats = data?.streamingData?.adaptiveFormats || [];
-
-      // Video-only formats
-      const videoFormats = adaptiveFormats.filter(f => f.mimeType?.includes("video"));
-      if (!videoFormats.length) return;
-
-      // Find max resolution + bitrate
-      const maxFmt = videoFormats.reduce(
-        (acc, fmt) => (fmt.bitrate || 0) > (acc.bitrate || 0) ? fmt : acc,
-        {}
-      );
-      const maxRes = maxFmt.width && maxFmt.height
-        ? `${maxFmt.width}x${maxFmt.height}`
-        : `${currentWidth}x${currentHeight}`;
-
-      // Log initial
-      saveEvent({
-        type: "video-resolution",
-        videoId,
-        src: video.src,
-        timestamp: new Date().toISOString(),
-        extra: {
-          current: `${currentWidth}x${currentHeight}`,
-          max: maxRes,
-          viewport: getVideoViewport(video),
-        },
-      });
-
-      allowChanges = true;
-      lastWidth = currentWidth;
-      lastHeight = currentHeight;
-
-      // Periodic resolution/bitrate tracking
-      resolutionInterval = setInterval(() => {
-        const videoIdNow = currentVideoId || getVideoId(); // ✅ dynamic update
-        if (!allowChanges || !videoIdNow || video.readyState < 2) return;
-
-        const w = video.videoWidth;
-        const h = video.videoHeight;
-
-        if ((w !== lastWidth || h !== lastHeight) && w && h) {
-          lastWidth = w;
-          lastHeight = h;
-
-          const fmt = videoFormats.find(f => f.width === w && f.height === h);
-
-          saveEvent({
-            type: "video-resolution-change",
-            videoId: videoIdNow,
-            src: video.src,
-            timestamp: new Date().toISOString(),
-            extra: {
-              width: w,
-              height: h,
-              viewport: getVideoViewport(video),
-            },
-          });
-        }
-      }, 2000);
-    }, 100);
-  };
-
-  video.addEventListener("loadedmetadata", () => {
-    cleanup();
-    startResolutionTracking();
-  });
-
-  video.addEventListener("ended", cleanup);
-}
-
-
-
-// ============= START-UP DELAY & STALLS (with live video ID) ================
-function attachStallAndStartupTracking(video) {
-  if (video._stallStartupHooked) return;
-  video._stallStartupHooked = true;
-
-  let firstPlayTime = null;
-  let stallStart = null;
-  const startupStart = performance.now();
-
-  // -------- STARTUP DELAY ----------
-  const onPlayingFirst = () => {
-    if (!firstPlayTime) {
-      firstPlayTime = performance.now();
-      let startupDelay = (firstPlayTime - startupStart) / 1000;
-
-      const popupDismissedAt = window._swipeConsentDismissedAt || null;
-      if (popupDismissedAt && popupDismissedAt > startupStart) {
-        startupDelay = Math.max(0, (firstPlayTime - popupDismissedAt) / 1000);
-      }
-
-      if (startupDelay > 0.2) {
-        const videoId = currentVideoId || getVideoId(); // ✅ updated
-        saveEvent({
-          type: "video-startup-delay",
-          videoId,
-          timestamp: new Date().toISOString(),
-          extra: { startupDelay: startupDelay.toFixed(2) }
-        });
-        console.log(`[SwipeExtension] Startup delay sent: ${startupDelay.toFixed(2)}s (ID: ${videoId})`);
-      }
-
-      video.removeEventListener("playing", onPlayingFirst);
-    }
-  };
-
-  video.addEventListener("playing", onPlayingFirst);
-
-  // -------- STALL DETECTION ----------
-  const onStalled = () => {
-    if (!firstPlayTime) return;
-    if (stallStart === null) {
-      stallStart = performance.now();
-      console.log("[SwipeExtension] Stall started…");
-    }
-  };
-
-  const onResume = () => {
-    if (stallStart !== null) {
-      const stallDuration = (performance.now() - stallStart) / 1000;
-      stallStart = null;
-
-      if (stallDuration > 0.2) {
-        const videoId = currentVideoId || getVideoId(); // ✅ updated
-        saveEvent({
-          type: "video-stall",
-          videoId,
-          timestamp: new Date().toISOString(),
-          extra: { stallDuration: stallDuration.toFixed(2) }
-        });
-        console.log(`[SwipeExtension] Stall ended: ${stallDuration.toFixed(2)}s (ID: ${videoId})`);
-      }
-    }
-  };
-
-  video.addEventListener("waiting", onStalled);
-  video.addEventListener("stalled", onStalled);
-  video.addEventListener("playing", onResume);
-  video.addEventListener("timeupdate", onResume);
 }
 
 // ================== OBSERVE VIDEO CHANGES ==================
 const observer = new MutationObserver(() => {
   const video = document.querySelector("video");
-
-  if (video && !video._resolutionHooked) {
-    video._resolutionHooked = true;
-
-    const videoId = getVideoId(); 
-    trackVideoResolution(video, videoId);
-    trackViewportChanges(video); 
-
-    // ✅ Hook stall + startup delay early so we don't miss loadeddata
-    attachStallAndStartupTracking(video);
-  }
-
   if (video && video.src !== lastSrc) {
     const videoId = getVideoId();
 
     if (currentVideo && startTime) {
       watchedTime += (Date.now() - startTime) / 1000;
-
-      const duration = prevDuration || currentVideo.duration || 0;
-      const percent = duration
-        ? Math.min((watchedTime / duration) * 100, 100).toFixed(1)
-        : 0;
-
       saveEvent({
         type: "video-stopped",
         videoId: getVideoId(),
         src: currentVideo.src,
         timestamp: new Date().toISOString(),
         watchedTime: watchedTime.toFixed(2),
-        duration: duration.toFixed(2),
-        percent,
+        duration: prevDuration.toFixed(2),
+        percent: prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100).toFixed(1) : 0,
       });
-
-      if (duration > 0) {
-        setTimeout(() => {
-          updateStats(watchedTime, parseFloat(percent), duration);
-        }, 100);
-      }
     }
 
     if (lastSrc) {
@@ -828,7 +389,6 @@ const observer = new MutationObserver(() => {
     attachActionEvents();
   }
 });
-
 
 observer.observe(document.body, { childList: true, subtree: true });
 
