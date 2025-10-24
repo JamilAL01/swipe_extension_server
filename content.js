@@ -122,7 +122,7 @@ function showConsentPopup() {
     localStorage.setItem("swipeConsent","yes");
     consent = "yes";
     popup.remove();
-    window._swipeConsentDismissedAt = performance.now();  // 👈 mark when popup closed
+    window._swipeConsentDismissedAt = performance.now();  
     console.log("[SwipeExtension] User consented ✅");
     showSurveyPopup();
   };
@@ -181,7 +181,7 @@ function showSurveyPopup() {
 
   const submitBtn = document.getElementById("survey-submit");
 
-  // ✅ Define the handler first
+  //  Define the handler first
   const handleSurveySubmit = () => {
     submitBtn.disabled = true;
 
@@ -237,7 +237,7 @@ function showSurveyPopup() {
       });
   };
 
-  // ✅ Clear any previous handlers and attach only once
+  //  Clear any previous handlers and attach only once
   submitBtn.onclick = null;
   submitBtn.addEventListener("click", handleSurveySubmit);
 }
@@ -288,51 +288,16 @@ function saveEvent(eventData) {
     .catch(err => console.error("[SwipeExtension] Fetch error ❌", err));
 }
 
-// ================== KEEP VIDEO ID UPDATED ==================
-let currentVideoId = null;
-
-// Watch URL and DOM to keep videoId always fresh
-function updateCurrentVideoId() {
-  const newId = getVideoId();
-  if (newId && newId !== currentVideoId) {
-    currentVideoId = newId;
-    console.log(`[SwipeExtension] 🔁 Updated videoId: ${currentVideoId}`);
-  }
-}
-
-// Update every time URL or video element changes
-setInterval(updateCurrentVideoId, 500);
-
-function waitForStableVideoId(callback, maxWait = 1000) {
-  const start = Date.now();
-  let lastId = null;
-
-  const check = () => {
-    const id = getVideoId();
-    if (id && id !== lastId) {
-      lastId = id;
-    }
-    // Wait until the ID stays stable for two checks or timeout
-    if (lastId && getVideoId() === lastId) {
-      callback(lastId);
-    } else if (Date.now() - start < maxWait) {
-      setTimeout(check, 100);
-    } else {
-      console.warn("[SwipeExtension] ⚠️ Timeout waiting for stable videoId, using last known:", lastId);
-      callback(lastId || getVideoId());
-    }
-  };
-
-  check();
-}
+// Define this globally near the top of your content.js
+let lastKnownBitrate = null;
 
 
-// ================== VIDEO EVENT HOOK (FIXED VIDEO-ID UPDATES) ==================
+// ================== VIDEO EVENT HOOK ==================
 function attachVideoEvents(video) {
   if (!video || video._hooked) return;
   video._hooked = true;
 
-  console.log(`[SwipeExtension] 🎥 Hooking into video: ${video.src} (ID: ${currentVideoId || getVideoId()})`);
+  console.log(`[SwipeExtension]  Hooking into video: ${video.src} (ID: ${getVideoId()})`);
 
   video.addEventListener("loadedmetadata", () => {
     prevDuration = video.duration;
@@ -340,26 +305,12 @@ function attachVideoEvents(video) {
 
   video.addEventListener("play", () => {
     setTimeout(() => {
-      // Always use the dynamically updated ID
-      const videoId = currentVideoId || getVideoId();
+      const videoId = getVideoId();
       if (!hasPlayed) {
+        saveEvent({ type: "video-start", videoId, src: video.src, timestamp: new Date().toISOString() });
         hasPlayed = true;
-        waitForStableVideoId((stableId) => {
-          saveEvent({
-            type: "video-start",
-            videoId: stableId,
-            src: video.src,
-            timestamp: new Date().toISOString(),
-          });
-        });
-      }
-        else {
-        saveEvent({
-          type: "video-resume",
-          videoId,
-          src: video.src,
-          timestamp: new Date().toISOString()
-        });
+      } else {
+        saveEvent({ type: "video-resume", videoId, src: video.src, timestamp: new Date().toISOString() });
       }
     }, 100);
     startTime = Date.now();
@@ -368,11 +319,8 @@ function attachVideoEvents(video) {
   video.addEventListener("pause", () => {
     if (startTime) watchedTime += (Date.now() - startTime) / 1000;
     startTime = null;
-    const videoId = currentVideoId || getVideoId();
-    const watchPercent = prevDuration
-      ? Math.min((watchedTime / prevDuration) * 100, 100)
-      : 0;
-
+    const videoId = getVideoId();
+    const watchPercent = prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100) : 0;
     saveEvent({
       type: "video-paused",
       videoId,
@@ -389,7 +337,7 @@ function attachVideoEvents(video) {
     startTime = Date.now();
 
     if (prevDuration && watchedTime >= prevDuration) {
-      const videoId = currentVideoId || getVideoId();
+      const videoId = getVideoId();
       saveEvent({
         type: "video-watched-100",
         videoId,
@@ -399,21 +347,16 @@ function attachVideoEvents(video) {
         duration: prevDuration.toFixed(2),
         percent: 100,
       });
-      saveEvent({
-        type: "video-rewatch",
-        videoId,
-        src: video.src,
-        timestamp: new Date().toISOString()
-      });
+      saveEvent({ type: "video-rewatch", videoId, src: video.src, timestamp: new Date().toISOString() });
       watchedTime = 0;
     }
   });
 
   video.addEventListener("ended", () => {
+    // Prevent false video-jump on rewatch
     if (startTime) watchedTime += (Date.now() - startTime) / 1000;
     startTime = null;
-    const videoId = currentVideoId || getVideoId();
-
+    const videoId = getVideoId();
     if (prevDuration && Math.abs(watchedTime - prevDuration) < 2) {
       saveEvent({
         type: "video-watched-100",
@@ -424,18 +367,13 @@ function attachVideoEvents(video) {
         duration: prevDuration.toFixed(2),
         percent: 100,
       });
-      saveEvent({
-        type: "video-rewatch",
-        videoId,
-        src: video.src,
-        timestamp: new Date().toISOString()
-      });
+      saveEvent({ type: "video-rewatch", videoId, src: video.src, timestamp: new Date().toISOString() });
     }
     watchedTime = 0;
   });
 
   video.addEventListener("seeked", () => {
-    const videoId = currentVideoId || getVideoId();
+    const videoId = getVideoId();
     if (Math.abs(video.currentTime) < 0.01) return; // skip "rewatch" resets
     saveEvent({
       type: "video-jump",
@@ -444,7 +382,7 @@ function attachVideoEvents(video) {
       timestamp: new Date().toISOString(),
       extra: { jumpTo: video.currentTime.toFixed(2) },
     });
-    console.log(`[SwipeExtension] ⏭️ Jumped to ${video.currentTime.toFixed(2)}s (ID: ${videoId})`);
+    console.log(`[SwipeExtension] video-jump ${video.src} (ID: ${videoId}) - Jumped to ${video.currentTime.toFixed(2)}s`);
   });
 }
 
@@ -481,7 +419,6 @@ function attachActionEvents() {
   tryAttach(dislikeSelectors, "video-dislike");
   tryAttach(shareSelectors, "video-share");
 }
-
 // =================  STATS ========================
 function updateStats(watchedTime, percentWatched, duration, currentBitrate = null) {
   chrome.storage.local.get(['videosWatched', 'totalWatchedTime', 'avgPercentWatched', 'videoHistory'], (data) => {
@@ -570,6 +507,29 @@ function trackViewportChanges(video) {
   setInterval(checkViewport, 2000);
 }
 
+// // ================= CODEC ==========================
+// function getCodec() {
+//   try {
+//     // Find the element that contains exactly "Codecs"
+//     const elems = [...document.querySelectorAll("*")];
+//     const labelElem = elems.find(el => el.textContent.trim() === "Codecs");
+
+//     if (!labelElem) return "unknown";
+
+//     // The codec info is usually the next sibling text node
+//     let codecText = labelElem.nextSibling?.textContent?.trim();
+//     if (!codecText) {
+//       // Sometimes the nextSibling might be another element
+//       codecText = labelElem.nextElementSibling?.textContent?.trim();
+//     }
+
+//     return codecText || "unknown";
+//   } catch (err) {
+//     console.warn("[SwipeExtension] Codec extraction failed:", err);
+//     return "unknown";
+//   }
+// }
+
 // ================== MAX VIDEO RESOLUTION ======================
 function getMaxResolutionAndBitrate() {
   try {
@@ -614,6 +574,7 @@ function trackVideoResolution(video) {
   let lastWidth = 0;
   let lastHeight = 0;
   let allowChanges = false;
+  let currentVideoId = null;
   let resolutionInterval = null;
   let timeoutId = null;
 
@@ -625,8 +586,8 @@ function trackVideoResolution(video) {
   };
 
   const startResolutionTracking = () => {
-      waitForStableVideoId((stableId) => {
-      currentVideoId = stableId;
+    timeoutId = setTimeout(() => {
+      currentVideoId = getVideoId();
       if (!currentVideoId) return;
 
       const currentWidth = video.videoWidth;
@@ -641,21 +602,14 @@ function trackVideoResolution(video) {
       const match = script.textContent.match(/ytInitialPlayerResponse\s*=\s*(\{.*?\});/);
       if (!match) return;
 
-      let data;
-      try {
-        data = JSON.parse(match[1]);
-      } catch (err) {
-        console.warn("[SwipeExtension] Failed to parse ytInitialPlayerResponse:", err);
-        return;
-      }
-
+      const data = JSON.parse(match[1]);
       const adaptiveFormats = data?.streamingData?.adaptiveFormats || [];
 
       // Video-only formats
-      const videoFormats = adaptiveFormats.filter(f => f.mimeType?.includes("video"));
+      const videoFormats = adaptiveFormats.filter(f => f.mimeType.includes("video"));
       if (!videoFormats.length) return;
 
-      // Find max resolution + bitrate
+      // Find max resolution + bitrate + codec
       const maxFmt = videoFormats.reduce(
         (acc, fmt) => (fmt.bitrate || 0) > (acc.bitrate || 0) ? fmt : acc,
         {}
@@ -663,16 +617,31 @@ function trackVideoResolution(video) {
       const maxRes = maxFmt.width && maxFmt.height
         ? `${maxFmt.width}x${maxFmt.height}`
         : `${currentWidth}x${currentHeight}`;
+      // const maxBitrate = maxFmt.averageBitrate || maxFmt.bitrate || null;
+
+      // // Find current bitrate
+      // const currentFmt = videoFormats.find(
+      //   f => f.width === currentWidth && f.height === currentHeight
+      // );
+      // const currentBitrate = currentFmt
+      //   ? (currentFmt.averageBitrate || currentFmt.bitrate)
+      //   : null;
+
+      // lastKnownBitrate = currentBitrate || lastKnownBitrate;
+
 
       // Log initial
       saveEvent({
         type: "video-resolution",
-        videoId,
+        videoId: currentVideoId,
         src: video.src,
         timestamp: new Date().toISOString(),
         extra: {
           current: `${currentWidth}x${currentHeight}`,
           max: maxRes,
+          //codec: getCodec(),
+          //currentBitrate,
+          //maxBitrate,
           viewport: getVideoViewport(video),
         },
       });
@@ -683,8 +652,7 @@ function trackVideoResolution(video) {
 
       // Periodic resolution/bitrate tracking
       resolutionInterval = setInterval(() => {
-        const videoIdNow = currentVideoId || getVideoId(); // ✅ dynamic update
-        if (!allowChanges || !videoIdNow || video.readyState < 2) return;
+        if (!allowChanges || !currentVideoId || video.readyState < 2) return;
 
         const w = video.videoWidth;
         const h = video.videoHeight;
@@ -694,15 +662,20 @@ function trackVideoResolution(video) {
           lastHeight = h;
 
           const fmt = videoFormats.find(f => f.width === w && f.height === h);
+          const currentBitrateChange = fmt
+            ? (fmt.averageBitrate || fmt.bitrate)
+            : null;
 
           saveEvent({
             type: "video-resolution-change",
-            videoId: videoIdNow,
+            videoId: currentVideoId,
             src: video.src,
             timestamp: new Date().toISOString(),
             extra: {
               width: w,
               height: h,
+              //currentBitrate: currentBitrateChange,
+              //maxBitrate,
               viewport: getVideoViewport(video),
             },
           });
@@ -720,36 +693,56 @@ function trackVideoResolution(video) {
 }
 
 
+// // ============ VIDEO BITRATE ===================
+// function computeDataUsageMB(durationSec, percentWatched, currentBitrateBps) {
+//   if (!durationSec || !currentBitrateBps) return { watchedMB: 0, wastedMB: 0 };
 
-// ============= START-UP DELAY & STALLS (with live video ID) ================
+//   const watchedSec = durationSec * (percentWatched / 100);
+//   const wastedSec = durationSec - watchedSec;
+
+//   // bits → bytes → MB
+//   const watchedMB = (watchedSec * currentBitrateBps) / 8 / 1e6;
+//   const wastedMB  = (wastedSec  * currentBitrateBps) / 8 / 1e6;
+
+//   return {
+//     watchedMB: watchedMB.toFixed(2),
+//     wastedMB: wastedMB.toFixed(2)
+//   };
+// }
+
+
+// ============= START-UP DELAY & STALLS ================
 function attachStallAndStartupTracking(video) {
   if (video._stallStartupHooked) return;
   video._stallStartupHooked = true;
 
+  const videoId = getVideoId();
+
   let firstPlayTime = null;
   let stallStart = null;
-  const startupStart = performance.now();
 
   // -------- STARTUP DELAY ----------
+  const startupStart = performance.now();
+
   const onPlayingFirst = () => {
     if (!firstPlayTime) {
       firstPlayTime = performance.now();
       let startupDelay = (firstPlayTime - startupStart) / 1000;
 
+      // Subtract any "survey popup" time if needed
       const popupDismissedAt = window._swipeConsentDismissedAt || null;
       if (popupDismissedAt && popupDismissedAt > startupStart) {
         startupDelay = Math.max(0, (firstPlayTime - popupDismissedAt) / 1000);
       }
 
-      if (startupDelay > 0.2) {
-        const videoId = currentVideoId || getVideoId(); // ✅ updated
+      if (startupDelay > 0.2) {  // ignore tiny startup delays
         saveEvent({
           type: "video-startup-delay",
           videoId,
           timestamp: new Date().toISOString(),
           extra: { startupDelay: startupDelay.toFixed(2) }
         });
-        console.log(`[SwipeExtension] Startup delay sent: ${startupDelay.toFixed(2)}s (ID: ${videoId})`);
+        console.log(`[SwipeExtension] Startup delay sent: ${startupDelay.toFixed(2)}s`);
       }
 
       video.removeEventListener("playing", onPlayingFirst);
@@ -760,6 +753,7 @@ function attachStallAndStartupTracking(video) {
 
   // -------- STALL DETECTION ----------
   const onStalled = () => {
+    // Ignore stalls before first playback
     if (!firstPlayTime) return;
     if (stallStart === null) {
       stallStart = performance.now();
@@ -772,15 +766,14 @@ function attachStallAndStartupTracking(video) {
       const stallDuration = (performance.now() - stallStart) / 1000;
       stallStart = null;
 
-      if (stallDuration > 0.2) {
-        const videoId = currentVideoId || getVideoId(); // ✅ updated
+      if (stallDuration > 0.2) {  // filter out micro-stalls
         saveEvent({
           type: "video-stall",
           videoId,
           timestamp: new Date().toISOString(),
           extra: { stallDuration: stallDuration.toFixed(2) }
         });
-        console.log(`[SwipeExtension] Stall ended: ${stallDuration.toFixed(2)}s (ID: ${videoId})`);
+        console.log(`[SwipeExtension] Stall ended: ${stallDuration.toFixed(2)}s`);
       }
     }
   };
@@ -791,32 +784,83 @@ function attachStallAndStartupTracking(video) {
   video.addEventListener("timeupdate", onResume);
 }
 
+
+// // =============== BUFFER HEALTH ======================
+// function getBufferHealth() {
+//   try {
+//     // Find any element containing "Buffer Health"
+//     const elems = [...document.querySelectorAll("*")];
+//     const target = elems.find(el =>
+//       el.textContent.includes("Buffer Health")
+//     );
+
+//     if (!target) return null;
+
+//     // Extract numeric value
+//     const match = target.textContent.match(/Buffer\s*Health\s*([0-9.]+)\s*s/i);
+//     if (match) {
+//       return parseFloat(match[1]);
+//     }
+//   } catch (err) {
+//     console.warn("[SwipeExtension] Buffer health extraction failed:", err);
+//   }
+//   return null;
+// }
+
+
+
 // ================== OBSERVE VIDEO CHANGES ==================
 const observer = new MutationObserver(() => {
   const video = document.querySelector("video");
+  if (!video) return;
 
-  if (video && !video._resolutionHooked) {
+  // === Hook resolution & viewport tracking once per video ===
+  if (!video._resolutionHooked) {
     video._resolutionHooked = true;
 
-    const videoId = getVideoId(); 
-    trackVideoResolution(video, videoId);
-    trackViewportChanges(video); 
-
-    // ✅ Hook stall + startup delay early so we don't miss loadeddata
+    // Hook stall + startup delay early
     attachStallAndStartupTracking(video);
+    
+    const videoId = getVideoId();
+    trackVideoResolution(video, videoId);
+    trackViewportChanges(video);
   }
 
-  if (video && video.src !== lastSrc) {
+  // === Handle new video (when src changes) ===
+  if (video.src && video.src !== lastSrc) {
     const videoId = getVideoId();
 
+    // --- If we were watching a previous video ---
     if (currentVideo && startTime) {
       watchedTime += (Date.now() - startTime) / 1000;
 
       const duration = prevDuration || currentVideo.duration || 0;
       const percent = duration
         ? Math.min((watchedTime / duration) * 100, 100).toFixed(1)
-        : 0;
+        : "0";
 
+      // const currentBitrate = lastKnownBitrate || 0;
+      // const { watchedMB, wastedMB } = computeDataUsageMB(
+      //   duration,
+      //   parseFloat(percent),
+      //   currentBitrate
+      // );
+
+      // const bufferHealth = getBufferHealth();
+
+      // saveEvent({
+      //   type: "video-buffer-health",
+      //   videoId: getVideoId(),
+      //   src: currentVideo.src,
+      //   timestamp: new Date().toISOString(),
+      //   extra: {
+      //     bufferHealthSec: bufferHealth
+      //   }
+      // });
+
+
+
+      // ✅ Save video-stopped event with bitrate + data usage
       saveEvent({
         type: "video-stopped",
         videoId: getVideoId(),
@@ -827,6 +871,7 @@ const observer = new MutationObserver(() => {
         percent,
       });
 
+      // Update summary stats (with small delay to ensure event order)
       if (duration > 0) {
         setTimeout(() => {
           updateStats(watchedTime, parseFloat(percent), duration);
@@ -834,6 +879,7 @@ const observer = new MutationObserver(() => {
       }
     }
 
+    // --- Save transition ---
     if (lastSrc) {
       saveEvent({
         type: "swiped-to-new-video",
@@ -844,6 +890,7 @@ const observer = new MutationObserver(() => {
       });
     }
 
+    // === Prepare for next video ===
     currentVideo = video;
     lastSrc = video.src;
     startTime = Date.now();
@@ -855,7 +902,6 @@ const observer = new MutationObserver(() => {
     attachActionEvents();
   }
 });
-
 
 observer.observe(document.body, { childList: true, subtree: true });
 
