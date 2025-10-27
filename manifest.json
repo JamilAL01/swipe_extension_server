@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "SWiPE X",
-  "version": "3.0",
+  "version": "1.0.2",
   "permissions": ["storage", "scripting", "webNavigation", "tabs", "webRequest","notifications"],
   "host_permissions": ["https://www.youtube.com/*","https://JamilAL01.github.io/*"],
   "background": { "service_worker": "background.js" },
