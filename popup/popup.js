@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const history = data.videoHistory || [];
 
       document.getElementById('videos-count').textContent = videos;
-      document.getElementById('watch-time').textContent = `${Math.floor(totalTimeSec / 60)} min`;
+      document.getElementById('watch-time').textContent = `${totalTimeSec} min`;
       document.getElementById('avg-percent').textContent = `${Math.round(avgPercent)}%`;
 
       // ================== THEME COLORS ==================
@@ -84,7 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
             scales: {
               y: {
                 beginAtZero: true,
-                max: 105,
+                max: 100,
                 title: { display: true, text: 'Watch %', color: colors.text },
                 ticks: { color: colors.text },
                 grid: { color: colors.grid }
