@@ -816,11 +816,11 @@ const observer = new MutationObserver(() => {
     prevDuration = video.duration || 0;
     hasPlayed = false;
 
-    queueEvent({
-      type: "video-start",
-      videoId,
-      src: video.src,
-    });
+    // queueEvent({
+    //   type: "video-start",
+    //   videoId,
+    //   src: video.src,
+    // });
 
     attachVideoEvents(video);
     attachActionEvents();
