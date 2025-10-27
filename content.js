@@ -395,11 +395,10 @@ function attachActionEvents() {
   if (likeBtn && !likeBtn._hooked) {
     likeBtn._hooked = true;
     likeBtn.addEventListener("click", () => {
-      saveEvent({
+      queueEvent({
         type: "video-like",
         videoId: getVideoId(),
         src: currentVideo?.src,
-        timestamp: new Date().toISOString(),
       });
     });
   }
@@ -407,11 +406,10 @@ function attachActionEvents() {
   if (dislikeBtn && !dislikeBtn._hooked) {
     dislikeBtn._hooked = true;
     dislikeBtn.addEventListener("click", () => {
-      saveEvent({
+      queueEvent({
         type: "video-dislike",
         videoId: getVideoId(),
         src: currentVideo?.src,
-        timestamp: new Date().toISOString(),
       });
     });
   }
@@ -419,11 +417,10 @@ function attachActionEvents() {
   if (shareBtn && !shareBtn._hooked) {
     shareBtn._hooked = true;
     shareBtn.addEventListener("click", () => {
-      saveEvent({
+      queueEvent({
         type: "video-share",
         videoId: getVideoId(),
         src: currentVideo?.src,
-        timestamp: new Date().toISOString(),
       });
     });
   }
