@@ -388,28 +388,54 @@ function attachVideoEvents(video) {
 
 // ================== LIKE / DISLIKE / SHARE ==================
 function attachActionEvents() {
-  const likeBtn = document.querySelector('ytd-toggle-button-renderer:nth-of-type(1) button');
-  const dislikeBtn = document.querySelector('ytd-toggle-button-renderer:nth-of-type(2) button');
-  const shareBtn = document.querySelector('ytd-button-renderer[button-renderer][is-icon-button] button, #share-button button');
+  // Try new Shorts selectors first, fallback to old ones
+  const likeBtn =
+    document.querySelector('ytd-reel-video-renderer ytd-like-button-view-model button') ||
+    document.querySelector('ytd-toggle-button-renderer:nth-of-type(1) button');
+
+  const dislikeBtn =
+    document.querySelector('ytd-reel-video-renderer ytd-dislike-button-view-model button') ||
+    document.querySelector('ytd-toggle-button-renderer:nth-of-type(2) button');
+
+  const shareBtn =
+    document.querySelector('ytd-reel-video-renderer ytd-button-renderer[is-icon-button][button-id="share"] button') ||
+    document.querySelector('ytd-button-renderer[button-renderer][is-icon-button] button, #share-button button');
+
+  const videoId = getVideoId();
 
   if (likeBtn && !likeBtn._hooked) {
     likeBtn._hooked = true;
     likeBtn.addEventListener("click", () => {
-      saveEvent({ type: "video-like", videoId: getVideoId(), src: currentVideo?.src, timestamp: new Date().toISOString() });
+      saveEvent({
+        type: "video-like",
+        videoId,
+        src: currentVideo?.src,
+        timestamp: new Date().toISOString(),
+      });
     });
   }
 
   if (dislikeBtn && !dislikeBtn._hooked) {
     dislikeBtn._hooked = true;
     dislikeBtn.addEventListener("click", () => {
-      saveEvent({ type: "video-dislike", videoId: getVideoId(), src: currentVideo?.src, timestamp: new Date().toISOString() });
+      saveEvent({
+        type: "video-dislike",
+        videoId,
+        src: currentVideo?.src,
+        timestamp: new Date().toISOString(),
+      });
     });
   }
 
   if (shareBtn && !shareBtn._hooked) {
     shareBtn._hooked = true;
     shareBtn.addEventListener("click", () => {
-      saveEvent({ type: "video-share", videoId: getVideoId(), src: currentVideo?.src, timestamp: new Date().toISOString() });
+      saveEvent({
+        type: "video-share",
+        videoId,
+        src: currentVideo?.src,
+        timestamp: new Date().toISOString(),
+      });
     });
   }
 }
