@@ -249,9 +249,7 @@ if (!consent) {
   showSurveyPopup();
 }
 
-
 // ================== USER & SESSION SETUP ==================
-
 let currentVideo = null;
 let lastSrc = null;
 let startTime = null;
@@ -288,9 +286,8 @@ function saveEvent(eventData) {
     .catch(err => console.error("[SwipeExtension] Fetch error ❌", err));
 }
 
-// Define this globally near the top of your content.js
-let lastKnownBitrate = null;
 
+let lastKnownBitrate = null;
 
 // ================== VIDEO EVENT HOOK ==================
 function attachVideoEvents(video) {
@@ -387,7 +384,6 @@ function attachVideoEvents(video) {
 }
 
 // ================== LIKE / DISLIKE / SHARE ==================
-// ================== LIKE / DISLIKE / SHARE ==================
 function attachActionEvents() {
   const actionBar = document.querySelector('reel-action-bar-view-model');
   if (!actionBar) return;
@@ -442,7 +438,6 @@ function updateStats(watchedTime, percentWatched, duration, currentBitrate = nul
 
     const avgPercent = ((data.avgPercentWatched || 0) * (videos - 1) + percentWatched) / videos;
 
-    // ✅ add bitrate info if available
     history.push({
       duration,
       percentWatched,
@@ -459,7 +454,6 @@ function updateStats(watchedTime, percentWatched, duration, currentBitrate = nul
     });
   });
 }
-
 
 // ================== VIEWPORT =======================
 function getVideoViewport(video) {
@@ -520,29 +514,6 @@ function trackViewportChanges(video) {
   // Optional: check every few seconds for subtle UI changes
   //setInterval(checkViewport, 2000);
 }
-
-// // ================= CODEC ==========================
-// function getCodec() {
-//   try {
-//     // Find the element that contains exactly "Codecs"
-//     const elems = [...document.querySelectorAll("*")];
-//     const labelElem = elems.find(el => el.textContent.trim() === "Codecs");
-
-//     if (!labelElem) return "unknown";
-
-//     // The codec info is usually the next sibling text node
-//     let codecText = labelElem.nextSibling?.textContent?.trim();
-//     if (!codecText) {
-//       // Sometimes the nextSibling might be another element
-//       codecText = labelElem.nextElementSibling?.textContent?.trim();
-//     }
-
-//     return codecText || "unknown";
-//   } catch (err) {
-//     console.warn("[SwipeExtension] Codec extraction failed:", err);
-//     return "unknown";
-//   }
-// }
 
 // ================== MAX VIDEO RESOLUTION ======================
 function getMaxResolutionAndBitrate() {
@@ -631,19 +602,7 @@ function trackVideoResolution(video) {
       const maxRes = maxFmt.width && maxFmt.height
         ? `${maxFmt.width}x${maxFmt.height}`
         : `${currentWidth}x${currentHeight}`;
-      // const maxBitrate = maxFmt.averageBitrate || maxFmt.bitrate || null;
-
-      // // Find current bitrate
-      // const currentFmt = videoFormats.find(
-      //   f => f.width === currentWidth && f.height === currentHeight
-      // );
-      // const currentBitrate = currentFmt
-      //   ? (currentFmt.averageBitrate || currentFmt.bitrate)
-      //   : null;
-
-      // lastKnownBitrate = currentBitrate || lastKnownBitrate;
-
-
+      
       // Log initial
       saveEvent({
         type: "video-resolution",
@@ -653,9 +612,6 @@ function trackVideoResolution(video) {
         extra: {
           current: `${currentWidth}x${currentHeight}`,
           max: maxRes,
-          //codec: getCodec(),
-          //currentBitrate,
-          //maxBitrate,
           viewport: getVideoViewport(video),
         },
       });
@@ -664,7 +620,7 @@ function trackVideoResolution(video) {
       lastWidth = currentWidth;
       lastHeight = currentHeight;
 
-      // Periodic resolution/bitrate tracking
+      // Periodic resolution tracking
       resolutionInterval = setInterval(() => {
         if (!allowChanges || !currentVideoId || video.readyState < 2) return;
 
@@ -688,8 +644,6 @@ function trackVideoResolution(video) {
             extra: {
               width: w,
               height: h,
-              //currentBitrate: currentBitrateChange,
-              //maxBitrate,
               viewport: getVideoViewport(video),
             },
           });
@@ -705,25 +659,6 @@ function trackVideoResolution(video) {
 
   video.addEventListener("ended", cleanup);
 }
-
-
-// // ============ VIDEO BITRATE ===================
-// function computeDataUsageMB(durationSec, percentWatched, currentBitrateBps) {
-//   if (!durationSec || !currentBitrateBps) return { watchedMB: 0, wastedMB: 0 };
-
-//   const watchedSec = durationSec * (percentWatched / 100);
-//   const wastedSec = durationSec - watchedSec;
-
-//   // bits → bytes → MB
-//   const watchedMB = (watchedSec * currentBitrateBps) / 8 / 1e6;
-//   const wastedMB  = (wastedSec  * currentBitrateBps) / 8 / 1e6;
-
-//   return {
-//     watchedMB: watchedMB.toFixed(2),
-//     wastedMB: wastedMB.toFixed(2)
-//   };
-// }
-
 
 // ============= START-UP DELAY & STALLS ================
 function attachStallAndStartupTracking(video) {
@@ -798,31 +733,6 @@ function attachStallAndStartupTracking(video) {
   video.addEventListener("timeupdate", onResume);
 }
 
-
-// // =============== BUFFER HEALTH ======================
-// function getBufferHealth() {
-//   try {
-//     // Find any element containing "Buffer Health"
-//     const elems = [...document.querySelectorAll("*")];
-//     const target = elems.find(el =>
-//       el.textContent.includes("Buffer Health")
-//     );
-
-//     if (!target) return null;
-
-//     // Extract numeric value
-//     const match = target.textContent.match(/Buffer\s*Health\s*([0-9.]+)\s*s/i);
-//     if (match) {
-//       return parseFloat(match[1]);
-//     }
-//   } catch (err) {
-//     console.warn("[SwipeExtension] Buffer health extraction failed:", err);
-//   }
-//   return null;
-// }
-
-
-
 // ================== OBSERVE VIDEO CHANGES ==================
 const observer = new MutationObserver(() => {
   const video = document.querySelector("video");
@@ -853,28 +763,6 @@ const observer = new MutationObserver(() => {
         ? Math.min((watchedTime / duration) * 100, 100).toFixed(1)
         : "0";
 
-      // const currentBitrate = lastKnownBitrate || 0;
-      // const { watchedMB, wastedMB } = computeDataUsageMB(
-      //   duration,
-      //   parseFloat(percent),
-      //   currentBitrate
-      // );
-
-      // const bufferHealth = getBufferHealth();
-
-      // saveEvent({
-      //   type: "video-buffer-health",
-      //   videoId: getVideoId(),
-      //   src: currentVideo.src,
-      //   timestamp: new Date().toISOString(),
-      //   extra: {
-      //     bufferHealthSec: bufferHealth
-      //   }
-      // });
-
-
-
-      // ✅ Save video-stopped event with bitrate + data usage
       saveEvent({
         type: "video-stopped",
         videoId: getVideoId(),
@@ -889,7 +777,7 @@ const observer = new MutationObserver(() => {
       if (duration > 0) {
         setTimeout(() => {
           updateStats(watchedTime, parseFloat(percent), duration);
-        }, 100);
+        }, 5);
       }
     }
 
