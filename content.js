@@ -512,7 +512,7 @@ function trackViewportChanges(video) {
   document.addEventListener("fullscreenchange", checkViewport);
 
   // Optional: check every few seconds for subtle UI changes
-  //setInterval(checkViewport, 2000);
+  setInterval(checkViewport, 10000);
 }
 
 // ================== MAX VIDEO RESOLUTION ======================
