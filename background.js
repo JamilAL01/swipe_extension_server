@@ -25,8 +25,6 @@ chrome.runtime.onMessage.addListener((msg) => {
   }
 });
 
-
-
 // Track how many relevant tabs are open (e.g. YouTube)
 let trackedTabs = new Set();
 
