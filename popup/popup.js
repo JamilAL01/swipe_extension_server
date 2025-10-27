@@ -84,7 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
             scales: {
               y: {
                 beginAtZero: true,
-                max: 100,
+                max: 105,
                 title: { display: true, text: 'Watch %', color: colors.text },
                 ticks: { color: colors.text },
                 grid: { color: colors.grid }
