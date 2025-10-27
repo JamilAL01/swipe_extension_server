@@ -386,56 +386,67 @@ function attachVideoEvents(video) {
   });
 }
 
-// ================== LIKE / DISLIKE / SHARE ==================
+// ================== LIKE / DISLIKE / SHARE (FIXED) ==================
 function attachActionEvents() {
-  // Try new Shorts selectors first, fallback to old ones
-  const likeBtn =
-    document.querySelector('ytd-reel-video-renderer ytd-like-button-view-model button') ||
-    document.querySelector('ytd-toggle-button-renderer:nth-of-type(1) button');
-
-  const dislikeBtn =
-    document.querySelector('ytd-reel-video-renderer ytd-dislike-button-view-model button') ||
-    document.querySelector('ytd-toggle-button-renderer:nth-of-type(2) button');
-
-  const shareBtn =
-    document.querySelector('ytd-reel-video-renderer ytd-button-renderer[is-icon-button][button-id="share"] button') ||
-    document.querySelector('ytd-button-renderer[button-renderer][is-icon-button] button, #share-button button');
-
   const videoId = getVideoId();
+  if (!videoId) return;
 
-  if (likeBtn && !likeBtn._hooked) {
-    likeBtn._hooked = true;
+  // Store last event timestamps per video to prevent duplicates
+  window._swipeActionCache = window._swipeActionCache || {};
+
+  const recordAction = (type) => {
+    const now = Date.now();
+    const key = `${videoId}-${type}`;
+    const lastTime = window._swipeActionCache[key] || 0;
+
+    // Prevent duplicates within 1 second
+    if (now - lastTime < 1000) return;
+
+    window._swipeActionCache[key] = now;
+
+    saveEvent({
+      type,
+      videoId,
+      src: currentVideo?.src,
+      timestamp: new Date().toISOString()
+    });
+  };
+
+  // Find all relevant buttons freshly each time (YouTube often re-renders)
+  const likeBtn = document.querySelector(
+    'ytd-toggle-button-renderer:nth-of-type(1) button'
+  );
+  const dislikeBtn = document.querySelector(
+    'ytd-toggle-button-renderer:nth-of-type(2) button'
+  );
+  const shareBtn = document.querySelector(
+    'ytd-button-renderer[is-icon-button][button-renderer] button, #share-button button'
+  );
+
+  if (likeBtn && !likeBtn._swipeAttached) {
+    likeBtn._swipeAttached = true;
     likeBtn.addEventListener("click", () => {
-      saveEvent({
-        type: "video-like",
-        videoId,
-        src: currentVideo?.src,
-        timestamp: new Date().toISOString(),
-      });
+      const currentVid = getVideoId();
+      recordAction("video-like");
+      console.log(`[SwipeExtension] 👍 Liked video ${currentVid}`);
     });
   }
 
-  if (dislikeBtn && !dislikeBtn._hooked) {
-    dislikeBtn._hooked = true;
+  if (dislikeBtn && !dislikeBtn._swipeAttached) {
+    dislikeBtn._swipeAttached = true;
     dislikeBtn.addEventListener("click", () => {
-      saveEvent({
-        type: "video-dislike",
-        videoId,
-        src: currentVideo?.src,
-        timestamp: new Date().toISOString(),
-      });
+      const currentVid = getVideoId();
+      recordAction("video-dislike");
+      console.log(`[SwipeExtension] 👎 Disliked video ${currentVid}`);
     });
   }
 
-  if (shareBtn && !shareBtn._hooked) {
-    shareBtn._hooked = true;
+  if (shareBtn && !shareBtn._swipeAttached) {
+    shareBtn._swipeAttached = true;
     shareBtn.addEventListener("click", () => {
-      saveEvent({
-        type: "video-share",
-        videoId,
-        src: currentVideo?.src,
-        timestamp: new Date().toISOString(),
-      });
+      const currentVid = getVideoId();
+      recordAction("video-share");
+      console.log(`[SwipeExtension] 📤 Shared video ${currentVid}`);
     });
   }
 }
