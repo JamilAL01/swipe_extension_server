@@ -8,7 +8,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const history = data.videoHistory || [];
 
       document.getElementById('videos-count').textContent = videos;
-      document.getElementById('watch-time').textContent = `${Math.floor(totalTimeSec / 60)} min`;
       document.getElementById('avg-percent').textContent = `${Math.round(avgPercent)}%`;
 
       // ================== THEME COLORS ==================
@@ -118,8 +117,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         const wastedSec = Math.max(totalAvailableSec - totalWatchedSec, 0);
-        document.getElementById('watched-time-sec').textContent = `${Math.round(totalWatchedSec)} s`;
+        document.getElementById('watched-time').textContent = `${Math.round(totalWatchedSec)} s`;
         document.getElementById('wasted-time').textContent = `${Math.round(wastedSec)} s`;
+        document.getElementById('watch-time').textContent = `${Math.round(totalWatchedSec / 60)} min`;
 
         const ctxPie = document.getElementById('data-pie-chart').getContext('2d');
         const colors = getChartColors();
