@@ -118,7 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         const wastedSec = Math.max(totalAvailableSec - totalWatchedSec, 0);
-        document.getElementById('watched-time').textContent = `${Math.round(totalWatchedSec)} s`;
+        document.getElementById('watched-time-sec').textContent = `${Math.round(totalWatchedSec)} s`;
         document.getElementById('wasted-time').textContent = `${Math.round(wastedSec)} s`;
 
         const ctxPie = document.getElementById('data-pie-chart').getContext('2d');
