@@ -387,19 +387,21 @@ function attachVideoEvents(video) {
 }
 
 // ================== LIKE / DISLIKE / SHARE ==================
+// ================== LIKE / DISLIKE / SHARE ==================
 function attachActionEvents() {
-  const likeBtn = document.querySelector('like-button-view-model button');
-  const dislikeBtn = document.querySelector('dislike-button-view-model button');
-  const shareBtn = document.querySelector('button[aria-label="Share"]');
+  const actionBar = document.querySelector('reel-action-bar-view-model');
+  if (!actionBar) return;
 
-  const videoId = getVideoId();
+  const likeBtn = actionBar.querySelector('like-button-view-model button[aria-label*="like" i]');
+  const dislikeBtn = actionBar.querySelector('dislike-button-view-model button[aria-label*="dislike" i]');
+  const shareBtn = actionBar.querySelector('button[aria-label="Share"], button[aria-label*="Share this" i]');
 
   if (likeBtn && !likeBtn._hooked) {
     likeBtn._hooked = true;
     likeBtn.addEventListener("click", () => {
       saveEvent({
         type: "video-like",
-        videoId,
+        videoId: getVideoId(),
         src: currentVideo?.src,
         timestamp: new Date().toISOString(),
       });
@@ -411,7 +413,7 @@ function attachActionEvents() {
     dislikeBtn.addEventListener("click", () => {
       saveEvent({
         type: "video-dislike",
-        videoId,
+        videoId: getVideoId(),
         src: currentVideo?.src,
         timestamp: new Date().toISOString(),
       });
@@ -423,7 +425,7 @@ function attachActionEvents() {
     shareBtn.addEventListener("click", () => {
       saveEvent({
         type: "video-share",
-        videoId,
+        videoId: getVideoId(),
         src: currentVideo?.src,
         timestamp: new Date().toISOString(),
       });
