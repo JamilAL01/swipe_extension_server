@@ -665,7 +665,7 @@ function attachStallAndStartupTracking(video) {
   if (video._stallStartupHooked) return;
   video._stallStartupHooked = true;
 
-  const videoId = getVideoId();
+  //const videoId = getVideoId();
 
   let firstPlayTime = null;
   let stallStart = null;
@@ -687,7 +687,7 @@ function attachStallAndStartupTracking(video) {
       if (startupDelay > 0.2) {  // ignore tiny startup delays
         saveEvent({
           type: "video-startup-delay",
-          videoId,
+          videoId: getVideoId(),
           timestamp: new Date().toISOString(),
           extra: { startupDelay: startupDelay.toFixed(2) }
         });
@@ -718,7 +718,7 @@ function attachStallAndStartupTracking(video) {
       if (stallDuration > 0.2) {  // filter out micro-stalls
         saveEvent({
           type: "video-stall",
-          videoId,
+          videoId:getVideoId(),
           timestamp: new Date().toISOString(),
           extra: { stallDuration: stallDuration.toFixed(2) }
         });
@@ -777,7 +777,7 @@ const observer = new MutationObserver(() => {
       if (duration > 0) {
         setTimeout(() => {
           updateStats(watchedTime, parseFloat(percent), duration);
-        }, 5);
+        }, 100);
       }
     }
 
@@ -815,4 +815,4 @@ setInterval(() => {
     if (video) attachVideoEvents(video);
     attachActionEvents();
   }
-}, 1000);
+}, 100);
