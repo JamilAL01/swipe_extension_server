@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const history = data.videoHistory || [];
 
       document.getElementById('videos-count').textContent = videos;
-      //document.getElementById('watch-time').textContent = `${Math.floor(totalTimeSec / 60)} min`;
+      document.getElementById('watch-time').textContent = `${Math.floor(totalTimeSec / 60)} min`;
       document.getElementById('avg-percent').textContent = `${Math.round(avgPercent)}%`;
 
       // ================== THEME COLORS ==================
