@@ -390,7 +390,7 @@ function attachVideoEvents(video) {
 function attachActionEvents() {
   const likeBtn = document.querySelector('like-button-view-model button');
   const dislikeBtn = document.querySelector('dislike-button-view-model button');
-  const shareBtn = document.querySelector('button-view-model');
+  const shareBtn = document.querySelector('button[aria-label="Share"]');
 
   const videoId = getVideoId();
 
@@ -516,7 +516,7 @@ function trackViewportChanges(video) {
   document.addEventListener("fullscreenchange", checkViewport);
 
   // Optional: check every few seconds for subtle UI changes
-  setInterval(checkViewport, 2000);
+  //setInterval(checkViewport, 2000);
 }
 
 // // ================= CODEC ==========================
