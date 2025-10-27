@@ -430,7 +430,7 @@ function attachActionEvents() {
 function updateStats(watchedTime, percentWatched, duration, currentBitrate = null) {
   chrome.storage.local.get(['videosWatched', 'totalWatchedTime', 'avgPercentWatched', 'videoHistory'], (data) => {
     const videos = (data.videosWatched || 0) + 1;
-    const totalTime = (data.totalWatchedTime || 0) + Number(watchedTime);
+    const totalTime = (data.totalWatchedTime || 0) + Numeric(watchedTime);
     const history = data.videoHistory || [];
 
     const avgPercent = ((data.avgPercentWatched || 0) * (videos - 1) + percentWatched) / videos;
