@@ -512,7 +512,7 @@ function trackViewportChanges(video) {
   document.addEventListener("fullscreenchange", checkViewport);
 
   // Optional: check every few seconds for subtle UI changes
-  setInterval(checkViewport, 10000);
+  setInterval(checkViewport, 5000);
 }
 
 // ================== MAX VIDEO RESOLUTION ======================
@@ -732,48 +732,65 @@ function attachStallAndStartupTracking(video) {
   video.addEventListener("playing", onResume);
   video.addEventListener("timeupdate", onResume);
 }
-
 // ================== OBSERVE VIDEO CHANGES ==================
+let eventQueue = [];
+let isSaving = false;
+
+async function processQueue() {
+  if (isSaving || eventQueue.length === 0) return;
+  isSaving = true;
+
+  const event = eventQueue.shift();
+  try {
+    await saveEvent(event); // assume returns Promise or wrap it
+  } catch (err) {
+    console.error("Failed to save event:", err);
+  } finally {
+    isSaving = false;
+    // small delay to maintain timestamp order
+    setTimeout(processQueue, 50);
+  }
+}
+
+function queueEvent(evt) {
+  evt.timestamp = new Date().toISOString();
+  eventQueue.push(evt);
+  processQueue();
+}
+
 const observer = new MutationObserver(() => {
   const video = document.querySelector("video");
   if (!video) return;
 
-  // === Hook resolution & viewport tracking once per video ===
   if (!video._resolutionHooked) {
     video._resolutionHooked = true;
-
-    // Hook stall + startup delay early
     attachStallAndStartupTracking(video);
-    
     const videoId = getVideoId();
     trackVideoResolution(video, videoId);
     trackViewportChanges(video);
   }
 
-  // === Handle new video (when src changes) ===
+  // === Detect new video ===
   if (video.src && video.src !== lastSrc) {
     const videoId = getVideoId();
 
-    // --- If we were watching a previous video ---
+    // --- Stop previous video if any ---
     if (currentVideo && startTime) {
       watchedTime += (Date.now() - startTime) / 1000;
-
       const duration = prevDuration || currentVideo.duration || 0;
       const percent = duration
         ? Math.min((watchedTime / duration) * 100, 100).toFixed(1)
         : "0";
 
-      saveEvent({
+      queueEvent({
         type: "video-stopped",
         videoId: getVideoId(),
         src: currentVideo.src,
-        timestamp: new Date().toISOString(),
         watchedTime: watchedTime.toFixed(2),
         duration: duration.toFixed(2),
         percent,
       });
 
-      // Update summary stats (with small delay to ensure event order)
       if (duration > 0) {
         setTimeout(() => {
           updateStats(watchedTime, parseFloat(percent), duration);
@@ -781,24 +798,29 @@ const observer = new MutationObserver(() => {
       }
     }
 
-    // --- Save transition ---
+    // --- Transition event ---
     if (lastSrc) {
-      saveEvent({
+      queueEvent({
         type: "swiped-to-new-video",
         videoId,
         src: video.src,
-        timestamp: new Date().toISOString(),
         extra: { previous: lastSrc },
       });
     }
 
-    // === Prepare for next video ===
+    // --- Start new video ---
     currentVideo = video;
     lastSrc = video.src;
     startTime = Date.now();
     watchedTime = 0;
     prevDuration = video.duration || 0;
     hasPlayed = false;
+
+    queueEvent({
+      type: "video-start",
+      videoId,
+      src: video.src,
+    });
 
     attachVideoEvents(video);
     attachActionEvents();
