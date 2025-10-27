@@ -390,7 +390,7 @@ function attachVideoEvents(video) {
 function attachActionEvents() {
   const likeBtn = document.querySelector('like-button-view-model button');
   const dislikeBtn = document.querySelector('dislike-button-view-model button');
-  const shareBtn = document.querySelector('button[aria-label*="share"], ytd-button-renderer[is-icon-button][button-id="share"] button');
+  const shareBtn = document.querySelector('button-view-model');
 
   const videoId = getVideoId();
 
