@@ -385,12 +385,12 @@ function attachVideoEvents(video) {
 
 // ================== LIKE / DISLIKE / SHARE ==================
 function attachActionEvents() {
-  const actionBar = document.querySelector('reel-action-bar-view-model');
+  const actionBar = document.querySelector('reel-action-bar-view-model.ytwReelActionBarViewModelHost');
   if (!actionBar) return;
 
-  const likeBtn = actionBar.querySelector('like-button-view-model.ytLikeButtonViewModelHost');
-  const dislikeBtn = actionBar.querySelector('dislike-button-view-model.ytDislikeButtonViewModelHost');
-  const shareBtn = actionBar.querySelector('button-view-model.ytSpecButtonViewModelHost');
+  const likeBtn = actionBar.querySelector('like-button-view-model button[aria-label*="like" i]');
+  const dislikeBtn = actionBar.querySelector('dislike-button-view-model button[aria-label*="dislike" i]');
+  const shareBtn = actionBar.querySelector('button[aria-label="Share"], button[aria-label*="Share this" i]');
 
   if (likeBtn && !likeBtn._hooked) {
     likeBtn._hooked = true;
