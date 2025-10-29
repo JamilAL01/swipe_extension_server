@@ -552,7 +552,7 @@ function trackViewportChanges(video) {
   window.addEventListener("resize", checkViewport);
   document.addEventListener("fullscreenchange", checkViewport);
 
-  // Optional: check every few seconds for subtle UI changes
+  // check every few seconds for subtle UI changes
   setInterval(checkViewport, 5000);
 }
 
@@ -845,6 +845,9 @@ const observer = new MutationObserver(() => {
         type: "swiped-to-new-video",
         videoId,
         src: video.src,
+        watchedTime: watchedTime.toFixed(2),
+        duration: duration.toFixed(2),
+        percent,
         extra: { previous: lastSrc },
       });
     }
