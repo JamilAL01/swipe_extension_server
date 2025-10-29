@@ -385,46 +385,31 @@ function attachVideoEvents(video) {
 
 // ================== LIKE / DISLIKE / SHARE ==================
 function attachActionEvents() {
-  const actionBar = document.querySelector('reel-action-bar-view-model.ytwReelActionBarViewModelHost');
-  if (!actionBar) return;
+  const container = document.querySelector('#button-bar');
+  if (!container) return;
 
-  const likeBtn = actionBar.querySelector('like-button-view-model button[aria-label*="like" i]');
-  const dislikeBtn = actionBar.querySelector('dislike-button-view-model button[aria-label*="dislike" i]');
-  const shareBtn = actionBar.querySelector('button[aria-label="Share"], button[aria-label*="Share this" i]');
+  const likeBtn = container.querySelector('button[aria-label*="like" i]');
+  const dislikeBtn = container.querySelector('button[aria-label*="dislike" i]');
+  const shareBtn = container.querySelector('button[aria-label*="share" i]');
 
-  if (likeBtn && !likeBtn._hooked) {
-    likeBtn._hooked = true;
-    likeBtn.addEventListener("click", () => {
-      queueEvent({
-        type: "video-like",
-        videoId: getVideoId(),
-        src: currentVideo?.src,
+  const bind = (btn, type) => {
+    if (btn && !btn._hooked) {
+      btn._hooked = true;
+      btn.addEventListener('click', () => {
+        queueEvent({
+          type,
+          videoId: getVideoId(),
+          src: currentVideo?.src,
+        });
       });
-    });
-  }
+    }
+  };
 
-  if (dislikeBtn && !dislikeBtn._hooked) {
-    dislikeBtn._hooked = true;
-    dislikeBtn.addEventListener("click", () => {
-      queueEvent({
-        type: "video-dislike",
-        videoId: getVideoId(),
-        src: currentVideo?.src,
-      });
-    });
-  }
-
-  if (shareBtn && !shareBtn._hooked) {
-    shareBtn._hooked = true;
-    shareBtn.addEventListener("click", () => {
-      queueEvent({
-        type: "video-share",
-        videoId: getVideoId(),
-        src: currentVideo?.src,
-      });
-    });
-  }
+  bind(likeBtn, 'video-like');
+  bind(dislikeBtn, 'video-dislike');
+  bind(shareBtn, 'video-share');
 }
+
 
 // =================  STATS ========================
 function updateStats(watchedTime, percentWatched, duration, currentBitrate = null) {
