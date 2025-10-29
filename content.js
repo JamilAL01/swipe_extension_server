@@ -845,9 +845,6 @@ const observer = new MutationObserver(() => {
         type: "swiped-to-new-video",
         videoId,
         src: video.src,
-        watchedTime: watchedTime.toFixed(2),
-        duration: duration.toFixed(2),
-        percent,
         extra: { previous: lastSrc },
       });
     }
