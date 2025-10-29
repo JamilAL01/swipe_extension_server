@@ -385,29 +385,76 @@ function attachVideoEvents(video) {
 
 // ================== LIKE / DISLIKE / SHARE ==================
 function attachActionEvents() {
-  const container = document.querySelector('#button-bar');
-  if (!container) return;
+  // Avoid installing multiple times
+  if (window._attachActionEventsInstalled) return;
+  window._attachActionEventsInstalled = true;
 
-  const likeBtn = container.querySelector('button[aria-label*="like" i]');
-  const dislikeBtn = container.querySelector('button[aria-label*="dislike" i]');
-  const shareBtn = container.querySelector('button[aria-label*="share" i]');
+  const isLike = (btn) => btn?.matches && btn.matches('button[aria-label*="like" i]');
+  const isDislike = (btn) => btn?.matches && btn.matches('button[aria-label*="dislike" i]');
+  const isShare = (btn) =>
+    (btn?.matches && btn.matches('button[aria-label*="share" i]')) ||
+    // fallback: sometimes aria-label is "Share" or text node says "Share"
+    (btn && (btn.getAttribute && /share/i.test(btn.getAttribute('aria-label') || '')) ) ||
+    (btn && btn.textContent && /share/i.test(btn.textContent));
 
-  const bind = (btn, type) => {
-    if (btn && !btn._hooked) {
-      btn._hooked = true;
-      btn.addEventListener('click', () => {
-        queueEvent({
-          type,
-          videoId: getVideoId(),
-          src: currentVideo?.src,
-        });
-      });
-    }
+  const emit = (type) => {
+    if (typeof queueEvent !== 'function') return;
+    const videoId = (typeof getVideoId === 'function') ? getVideoId() : undefined;
+    queueEvent({
+      type,
+      videoId,
+      src: typeof currentVideo !== 'undefined' ? currentVideo?.src : undefined,
+    });
   };
 
-  bind(likeBtn, 'video-like');
-  bind(dislikeBtn, 'video-dislike');
-  bind(shareBtn, 'video-share');
+  const attachToContainer = (container) => {
+    if (!container || container._reelHooksAttached) return;
+    container._reelHooksAttached = true;
+
+    container.addEventListener('click', (ev) => {
+      // Find the button that was clicked (works for clicks on inner SVGs/icons)
+      const btn = ev.target.closest && ev.target.closest('button');
+      if (!btn || !container.contains(btn)) return;
+
+      if (isLike(btn)) {
+        emit('video-like');
+      } else if (isDislike(btn)) {
+        emit('video-dislike');
+      } else if (isShare(btn)) {
+        emit('video-share');
+      }
+    }, true); // use capture to catch events early (more reliable across nesting)
+  };
+
+  // Try to attach immediately if #button-bar exists
+  const tryAttachImmediate = () => {
+    const container = document.querySelector('#button-bar');
+    if (container) attachToContainer(container);
+  };
+  tryAttachImmediate();
+
+  // Observe DOM for replacements/insertions of the button bar so we don't lose listeners
+  const observer = new MutationObserver((mutations) => {
+    for (const m of mutations) {
+      // fast path: if button-bar was added
+      for (const node of m.addedNodes) {
+        if (!(node instanceof HTMLElement)) continue;
+        if (node.matches && node.matches('#button-bar')) {
+          attachToContainer(node);
+        } else {
+          // search inside the added node
+          const found = node.querySelector && node.querySelector('#button-bar');
+          if (found) attachToContainer(found);
+        }
+      }
+      // also handle the case button-bar was replaced (removed then added)
+      if (m.removedNodes && m.removedNodes.length) {
+        tryAttachImmediate();
+      }
+    }
+  });
+
+  observer.observe(document.documentElement || document.body, { childList: true, subtree: true });
 }
 
 
