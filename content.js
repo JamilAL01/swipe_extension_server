@@ -390,7 +390,7 @@ function attachActionEvents() {
   window._attachActionEventsInstalled = true;
 
   const isLike = (btn) => btn?.matches && btn.matches('button[aria-label*="like" i]');
-  const isDislike = (btn) => btn?.matches && btn.matches('button[aria-label*="dislike" i]');
+  const isDislike = (btn) => btn?.matches && btn.matches('button[aria-label*="Dislike" i]');
   const isShare = (btn) =>
     (btn?.matches && btn.matches('button[aria-label*="share" i]')) ||
     // fallback: sometimes aria-label is "Share" or text node says "Share"
