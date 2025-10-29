@@ -385,47 +385,31 @@ function attachVideoEvents(video) {
 
 // ================== LIKE / DISLIKE / SHARE ==================
 function attachActionEvents() {
-  const actionBar = document.querySelector('reel-action-bar-view-model');
-  if (!actionBar) return;
-
-  const likeBtn = actionBar.querySelector('like-button-view-model button[aria-label*="like" i]');
-  const dislikeBtn = actionBar.querySelector('dislike-button-view-model button[aria-label*="dislike" i]');
-  const shareBtn = actionBar.querySelector('button[aria-label="Share"], button[aria-label*="Share this" i]');
+  const likeBtn = document.querySelector('ytd-toggle-button-renderer:nth-of-type(1) button');
+  const dislikeBtn = document.querySelector('ytd-toggle-button-renderer:nth-of-type(2) button');
+  const shareBtn = document.querySelector('ytd-button-renderer[button-renderer][is-icon-button] button, #share-button button');
 
   if (likeBtn && !likeBtn._hooked) {
     likeBtn._hooked = true;
     likeBtn.addEventListener("click", () => {
-      queueEvent({
-        type: "video-like",
-        videoId: getVideoId(),
-        src: currentVideo?.src,
-      });
+      saveEvent({ type: "video-like", videoId: getVideoId(), src: currentVideo?.src, timestamp: new Date().toISOString() });
     });
   }
 
   if (dislikeBtn && !dislikeBtn._hooked) {
     dislikeBtn._hooked = true;
     dislikeBtn.addEventListener("click", () => {
-      queueEvent({
-        type: "video-dislike",
-        videoId: getVideoId(),
-        src: currentVideo?.src,
-      });
+      saveEvent({ type: "video-dislike", videoId: getVideoId(), src: currentVideo?.src, timestamp: new Date().toISOString() });
     });
   }
 
   if (shareBtn && !shareBtn._hooked) {
     shareBtn._hooked = true;
     shareBtn.addEventListener("click", () => {
-      queueEvent({
-        type: "video-share",
-        videoId: getVideoId(),
-        src: currentVideo?.src,
-      });
+      saveEvent({ type: "video-share", videoId: getVideoId(), src: currentVideo?.src, timestamp: new Date().toISOString() });
     });
   }
 }
-
 // =================  STATS ========================
 function updateStats(watchedTime, percentWatched, duration, currentBitrate = null) {
   chrome.storage.local.get(['videosWatched', 'totalWatchedTime', 'avgPercentWatched', 'videoHistory'], (data) => {
