@@ -20,7 +20,7 @@ app.use(cors());
 
 // ================== API ROUTES ==================
 
-// 🎥 Save video events
+// Save video events
 app.post("/api/events", async (req, res) => {
   try {
     const {
@@ -34,7 +34,7 @@ app.post("/api/events", async (req, res) => {
       duration = null,
       percent = null,
       extra = {},
-      channelName = null, // ✅ NEW
+      channelName = null,
     } = req.body;
 
     if (!userId || !sessionId || !videoId || !type || !timestamp) {
