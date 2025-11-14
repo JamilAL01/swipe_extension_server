@@ -3,18 +3,40 @@ chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.local.set({ session_id: crypto.randomUUID() });
 });
 
-// Function to POST event to backend
+const GATEWAY_URL = "https://swipex.inria.fr/api/events"; 
+const API_KEY = "205aeeaf6a910355d142789b7ff53b2b5219120edb6f43b724aa3d2e473836bd";
+
+// Function to send event to gateway
 async function postEvent(event) {
   try {
-    await fetch("https://swipe-extension-server-2.onrender.com:4000/v1/events", {   
+    const res = await fetch(GATEWAY_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": API_KEY
+      },
       body: JSON.stringify(event),
     });
+
+    console.log("[DEBUG] Response status:", res.status);
+
+    let data;
+    try { data = await res.json(); } 
+    catch { data = "<not JSON>"; }
+
+    console.log("[Event sent ✅]", data);
+
   } catch (err) {
-    console.error(" postEvent failed:", err);
+    console.error("[Event error ❌]", err);
   }
 }
+
+// Listen for messages from content scripts
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.type === "event") {
+    postEvent(msg.data);
+  }
+});
 
 // Listen for events from content.js
 chrome.runtime.onMessage.addListener((msg) => {
