@@ -1,4 +1,6 @@
 console.log("[SwipeExtension] Content script injected ✅");
+const API_URL = "https://swipex.inria.fr"; 
+const API_KEY = "205aeeaf6a910355d142789b7ff53b2b5219120edb6f43b724aa3d2e473836bd";
 
 // ================== TRANSLATIONS ==================
 const translations = {
@@ -210,9 +212,9 @@ function showSurveyPopup() {
                   window.innerWidth <= 1024 ? "tablet" :
                   window.innerWidth <= 1440 ? "laptop" : "desktop";
 
-    fetch("https://swipe-extension-server-2.onrender.com/api/surveys", {
+    fetch(`${API_URL}/api/surveys`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json","x-api-key": API_KEY },
       body: JSON.stringify({
         userId: window._swipeUserId,
         sessionId: window._swipeSessionId,
@@ -265,26 +267,17 @@ function getVideoId() {
 }
 
 function saveEvent(eventData) {
-  if (consent !== "yes") {
-    console.log("[SwipeExtension] Tracking disabled by GDPR ❌");
-    return;
-  }
+  if (consent !== "yes") return;
 
+  // Add user/session info
   eventData.sessionId = sessionId;
   eventData.userId = userId;
-  console.log("[SwipeExtension] Event saved:", eventData);
 
-  fetch("https://swipe-extension-server-2.onrender.com/api/events", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(eventData),
-  })
-    .then(res => {
-      if (res.ok) console.log("[SwipeExtension] Sent to server ✅");
-      else console.error("[SwipeExtension] Server error ❌", res.statusText);
-    })
-    .catch(err => console.error("[SwipeExtension] Fetch error ❌", err));
+  // Send the event to background script (NOT directly to gateway)
+  chrome.runtime.sendMessage({ type: "event", data: eventData });
+  console.log("[DEBUG] Event sent to background", eventData);
 }
+
 
 
 let lastKnownBitrate = null;
