@@ -212,7 +212,7 @@ function showSurveyPopup() {
                   window.innerWidth <= 1024 ? "tablet" :
                   window.innerWidth <= 1440 ? "laptop" : "desktop";
 
-    fetch(`${API_URL}/api/`, {
+    fetch(`${API_URL}/api/save`, {
       method: "POST",
       headers: { "Content-Type": "application/json","x-api-key": API_KEY },
       body: JSON.stringify({
