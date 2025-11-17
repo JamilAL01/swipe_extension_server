@@ -219,9 +219,9 @@ function showSurveyPopup() {
         userId: window._swipeUserId,
         sessionId: window._swipeSessionId,
         answers,
-        timestamp: new Date().toISOString(),
         screen_size: screenInfo,
-        device_type: deviceType
+        device_type: deviceType,
+        timestamp: new Date().toISOString()
       })
     })
       .then(res => {
