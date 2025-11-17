@@ -1,5 +1,5 @@
 console.log("[SwipeExtension] Content script injected ✅");
-const API_URL = "https://swipex.inria.fr"; 
+const API_URL = "https://swipex.inria.fr/api/events"; 
 const API_KEY = "205aeeaf6a910355d142789b7ff53b2b5219120edb6f43b724aa3d2e473836bd";
 
 // ================== TRANSLATIONS ==================
@@ -212,7 +212,7 @@ function showSurveyPopup() {
                   window.innerWidth <= 1024 ? "tablet" :
                   window.innerWidth <= 1440 ? "laptop" : "desktop";
 
-    fetch(`${API_URL}/api/events`, {
+    fetch(`${API_URL}`, {
       method: "POST",
       headers: { "Content-Type": "application/json","x-api-key": API_KEY },
       body: JSON.stringify({
