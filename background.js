@@ -3,7 +3,7 @@ chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.local.set({ session_id: crypto.randomUUID() });
 });
 
-const GATEWAY_URL = "https://swipex.inria.fr/api/events"; 
+const GATEWAY_URL = "https://swipex.inria.fr/api"; 
 const API_KEY = "205aeeaf6a910355d142789b7ff53b2b5219120edb6f43b724aa3d2e473836bd";
 
 // Function to send event to gateway
