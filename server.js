@@ -70,7 +70,7 @@ app.post("/api/events", async (req, res) => {
 // 📝 Save survey responses
 app.post("/api/surveys", async (req, res) => {
   try {
-    const { userId, sessionId, answers, screen_size, device_type, timestamp } = req.body;
+    const { userId, sessionId, answers, timestamp, screen_size, device_type } = req.body;
 
     if (!userId || !sessionId || !answers) {
       return res.status(400).json({ error: "Missing required fields" });
