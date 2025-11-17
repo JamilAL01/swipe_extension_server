@@ -200,12 +200,12 @@ function showSurveyPopup() {
       submitBtn.disabled = false;
       return;
     }
-
     if (!window._swipeUserId || !window._swipeSessionId) {
-      console.warn("[SwipeExtension] ❌ Survey submission delayed — user/session not initialized yet");
-      setTimeout(() => submitBtn.click(), 500);
+      alert("Please wait, still initializing...");
+      submitBtn.disabled = false;
       return;
     }
+
 
     const screenInfo = `${window.innerWidth}x${window.innerHeight}`;
     const deviceType = window.innerWidth <= 768 ? "mobile" :
