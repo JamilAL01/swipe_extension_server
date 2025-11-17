@@ -78,10 +78,10 @@ app.post("/api/surveys", async (req, res) => {
 
     const result = await pool.query(
       `INSERT INTO survey_responses 
-       (user_id, session_id, answers, screen_size, device_type, created_at)
+       (user_id, session_id, answers, created_at, screen_size, device_type)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *;`,
-      [userId, sessionId, answers, screen_size, device_type, timestamp || new Date()]
+      [userId, sessionId, answers, timestamp || new Date(), screen_size, device_type]
     );
 
     res.status(201).json({
