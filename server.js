@@ -11,7 +11,7 @@ const { Pool } = pkg;
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false } // required for Render
+  ssl: { rejectUnauthorized: false } 
 });
 
 // ================== MIDDLEWARE ==================
@@ -68,7 +68,7 @@ app.post("/api/events", async (req, res) => {
 });
 
 // 📝 Save survey responses
-app.post("/api/surveys", async (req, res) => {
+app.post("/api/events", async (req, res) => {
   try {
     const { userId, sessionId, answers, screen_size, device_type, timestamp } = req.body;
 
