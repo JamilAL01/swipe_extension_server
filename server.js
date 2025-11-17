@@ -11,72 +11,86 @@ const { Pool } = pkg;
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false } 
+  ssl: { rejectUnauthorized: false } // required for Render
 });
 
 // ================== MIDDLEWARE ==================
 app.use(bodyParser.json());
 app.use(cors());
 
-// ================== SINGLE API ROUTE ==================
-app.post("/api/save", async (req, res) => {
-  try {
-    const { type } = req.body;
+// ================== API ROUTES ==================
 
-    if (!type) {
-      return res.status(400).json({ error: "Missing type field" });
+// Save video events
+app.post("/api/events", async (req, res) => {
+  try {
+    const {
+      userId,
+      sessionId,
+      videoId,
+      type,
+      timestamp,
+      src = null,
+      watchedTime = null,
+      duration = null,
+      percent = null,
+      extra = {},
+      channelName = null,
+    } = req.body;
+
+    if (!userId || !sessionId || !videoId || !type || !timestamp) {
+      return res.status(400).json({ error: "Missing required fields" });
     }
 
-    if (type === "event") {
-      const {
+    await pool.query(
+      `INSERT INTO video_events 
+       (user_id, session_id, video_id, src, event_type, ts, extra, watched_time, duration, percent, channel_name)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      [
         userId,
         sessionId,
         videoId,
+        src,
+        type,
         timestamp,
-        src = null,
-        watchedTime = null,
-        duration = null,
-        percent = null,
-        extra = {},
-        channelName = null,
-        eventType,
-      } = req.body;
+        extra,
+        watchedTime,
+        duration,
+        percent,
+        channelName,
+      ]
+    );
 
-      if (!userId || !sessionId || !videoId || !eventType || !timestamp) {
-        return res.status(400).json({ error: "Missing required fields for event" });
-      }
-
-      await pool.query(
-        `INSERT INTO video_events 
-         (user_id, session_id, video_id, src, event_type, ts, extra, watched_time, duration, percent, channel_name)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-        [userId, sessionId, videoId, src, eventType, timestamp, extra, watchedTime, duration, percent, channelName]
-      );
-
-      return res.json({ status: "ok", saved: req.body });
-
-    } else if (type === "survey") {
-      const { userId, sessionId, answers, timestamp, screen_size, device_type } = req.body;
-
-      if (!userId || !sessionId || !answers) {
-        return res.status(400).json({ error: "Missing required fields for survey" });
-      }
-
-      const result = await pool.query(
-        `INSERT INTO survey_responses 
-         (user_id, session_id, answers, created_at, screen_size, device_type)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING *;`,
-        [userId, sessionId, answers, timestamp || new Date(), screen_size, device_type]
-      );
-
-      return res.status(201).json({ status: "ok", saved: result.rows[0] });
-    } else {
-      return res.status(400).json({ error: "Invalid type field" });
-    }
+    res.json({ status: "ok", saved: req.body });
   } catch (err) {
     console.error("Database error:", err);
-    return res.status(500).json({ error: "Database error", details: err.message });
+    res.status(500).json({ error: "Database error", details: err.message });
+  }
+});
+
+// 📝 Save survey responses
+app.post("/api/surveys", async (req, res) => {
+  try {
+    const { userId, sessionId, answers, screen_size, device_type, timestamp } = req.body;
+
+    if (!userId || !sessionId || !answers) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO survey_responses 
+       (user_id, session_id, answers, screen_size, device_type, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *;`,
+      [userId, sessionId, answers, screen_size, device_type, timestamp || new Date()]
+    );
+
+    res.status(201).json({
+      status: "ok",
+      saved: result.rows[0],
+    });
+  } catch (err) {
+    console.error("Survey DB error:", err);
+    res.status(500).json({ error: "Database error", details: err.message });
   }
 });
 
