@@ -212,16 +212,16 @@ function showSurveyPopup() {
                   window.innerWidth <= 1024 ? "tablet" :
                   window.innerWidth <= 1440 ? "laptop" : "desktop";
 
-    fetch(`${API_URL}/api/save`, {
+    fetch(`${API_URL}/api/surveys`, {
       method: "POST",
       headers: { "Content-Type": "application/json","x-api-key": API_KEY },
       body: JSON.stringify({
         userId: window._swipeUserId,
         sessionId: window._swipeSessionId,
         answers,
-        timestamp: new Date().toISOString(),
         screen_size: screenInfo,
-        device_type: deviceType
+        device_type: deviceType,
+        timestamp: new Date().toISOString()
       })
     })
       .then(res => {
