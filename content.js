@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BSD-3-Clause
+// Copyright (c) 2025, SWiPE X / COATI-DIANA
+
 console.log("[SwipeExtension] Content script injected ✅");
 const API_URL = "https://swipex.inria.fr"; 
 const API_KEY = "205aeeaf6a910355d142789b7ff53b2b5219120edb6f43b724aa3d2e473836bd";
