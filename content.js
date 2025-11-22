@@ -6,12 +6,43 @@ const API_KEY = "205aeeaf6a910355d142789b7ff53b2b5219120edb6f43b724aa3d2e473836b
 const translations = {
   en: {
     consentTitle: "🔒 Data Collection Notice",
-    consentText: `This extension <b>SWiPE X</b> records your interactions with YouTube Shorts
-      (<b>play, pause, skips, watch time, likes, shares</b>, etc.) for research purposes.
-      Your identity remains completely anonymous. A randomly generated ID is stored locally only to recognize repeated usage across sessions.`,
+    consentText: `
+    <div style="text-align: left;">
+    
+    The <b>SWiPE X</b> extension collects <b>anonymized information</b> about your interactions with YouTube Shorts for <b>research purposes</b>.
+
+    <br><br>
+
+    <b>📌 Data collected:</b><br>
+    • Actions: play, pause, resume, jump, swipe, like, dislike, share, stop, rewatch<br>
+    • Video characteristics: ID, channel, category, resolution, duration, watch time<br>
+    • Quality-of-service indicators: startup time, stalls
+
+    <br><br>
+
+    <b>📌 Data NOT collected:</b><br>
+    We do <b>not</b> collect any personal information:<br>
+    • no login<br>
+    • no email address<br>
+    • no IP address<br>
+    • no cookies<br>
+    • no identifiers that could reveal your identity
+
+    <br><br>
+
+    Your identity remains <b>fully anonymous</b>.  
+    A randomly generated ID is stored <b>locally</b> only to recognize repeated sessions on your device.
+
+    <br><br>
+
+    <b>📩 Contact:</b> For any questions, you may contact: <b>ABOU LTAIF Jamil – jamil.abou-ltaif@inria.fr</b>.
+    <br><br>
+    </div>
+    `,
     consentQuestion: "Do you agree?",
     yes: "✅ Yes",
     no: "❌ No",
+
     surveyTitle: "📝 Quick Survey",
     surveyText: "Please answer a few short questions:",
     submit: "Submit ✅",
@@ -21,21 +52,50 @@ const translations = {
     q2: "2. What device do you usually use?",
     q2Options: ["-- Select --","Desktop computer","Laptop","Smartphone","Tablet","Prefer not to say"],
     q3: "3. What type of content do you prefer?",
-    q3Options: ["-- Select --","Comedy & Entertainment","Fashion & Lifestyle","Movies & Animation","Science & Technology","Gaming","Prefer not to say"],
+    q3Options: ["-- Select --","Comedy & Entertainment","Fashion & Lifestyle","Movies & Animation","Science & Technology","Gaming","Sports","Prefer not to say"],
     q4: "4. Your age group?",
     q4Options: ["-- Select --","Under 18","18-25","26-35","36 and above","Prefer not to say"],
     q5: "5. Do you often interact with Shorts?",
     q5Options: ["-- Select --","Like or dislike","Comment on videos","Share with others","All of the above","I usually just watch without engaging","Prefer not to say"],
-    q6: "6. Any other comments?"
   },
   fr: {
-    consentTitle: "🔒 Avis de collecte de données",
-    consentText: `Cette extension <b>SWiPE X</b> enregistre vos interactions avec YouTube Shorts
-      (<b>lecture, pause, saut, temps de visionnage, likes, partages</b>, etc.) à des fins de recherche.
-      Votre identité reste complètement anonyme. Un ID aléatoire est stocké localement uniquement pour reconnaître les utilisations répétées.`,
-    consentQuestion: "Êtes-vous d'accord ?",
+    consentTitle: "🔒 Avis de Collecte de Données",
+    consentText: `
+    <div style="text-align: left;">
+    L’extension <b>SWiPE X</b> collecte des informations <b>anonymisées</b> sur vos interactions avec YouTube Shorts à des fins de <b>recherche scientifique</b>.
+
+    <br><br>
+
+    <b>📌 Données collectées :</b><br>
+    • Actions : lecture, pause, reprise, saut, swipe, like, dislike, partage, arrêt, revisionnage<br>
+    • Caractéristiques des vidéos : identifiant, chaîne, catégorie, résolution, durée, temps de visionnage<br>
+    • Qualité de service : temps de démarrage, interruptions (stalls)
+
+    <br><br>
+
+    <b>📌 Données NON collectées :</b><br>
+    Nous ne collectons <b>aucune donnée personnelle</b> :<br>
+    • pas de login<br>
+    • pas d’adresse email<br>
+    • pas d’adresse IP<br>
+    • pas de cookies<br>
+    • aucun identifiant permettant de vous reconnaître
+
+    <br><br>
+
+    Votre identité reste <b>entièrement anonyme</b>.  
+    Un identifiant aléatoire est uniquement stocké <b>localement</b> pour reconnaître les sessions successives sur votre appareil.
+
+    <br><br>
+
+    <b>📩 Contact :</b> pour toute question, vous pouvez contacter : <b>ABOU LTAIF Jamil – jamil.abou-ltaif@inria.fr</b>.
+    <br><br>
+    </div>
+    `,
+    consentQuestion: "Acceptez-vous ?",
     yes: "✅ Oui",
     no: "❌ Non",
+
     surveyTitle: "📝 Questionnaire rapide",
     surveyText: "Veuillez répondre à quelques questions courtes :",
     submit: "Envoyer ✅",
@@ -45,12 +105,11 @@ const translations = {
     q2: "2. Quel appareil utilisez-vous habituellement ?",
     q2Options: ["-- Sélectionner --","Ordinateur de bureau","Ordinateur portable","Smartphone","Tablette","Je préfère ne pas répondre"],
     q3: "3. Quel type de contenu préférez-vous ?",
-    q3Options: ["-- Sélectionner --","Comédie & Divertissement","Mode & Style de vie","Films & Animation","Science & Technologie","Jeux vidéo","Je préfère ne pas répondre"],
+    q3Options: ["-- Sélectionner --","Comédie & Divertissement","Mode & Style de vie","Films & Animation","Science & Technologie","Jeux vidéo","Sports","Je préfère ne pas répondre"],
     q4: "4. Votre tranche d'âge ?",
     q4Options: ["-- Sélectionner --","Moins de 18 ans","18-25","26-35","36 ans et plus","Je préfère ne pas répondre"],
     q5: "5. Interagissez-vous souvent avec les Shorts ?",
     q5Options: ["-- Sélectionner --","Aimer ou ne pas aimer","Commenter les vidéos","Partager avec d'autres","Toutes les réponses ci-dessus","Je regarde généralement sans interagir","Je préfère ne pas répondre"],
-    q6: "6. Autres commentaires ?"
   }
 };
 
@@ -174,8 +233,6 @@ function showSurveyPopup() {
                 ${t[q+"Options"].map(opt=>`<option value="${opt}">${opt}</option>`).join('')}
               </select><br><br>`;
     }).join('')}
-    <label>${t.q6}</label><br>
-    <textarea id="q6" rows="3" style="width:100%;"></textarea><br><br>
     <button id="survey-submit" style="padding:10px 20px; cursor:pointer;">${t.submit}</button>
   `;
 
@@ -187,7 +244,7 @@ function showSurveyPopup() {
   const handleSurveySubmit = () => {
     submitBtn.disabled = true;
 
-    const answers = ["q1","q2","q3","q4","q5","q6"].reduce((acc,key)=>{
+    const answers = ["q1","q2","q3","q4","q5"].reduce((acc,key)=>{
       acc[key] = document.getElementById(key).value;
       return acc;
     }, {});
