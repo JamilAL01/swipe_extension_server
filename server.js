@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BSD-3-Clause
+// Copyright (c) 2025, SWiPE X / COATI-DIANA
+
 import express from "express";
 import bodyParser from "body-parser";
 import pkg from "pg";
