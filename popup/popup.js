@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BSD-3-Clause
+// Copyright (c) 2025, SWiPE X / COATI-DIANA
+
 document.addEventListener('DOMContentLoaded', () => {
   chrome.storage.local.get(
     ['videosWatched', 'totalWatchedTime', 'avgPercentWatched', 'videoHistory'],
