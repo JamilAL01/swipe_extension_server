@@ -24,9 +24,6 @@ SWiPE X is a Chrome/Android extension to track YouTube Shorts video events and s
 
 Kiwi's link: "https://kiwi-browser.en.uptodown.com/android"
 
-### License
-MIT
-
 ---
 
 ## Version Française
@@ -52,6 +49,3 @@ SWiPE X est une extension Chrome/Android pour suivre les événements des vidéo
 4. Utiliser SWiPE X en naviguant sur YouTube Shorts.  
 
 Lien pour Kiwi : [https://kiwi-browser.en.uptodown.com/android](https://kiwi-browser.en.uptodown.com/android)  
-
-### Licence
-MIT
