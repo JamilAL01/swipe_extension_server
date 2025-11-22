@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BSD-3-Clause
+// Copyright (c) 2025, SWiPE X / COATI-DIANA
+
 // Save a session_id when extension starts
 chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.local.set({ session_id: crypto.randomUUID() });
