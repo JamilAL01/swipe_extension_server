@@ -12,29 +12,31 @@ const translations = {
     consentText: `
     <div style="text-align: left;">
     
-    The <b>SWiPE X</b> extension collects <b>anonymized information</b> about your interactions with YouTube Shorts for <b>research purposes</b>.
+    <b>📌 Purpose of the Study</b><br>
+    This research aims to understand how users interact with YouTube Shorts in order to improve the design and performance of short-video platforms.
 
     <br><br>
-
-    <b>📌 Data collected:</b><br>
-    • Actions: play, pause, resume, jump, swipe, like, dislike, share, stop, rewatch<br>
-    • Video characteristics: ID, channel, category, resolution, duration, watch time<br>
-    • Quality-of-service indicators: startup time, stalls
+    <b>📌 Outcomes of the Study</b><br>
+    The results will be used for scientific publications and presentations in anonymized and aggregated form only.
 
     <br><br>
-
-    <b>📌 Data NOT collected:</b><br>
-    We do <b>not</b> collect any personal information:<br>
-    • no login<br>
-    • no email address<br>
-    • no IP address<br>
-    • no cookies<br>
-    • no identifiers that could reveal your identity
+    <b>📌 Your Participation</b><br>
+    If you agree, the extension will record your interactions with Shorts (play, pause, resume, skip, swipe, like/dislike, share, stop, rewatch) as well as video characteristics (ID, channel, category, duration, resolution, watch time) and quality-of-service indicators (startup time, stalls).
 
     <br><br>
+    <b>📌 Participation Requirements</b><br>
+    You must be at least 18 years old.  
+    If you are under 18, please uninstall the extension immediately.
 
-    Your identity remains <b>fully anonymous</b>.  
-    A randomly generated ID is stored <b>locally</b> only to recognize repeated sessions on your device.
+    <br><br>
+    <b>📌 Your Right to Withdraw at Any Time</b><br>
+    Participation is entirely voluntary. You may stop at any time without justification or consequences.
+
+    <br><br>
+    <b>📌 Your Right to Privacy and Data Confidentiality</b><br>
+    This study complies with the GDPR.  
+    Data are collected anonymously and stored on an encrypted, password-protected hard drive for 15 years, as required by research regulations.  
+    Because the data are anonymous, you cannot access, modify, or delete them after submission.
 
     <br><br>
 
@@ -57,7 +59,7 @@ const translations = {
     q3: "3. What type of content do you prefer?",
     q3Options: ["-- Select --","Comedy & Entertainment","Fashion & Lifestyle","Movies & Animation","Science & Technology","Gaming","Sports","Prefer not to say"],
     q4: "4. Your age group?",
-    q4Options: ["-- Select --","Under 18","18-25","26-35","36 and above","Prefer not to say"],
+    q4Options: ["-- Select --","18-25","26-35","36 and above","Prefer not to say"],
     q5: "5. Do you often interact with Shorts?",
     q5Options: ["-- Select --","Like or dislike","Comment on videos","Share with others","All of the above","I usually just watch without engaging","Prefer not to say"],
   },
@@ -65,33 +67,36 @@ const translations = {
     consentTitle: "🔒 Avis de Collecte de Données",
     consentText: `
     <div style="text-align: left;">
-    L’extension <b>SWiPE X</b> collecte des informations <b>anonymisées</b> sur vos interactions avec YouTube Shorts à des fins de <b>recherche scientifique</b>.
+    
+    <b>📌 Objet de l'étude</b><br>
+    Cette recherche vise à comprendre comment les utilisateurs interagissent avec les Shorts YouTube afin d'améliorer la conception et les performances des plateformes de vidéos courtes.
+
+    <br><br>
+    <b>📌 Résultats de l'étude</b><br>
+    Les résultats seront utilisés uniquement sous forme anonymisée et agrégée pour des publications scientifiques et des présentations.
+
+    <br><br>
+    <b>📌 Votre participation</b><br>
+    Si vous acceptez, l'extension enregistrera vos interactions avec les Shorts (lecture, pause, reprise, saut, swipe, j’aime/pas j’aime, partage, arrêt, re-visionnage) ainsi que les caractéristiques des vidéos (ID, chaîne, catégorie, durée, résolution, temps de visionnage) et les indicateurs de qualité de service (temps de démarrage, interruptions).
+
+    <br><br>
+    <b>📌 Conditions de participation</b><br>
+    Vous devez avoir au moins 18 ans.  
+    Si vous avez moins de 18 ans, veuillez désinstaller immédiatement l'extension.
+
+    <br><br>
+    <b>📌 Votre droit de vous retirer à tout moment</b><br>
+    La participation est entièrement volontaire. Vous pouvez arrêter à tout moment sans justification ni conséquence.
+
+    <br><br>
+    <b>📌 Votre droit à la vie privée et à la confidentialité des données</b><br>
+    Cette étude est conforme au RGPD.  
+    Les données sont collectées de manière anonyme et stockées sur un disque dur crypté et protégé par mot de passe pendant 15 ans, conformément aux réglementations de recherche.  
+    Étant donné que les données sont anonymes, vous ne pouvez pas y accéder, les modifier ou les supprimer après soumission.
 
     <br><br>
 
-    <b>📌 Données collectées :</b><br>
-    • Actions : lecture, pause, reprise, saut, swipe, like, dislike, partage, arrêt, revisionnage<br>
-    • Caractéristiques des vidéos : identifiant, chaîne, catégorie, résolution, durée, temps de visionnage<br>
-    • Qualité de service : temps de démarrage, interruptions (stalls)
-
-    <br><br>
-
-    <b>📌 Données NON collectées :</b><br>
-    Nous ne collectons <b>aucune donnée personnelle</b> :<br>
-    • pas de login<br>
-    • pas d’adresse email<br>
-    • pas d’adresse IP<br>
-    • pas de cookies<br>
-    • aucun identifiant permettant de vous reconnaître
-
-    <br><br>
-
-    Votre identité reste <b>entièrement anonyme</b>.  
-    Un identifiant aléatoire est uniquement stocké <b>localement</b> pour reconnaître les sessions successives sur votre appareil.
-
-    <br><br>
-
-    <b>📩 Contact :</b> pour toute question, vous pouvez contacter : <b>ABOU LTAIF Jamil – jamil.abou-ltaif@inria.fr</b>.
+    <b>📩 Contact :</b> Pour toute question, vous pouvez contacter : <b>ABOU LTAIF Jamil – jamil.abou-ltaif@inria.fr</b>. 
     <br><br>
     </div>
     `,
@@ -110,7 +115,7 @@ const translations = {
     q3: "3. Quel type de contenu préférez-vous ?",
     q3Options: ["-- Sélectionner --","Comédie & Divertissement","Mode & Style de vie","Films & Animation","Science & Technologie","Jeux vidéo","Sports","Je préfère ne pas répondre"],
     q4: "4. Votre tranche d'âge ?",
-    q4Options: ["-- Sélectionner --","Moins de 18 ans","18-25","26-35","36 ans et plus","Je préfère ne pas répondre"],
+    q4Options: ["-- Sélectionner --","18-25","26-35","36 ans et plus","Je préfère ne pas répondre"],
     q5: "5. Interagissez-vous souvent avec les Shorts ?",
     q5Options: ["-- Sélectionner --","Aimer ou ne pas aimer","Commenter les vidéos","Partager avec d'autres","Toutes les réponses ci-dessus","Je regarde généralement sans interagir","Je préfère ne pas répondre"],
   }
@@ -148,7 +153,7 @@ function showConsentPopup() {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 500px;
+    width: 1000px;
     padding: 25px;
     background: white;
     border: 2px solid #444;
