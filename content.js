@@ -21,7 +21,7 @@ const translations = {
 
     <br><br>
     <b>📌 Your Participation</b><br>
-    If you agree, the extension will record your interactions with Shorts (play, pause, resume, skip, swipe, like/dislike, share, stop, rewatch) as well as video characteristics (ID, channel, category, duration, resolution, watch time) and quality-of-service indicators (startup time, stalls).
+    If you agree, the extension will record your interactions with Shorts (play, pause, resume, swipe, like/dislike, share, stop, rewatch) as well as video characteristics (ID, channel, category, duration, resolution, watch time) and quality-of-service indicators (startup time, stalls).
 
     <br><br>
     <b>📌 Participation Requirements</b><br>
