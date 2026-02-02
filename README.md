@@ -14,7 +14,7 @@ SWiPE X is a Chrome/Android extension to track YouTube Shorts video events and s
 2. Open Chrome → Extensions "chrome://extensions" → Enable Developer Mode.
 3. Click "Load unpacked" → select the folder.
 4. Enjoy SWiPE X on YouTube Shorts.
-   - **Important:** When you start watching videos, **refresh the page once** to ensure event tracking works correctly.
+   - **Important:** Each time you start watching videos, **refresh the page once** to ensure event tracking works correctly.
 
 #### Mobile (Android - Kiwi Browser)
 1. Download repo as ZIP from GitHub.
@@ -40,7 +40,8 @@ SWiPE X est une extension Chrome/Android pour suivre les événements des vidéo
 2. Ouvrir Chrome → Extensions "chrome://extensions" → Activer le mode développeur.  
 3. Cliquer sur "Charger l’extension non empaquetée" → sélectionner le dossier.  
 4. Profiter de SWiPE X sur YouTube Shorts.
-   - **Important:** lorsque vous commencez à regarder des vidéos, **actualisez la page une fois** pour que le suivi des événements démarre correctement. 
+   - **Important:** Chaque fois que vous commencez à regarder des vidéos, **actualisez la page une fois** pour que le suivi des événements démarre correctement.
+
 
 #### Mobile (Android - Navigateur Kiwi)
 1. Télécharger le dépôt en ZIP depuis GitHub.  
