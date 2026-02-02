@@ -7,44 +7,89 @@ const API_KEY = "205aeeaf6a910355d142789b7ff53b2b5219120edb6f43b724aa3d2e473836b
 
 // ================== TRANSLATIONS ==================
 const translations = {
-  en: {
-    consentTitle: "🔒 Data Collection Notice",
+ en: {
+    consentTitle: "🔒 Information and Consent to Participate",
     consentText: `
     <div style="text-align: left;">
-    
-    <b>📌 Purpose of the Study</b><br>
-    This research aims to understand how users interact with YouTube Shorts in order to improve the design and performance of short-video platforms.
+
+    <b>⛓️‍💥 PROJECT IDENTIFICATION</b><br><br>
+
+    <b>📌 Project initiative</b><br>
+    This experiment is initiated by the <b>Inria Centre at Université Côte d’Azur (Sophia Antipolis)</b>.
 
     <br><br>
-    <b>📌 Outcomes of the Study</b><br>
-    The results will be used for scientific publications and presentations in anonymized and aggregated form only.
+    <b>📌 Project lead</b><br>
+    <b>GIROIRE Frédéric</b> – CNRS Research Director.
 
     <br><br>
-    <b>📌 Your Participation</b><br>
-    If you agree, the extension will record your interactions with Shorts (play, pause, resume, swipe, like/dislike, share, stop, rewatch) as well as video characteristics (ID, channel, category, duration, resolution, watch time) and quality-of-service indicators (startup time, stalls).
+    <b>📌 Other researchers involved</b><br>
+    - <b>MOULIÉRAC Joanna</b> – Associate Professor, Université Côte d’Azur (COATI project-team).<br>
+    - <b>TURLETTI Thierry</b> – Inria Research Director (DIANA project-team).<br>
+    - <b>BARAKAT Chadi</b> – Inria Research Director (DIANA project-team).<br>
+    - <b>ABOU LTAIF Jamil</b> – PhD student, Inria Centre at Université Côte d’Azur (COATI project-team).
 
     <br><br>
-    <b>📌 Participation Requirements</b><br>
-    You must be at least 18 years old.  
-    If you are under 18, please uninstall the extension immediately.
+    <b>📌 Project teams and location of the experiment</b><br>
+    This project is conducted by the joint <b>COATI and DIANA project-teams</b>, affiliated with the <b>Inria Centre at Université Côte d’Azur</b>, located at: <i>2004 route des Lucioles, 06902 Sophia Antipolis, France</i>.
 
     <br><br>
-    <b>📌 Your Right to Withdraw at Any Time</b><br>
-    Participation is entirely voluntary. You may stop at any time without justification or consequences.
+    <b>📌 Project title</b><br>
+    SWiPE X
+    <br><br>
+    <b>📌 Ethical approval</b><br>
+    This project has received a <b>favorable opinion from Inria’s Operational Committee for the Evaluation of Legal and Ethical Risks (COERLE)</b>.
 
     <br><br>
-    <b>📌 Your Right to Privacy and Data Confidentiality</b><br>
-    This study complies with the GDPR.  
-    Data are collected anonymously and stored on an encrypted, password-protected hard drive for 15 years, as required by research regulations.  
-    Because the data are anonymous, you cannot access, modify, or delete them after submission.
+    <b>📌 Voluntary participation</b><br>
+    Your participation in this project is <b>entirely voluntary</b>.  
+    After reading and understanding the “Data Collection Notice” below, your acceptance of this form indicates your free and informed consent to participate, without any constraint or external pressure.  
+    <br>
+    If you require additional information to make your decision, please contact the person listed below.
 
     <br><br>
+    <hr>
 
-    <b>📩 Contact:</b> For any questions, you may contact: <b>ABOU LTAIF Jamil – jamil.abou-ltaif@inria.fr</b>.
+    <b>🔐 DATA COLLECTION NOTICE</b><br><br>
+
+    <b>📌 Purpose of data collection</b><br>
+    The purpose of this data collection is to analyze how users interact with short-form videos in order to improve the design and performance of short-video platforms.
+
+    <br><br>
+    <b>📌 Data collected</b><br>
+    If you agree to participate, the browser extension will collect:
+    <ul style="padding-left: 25px; margin-top:5px; margin-bottom:5px;">
+      <li>User interactions with Shorts videos (play, pause, resume, skip, swipe, like/dislike, share, stop, rewatch)</li>
+      <li>Video characteristics (identifier, channel, category, duration, resolution, watch time)</li>
+      <li>Quality of service indicators (startup time, playback interruptions)</li>
+    </ul>
+
+    <br>
+    <b>📌 Participation requirements</b><br>
+    Participation is limited to individuals aged <b>18 years or older</b>.  
+    If you are under 18, you must immediately uninstall the extension.
+
+    <br><br>
+    <b>📌 Use of data</b><br>
+    The collected data will be used exclusively in an <b>anonymous and aggregated form</b> for scientific research purposes, including academic publications and presentations.
+
+    <br><br>
+    <b>📌 Data storage and protection</b><br>
+    Data are collected anonymously and stored on an encrypted, password-protected storage device for a period of <b>15 years</b>, in accordance with research regulations.
+
+    <br><br>
+    <b>📌 Participants’ rights</b><br>
+    This study complies with the General Data Protection Regulation (GDPR).  
+    Due to the anonymous nature of the data, the rights of access, rectification, and deletion cannot be exercised after data collection.
+
+    <br><br>
+    <b>📩 Contact</b><br>
+    For any questions regarding the project or data collection, you may contact:<br>
+    <b>ABOU LTAIF Jamil – jamil.abou-ltaif@inria.fr</b>
+
     <br><br>
     </div>
     `,
-    consentQuestion: "Do you agree?",
+    consentQuestion: "Do you agree to participate in this study?",
     yes: "✅ Yes",
     no: "❌ No",
 
@@ -64,46 +109,91 @@ const translations = {
     q5Options: ["-- Select --","Like or dislike","Comment on videos","Share with others","All of the above","I usually just watch without engaging","Prefer not to say"],
   },
   fr: {
-    consentTitle: "🔒 Avis de Collecte de Données",
+    consentTitle: "🔒 Information et Consentement à la Participation",
     consentText: `
     <div style="text-align: left;">
-    
-    <b>📌 Objet de l'étude</b><br>
-    Cette recherche vise à comprendre comment les utilisateurs interagissent avec les Shorts YouTube afin d'améliorer la conception et les performances des plateformes de vidéos courtes.
+
+    <b>⛓️‍💥 IDENTIFICATION DU PROJET</b><br><br>
+
+    <b>📌 Initiative du projet</b><br>
+    Cette expérimentation est initiée par le <b>Centre Inria d’Université Côte d’Azur (Sophia Antipolis)</b>.
 
     <br><br>
-    <b>📌 Résultats de l'étude</b><br>
-    Les résultats seront utilisés uniquement sous forme anonymisée et agrégée pour des publications scientifiques et des présentations.
+    <b>📌 Responsable du projet</b><br>
+    <b>GIROIRE Frédéric</b> – Directeur de recherche CNRS.
 
     <br><br>
-    <b>📌 Votre participation</b><br>
-    Si vous acceptez, l'extension enregistrera vos interactions avec les Shorts (lecture, pause, reprise, saut, swipe, j’aime/pas j’aime, partage, arrêt, re-visionnage) ainsi que les caractéristiques des vidéos (ID, chaîne, catégorie, durée, résolution, temps de visionnage) et les indicateurs de qualité de service (temps de démarrage, interruptions).
+    <b>📌 Autres scientifiques impliqués</b><br>
+    - <b>MOULIÉRAC Joanna</b> – Maître de conférences, Université Côte d’Azur (équipe-projet COATI).<br>
+    - <b>TURLETTI Thierry</b> – Directeur de recherche Inria (équipe-projet DIANA).<br>
+    - <b>BARAKAT Chadi</b> – Directeur de recherche Inria (équipe-projet DIANA).<br>
+    - <b>ABOU LTAIF Jamil</b> – Doctorant, Centre Inria d’Université Côte d’Azur (équipe-projet COATI).
 
     <br><br>
+    <b>📌 Équipes-projet et lieu de l’expérimentation</b><br>
+    Projet mené par les <b>équipes-projet communes COATI et DIANA</b>, rattachées au <b>Centre Inria d’Université Côte d’Azur</b>, situé au : <i>2004 route des Lucioles, 06902 Sophia Antipolis, France</i>.
+
+    <br><br>
+    <b>📌 Nom du projet</b><br>
+    SWiPE X
+
+    <br><br>
+    <b>📌 Avis éthique</b><br>
+    Ce projet a reçu un <b>avis favorable du Comité Opérationnel d’Évaluation des Risques Légaux et Éthiques (COERLE) d’Inria</b>.
+
+    <br><br>
+    <b>📌 Participation volontaire</b><br>
+    Votre participation à ce projet est <b>entièrement volontaire</b>.  
+    Après avoir pris connaissance de « l’Avis sur la collecte de données » ci-dessous, votre acceptation de ce formulaire vaut consentement libre, éclairé et sans contrainte.  
+    <br>
+    Si des informations nécessaires à votre prise de décision vous manquent, vous pouvez contacter la personne référente indiquée ci-dessous.
+
+    <br><br>
+    <hr>
+
+    <b>🔐 AVIS SUR LA COLLECTE DE DONNÉES</b><br><br>
+
+    <b>📌 Objet de la collecte</b><br>
+    Cette collecte de données vise à analyser les interactions des utilisateurs avec les vidéos courtes afin d’améliorer la conception et les performances des plateformes de vidéos courtes.
+
+    <br><br>
+    <b>📌 Données collectées</b><br>
+    L’extension enregistre :
+    <ul style="padding-left: 25px; margin-top:5px; margin-bottom:5px;">
+      <li>Les interactions avec les vidéos Shorts (lecture, pause, reprise, saut, swipe, j’aime/pas j’aime, partage, arrêt, re-visionnage)</li>
+      <li>Les caractéristiques des vidéos (identifiant, chaîne, catégorie, durée, résolution, temps de visionnage)</li>
+      <li>Les indicateurs de qualité de service (temps de démarrage, interruptions)</li>
+    </ul>
+
+    <br>
     <b>📌 Conditions de participation</b><br>
-    Vous devez avoir au moins 18 ans.  
-    Si vous avez moins de 18 ans, veuillez désinstaller immédiatement l'extension.
+    La participation est réservée aux personnes âgées de <b>18 ans ou plus</b>.  
+    Les personnes mineures doivent désinstaller l’extension.
 
     <br><br>
-    <b>📌 Votre droit de vous retirer à tout moment</b><br>
-    La participation est entièrement volontaire. Vous pouvez arrêter à tout moment sans justification ni conséquence.
+    <b>📌 Utilisation des données</b><br>
+    Les données seront exploitées uniquement sous forme <b>anonymisée et agrégée</b> à des fins de recherche scientifique, de publications et de présentations académiques.
 
     <br><br>
-    <b>📌 Votre droit à la vie privée et à la confidentialité des données</b><br>
+    <b>📌 Conservation et protection des données</b><br>
+    Les données sont collectées de manière anonyme et stockées sur un support chiffré et protégé par mot de passe pendant <b>15 ans</b>, conformément aux exigences réglementaires en matière de recherche.
+
+    <br><br>
+    <b>📌 Droits des participants</b><br>
     Cette étude est conforme au RGPD.  
-    Les données sont collectées de manière anonyme et stockées sur un disque dur crypté et protégé par mot de passe pendant 15 ans, conformément aux réglementations de recherche.  
-    Étant donné que les données sont anonymes, vous ne pouvez pas y accéder, les modifier ou les supprimer après soumission.
+    En raison de l’anonymisation des données, les droits d’accès, de rectification et de suppression ne peuvent pas être exercés après la collecte.
 
     <br><br>
+    <b>📩 Contact</b><br>
+    Pour toute question relative au projet ou à la collecte des données, vous pouvez contacter :  
+    <b>ABOU LTAIF Jamil – jamil.abou-ltaif@inria.fr</b>
 
-    <b>📩 Contact :</b> Pour toute question, vous pouvez contacter : <b>ABOU LTAIF Jamil – jamil.abou-ltaif@inria.fr</b>. 
     <br><br>
     </div>
     `,
-    consentQuestion: "Acceptez-vous ?",
+    consentQuestion: "Acceptez-vous de participer à cette étude ?",
     yes: "✅ Oui",
     no: "❌ Non",
-
     surveyTitle: "📝 Questionnaire rapide",
     surveyText: "Veuillez répondre à quelques questions courtes :",
     submit: "Envoyer ✅",
@@ -148,35 +238,95 @@ function showConsentPopup() {
 
   const popup = document.createElement("div");
   popup.id = "swipe-consent-popup";
-  popup.style = `
+  popup.style.cssText = `
     position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 1000px;
-    padding: 25px;
-    background: white;
+    inset: 0;
+    margin: auto;
+    width: min(95vw, 980px);
+    height: min(90vh, 900px);
+    background: #fff;
     border: 2px solid #444;
-    border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    border-radius: 14px;
+    box-shadow: 0 6px 30px rgba(0,0,0,0.35);
     z-index: 9999;
-    font-size: 16px;
+    display: flex;
+    flex-direction: column;
     font-family: Arial, sans-serif;
-    text-align: center;
+    font-size: clamp(14px, 1.1vw, 17px);
   `;
 
   popup.innerHTML = `
-    <h2 style="margin-top:0; font-size:20px;">${t.consentTitle}</h2>
-    <p style="margin-bottom:10px; margin-top:15px;">Select language / Choisir la langue:</p>
-    <select id="lang-select" style="margin-bottom:20px; padding:8px 10px;">
-      <option value="en" ${selectedLang==="en"?"selected":""}>English</option>
-      <option value="fr" ${selectedLang==="fr"?"selected":""}>Français</option>
-    </select>
-    <p style="line-height:1.5;">${t.consentText}</p>
-    <p><b>${t.consentQuestion}</b></p>
-    <button id="consent-yes" style="margin:10px; padding:10px 20px; cursor:pointer;">${t.yes}</button>
-    <button id="consent-no" style="margin:10px; padding:10px 20px; cursor:pointer;">${t.no}</button>
+    <!-- TITLE -->
+    <h2 style="
+      margin: 10px 0 5px 0;
+      font-size: 24px;
+      text-align: center;
+    ">
+      ${t.consentTitle}
+    </h2>
+
+    <!-- LANGUAGE -->
+    <div style="text-align:center; margin-bottom:15px;">
+      <p style="margin:8px 0;">
+        Select language / Choisir la langue
+      </p>
+      <select id="lang-select" style="
+        padding:6px 10px;
+        font-size: 0.9em;
+        width: auto;
+      ">
+        <option value="en" ${selectedLang==="en"?"selected":""}>English</option>
+        <option value="fr" ${selectedLang==="fr"?"selected":""}>Français</option>
+      </select>
+    </div>
+
+    <!-- SCROLLABLE TEXT -->
+    <div id="consent-content" style="
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 35px;
+      margin: 10px 20px;
+      border: 1px solid #ddd;
+      text-align: left;
+      line-height: 1.55;
+    ">
+      ${t.consentText}
+    </div>
+
+    <!-- QUESTION -->
+    <p style="
+      text-align: center;
+      font-weight: bold;
+      margin: 15px 0 5px 0;
+    ">
+      ${t.consentQuestion}
+    </p>
+
+    <!-- BUTTONS -->
+    <div style="
+      text-align: center;
+      margin-bottom: 15px;
+    ">
+      <button id="consent-yes" style="
+        margin: 8px 12px;
+        padding: 10px 26px;
+        cursor: pointer;
+        font-size: 1em;
+      ">
+        ${t.yes}
+      </button>
+
+      <button id="consent-no" style="
+        margin: 8px 12px;
+        padding: 10px 26px;
+        cursor: pointer;
+        font-size: 1em;
+      ">
+        ${t.no}
+      </button>
+    </div>
   `;
+
 
   document.body.appendChild(popup);
 
