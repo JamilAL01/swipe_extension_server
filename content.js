@@ -358,9 +358,20 @@ function showConsentPopup() {
 // ================== SPA PROBLEM --> SOLUTION: AUTO RELOAD ==================
 
 function autoReloadShorts() {
-  if (window.location.pathname.startsWith("/shorts/") && !sessionStorage.getItem("swipex-reloaded")) {
-    sessionStorage.setItem("swipex-reloaded", "true");
+  const isShorts = window.location.pathname.startsWith("/shorts/");
+  const alreadyInShorts = sessionStorage.getItem("swipex-in-shorts");
+
+  // Entering Shorts for the first time
+  if (isShorts && !alreadyInShorts) {
+    console.log("SWiPE X: Entered Shorts → Reload once");
+
+    sessionStorage.setItem("swipex-in-shorts", "true");
     location.reload();
+  }
+
+  // If we leave Shorts, reset the flag
+  if (!isShorts && alreadyInShorts) {
+    sessionStorage.removeItem("swipex-in-shorts");
   }
 }
 
