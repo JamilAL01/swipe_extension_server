@@ -355,6 +355,18 @@ function showConsentPopup() {
   };
 }
 
+// ================== SPA PROBLEM --> SOLUTION: AUTO RELOAD ==================
+
+function autoReloadShorts() {
+  if (window.location.pathname.startsWith("/shorts/") && !sessionStorage.getItem("swipex-reloaded")) {
+    sessionStorage.setItem("swipex-reloaded", "true");
+    location.reload();
+  }
+}
+
+document.addEventListener("yt-navigate-finish", autoReloadShorts);
+
+
 // ================== SURVEY POPUP ==================
 function showSurveyPopup() {
   if (localStorage.getItem("surveyDone")) return;
