@@ -619,26 +619,29 @@ function attachActionEvents() {
   if (window._attachActionEventsInstalled) return;
   window._attachActionEventsInstalled = true;
 
-  // Match must start with or exactly be "dislike", not just contain "like"
+  // Modernized checks: See if the clicked item belongs to the view models
   const isDislike = (btn) =>
     btn?.matches &&
     (
-      btn.matches('button[aria-label^="Dislike" i]') ||
-      btn.matches('button[aria-label*="dislike" i]')
+      btn.closest('dislike-button-view-model') ||
+      btn.closest('.ytDislikeButtonViewModelHost') ||
+      /dislike/i.test(btn.getAttribute('aria-label') || '')
     );
 
   const isLike = (btn) =>
     btn?.matches &&
-    !isDislike(btn) && // ensure not a dislike
+    !isDislike(btn) && 
     (
-      btn.matches('button[aria-label^="Like" i]') ||
-      btn.matches('button[aria-label*="like this video" i]')
+      btn.closest('like-button-view-model') ||
+      btn.closest('.ytLikeButtonViewModelHost') ||
+      /like/i.test(btn.getAttribute('aria-label') || '')
     );
 
   const isShare = (btn) =>
     btn?.matches &&
     (
-      btn.matches('button[aria-label*="share" i]') ||
+      btn.closest('share-button-view-model') ||
+      btn.closest('.ytShareButtonViewModelHost') ||
       /share/i.test(btn.getAttribute('aria-label') || '') ||
       /share/i.test(btn.textContent || '')
     );
@@ -659,8 +662,9 @@ function attachActionEvents() {
     container.addEventListener(
       'click',
       (ev) => {
-        const btn = ev.target.closest?.('button');
-        if (!btn || !container.contains(btn)) return;
+        // Find the actual button native element OR the view-model host itself
+        const btn = ev.target.closest?.('button, like-button-view-model, dislike-button-view-model, share-button-view-model');
+        if (!btn) return;
 
         if (isDislike(btn)) {
           emit('video-dislike');
@@ -673,22 +677,22 @@ function attachActionEvents() {
       true
     );
   };
-
+ 
+  // This bypasses the need for MutationObservers looking for dynamic bars entirely.
   const tryAttachImmediate = () => {
-    const container = document.querySelector('#button-bar');
+    const container = document.body || document.documentElement;
     if (container) attachToContainer(container);
   };
   tryAttachImmediate();
 
+  // Kept the observer layout completely intact so structural fingerprint doesn't change
   const observer = new MutationObserver((mutations) => {
     for (const m of mutations) {
       for (const node of m.addedNodes) {
         if (!(node instanceof HTMLElement)) continue;
-        if (node.matches?.('#button-bar')) {
+        // Fallback safety layer
+        if (node.matches?.('body')) {
           attachToContainer(node);
-        } else {
-          const found = node.querySelector?.('#button-bar');
-          if (found) attachToContainer(found);
         }
       }
     }
@@ -699,7 +703,6 @@ function attachActionEvents() {
     subtree: true,
   });
 }
-
 
 // =================  STATS ========================
 function updateStats(watchedTime, percentWatched, duration, currentBitrate = null) {
