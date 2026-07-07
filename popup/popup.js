@@ -9,6 +9,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const totalTimeSec = data.totalWatchedTime || 0;
       const avgPercent = data.avgPercentWatched || 0;
       const history = data.videoHistory || [];
+      const lazyButton = document.getElementById("lazy-toggle");
+      const micStatus = document.getElementById("mic-status");
+      const emoji = document.getElementById("lazy-emoji");
 
       document.getElementById('videos-count').textContent = videos;
       document.getElementById('avg-percent').textContent = `${Math.round(avgPercent)}%`;
@@ -39,6 +42,71 @@ document.addEventListener('DOMContentLoaded', () => {
           chrome.storage.local.clear(() => location.reload());
         });
       }
+
+      // Initialize Lazy Mode button
+      chrome.storage.local.get("lazyMode", (data) => {
+        const active = data.lazyMode || false;
+        updateUI(active);
+      });
+
+      lazyButton.addEventListener("click", () => {
+        chrome.storage.local.get("lazyMode", (data) => {
+          const newState = !data.lazyMode;
+
+          chrome.storage.local.set({ lazyMode: newState });
+
+          updateUI(newState);
+
+          chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            chrome.tabs.sendMessage(tabs[0].id, { lazyMode: newState });
+          });
+
+          // 🔥 SHOW ONLY WHEN ENABLING
+          if (newState) {
+            showLazyModeModal();
+          }
+        });
+      });
+
+      function updateUI(active) {
+        lazyButton.style.background = active ? "#ef4444" : "#ffa950";
+
+        if (active) {
+      
+          lazyButton.textContent = "Disable Lazy Mode";
+          micStatus.style.display = "block";
+
+          // existing mic message
+          micStatus.textContent = "🎤 The mic is yours";
+
+          emoji.textContent = "🦥";
+          emoji.classList.remove("sleepy");
+          emoji.classList.add("glow");
+          emoji.classList.add("bounce");
+
+        } else {
+          lazyButton.textContent = "Enable Lazy Mode";
+          micStatus.style.display = "none";
+
+          emoji.textContent = "🦥";
+          emoji.classList.remove("glow");
+          emoji.classList.remove("bounce");
+        }
+      }
+
+      function showLazyModeModal() {
+        const modal = document.getElementById("lazy-info-modal");
+        modal.style.display = "flex";
+      }
+
+      function closeLazyModeModal() {
+        const modal = document.getElementById("lazy-info-modal");
+        modal.style.display = "none";
+      }
+
+      document
+        .getElementById("close-lazy-modal")
+        .addEventListener("click", closeLazyModeModal);
 
       let historyChart, pieChart;
 
@@ -173,6 +241,84 @@ document.addEventListener('DOMContentLoaded', () => {
           chart.update();
         });
       }
+
+      // ================== EXPORT CSV ==================
+      const exportBtn = document.getElementById("export-csv");
+
+      if (exportBtn) {
+        exportBtn.addEventListener("click", () => {
+          chrome.storage.local.get(["videoHistory"], (data) => {
+            const history = data.videoHistory || [];
+
+            if (!history.length) {
+              alert("No data available to export.");
+              return;
+            }
+
+            const headers = [
+              "Video",
+              "Timestamp",
+              "Duration",
+              "Percent Watched",
+              "Watch Time"
+            ];
+
+            const rows = history.map((v, index) => [
+              `Video ${index + 1}`,
+              v.timestamp || "",
+              v.duration || 0,
+              v.percentWatched || 0,
+              v.watchedTime = (v.duration * (v.percentWatched / 100)) || 0
+            ]);
+
+            const csvContent = [
+              headers.join(","),
+              ...rows.map(r =>
+                r.map(value => `"${String(value).replace(/"/g, '""')}"`).join(",")
+              )
+            ].join("\n");
+
+            const blob = new Blob([csvContent], {
+              type: "text/csv;charset=utf-8;"
+            });
+
+            const url = URL.createObjectURL(blob);
+
+            const a = document.createElement("a");
+            a.href = url;
+
+            // ================== FIXED FILE NAME ==================
+            chrome.storage.local.get(["swipeUserId"], (res) => {
+            const shortUserId = (res.swipeUserId || "unknown")
+              .toString()
+              .slice(0, 8);
+
+            const now = new Date();
+
+            a.download =
+              `swipex-data-${shortUserId}-${
+                now.getFullYear()
+              }-${
+                String(now.getMonth() + 1).padStart(2, "0")
+              }-${
+                String(now.getDate()).padStart(2, "0")
+              }.csv`;
+
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          });
+          });
+        });
+      }
+      function updateLazyUI(active) {
+        lazyButton.textContent = active ? "Disable Lazy Mode" : "Enable Lazy Mode ";
+        lazyButton.style.background = active ? "#ef4444" : "#fda980";
+        lazyButton.style.color = "#fff";
+        lazyButton.style.transform = active ? "scale(1.05)" : "scale(1)";
+      }
     }
   );
 });
+
