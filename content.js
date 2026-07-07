@@ -5,6 +5,7 @@ console.log("[SwipeExtension] Content script injected ✅");
 const API_URL = "https://swipex.inria.fr"; 
 const API_KEY = "205aeeaf6a910355d142789b7ff53b2b5219120edb6f43b724aa3d2e473836bd";
 
+
 // ================== TRANSLATIONS ==================
 const translations = {
  en: {
@@ -217,10 +218,18 @@ let consent = localStorage.getItem("swipeConsent");
 
 // ================== GLOBAL USER & SESSION ID ==================
 let userId = localStorage.getItem("swipeUserId");
+
 if (!userId) {
   userId = crypto.randomUUID();
   localStorage.setItem("swipeUserId", userId);
+
+  // ADD THIS (important)
+  chrome.storage.local.set({ swipeUserId: userId });
+} else {
+  // ensure sync exists
+  chrome.storage.local.set({ swipeUserId: userId });
 }
+
 let sessionId = crypto.randomUUID();
 
 // For backward compatibility (some parts may use window._swipeUserId)
@@ -353,6 +362,262 @@ function showConsentPopup() {
     popup.remove();
     console.log("[SwipeExtension] User declined ❌");
   };
+}
+
+// ================== SERVICE - YOUR VOICE --> YOUR CONTROL ==================
+
+// SWiPE X Content Script
+let recognition;
+let isLazyModeActive = false;
+let commandCooldown = false;
+
+let lastActionTime = 0;
+let autoNextInterval = null;
+let handledVideoId = null;
+let voiceCommandTriggered = false;
+
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg.lazyMode !== undefined) {
+    isLazyModeActive = msg.lazyMode;
+
+    if (isLazyModeActive) initRecognition();
+    else stopRecognition();
+  }
+});
+
+
+function isSwipeCommand(text) {
+  const SWIPE = new Set([
+    "swipe",
+    "skip",
+    "next",
+    "nekst",
+    "neckst",
+    "nex",
+    "go next"
+  ]);
+
+  return SWIPE.has(text);
+}
+
+function isXCommand(text) {
+  const X = new Set([
+    "x",
+    "ex",
+    "eks",
+    "iks",
+    "reject",
+    "remove"
+    // "dont recommend",
+    // "not recommend"
+  ]);
+
+  return X.has(text);
+}
+
+function triggerCommand(action, label) {
+  commandCooldown = true;
+  lastActionTime = Date.now(); // user acted
+
+  action();
+  updateLastCommandUI(label);
+
+  setTimeout(() => {
+    commandCooldown = false;
+  }, 700);
+}
+
+
+function initRecognition() {
+  if (recognition) return;
+
+  recognition = new webkitSpeechRecognition();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.maxAlternatives = 1;
+  recognition.lang = "en-US";
+
+  recognition.onresult = (event) => {
+    if (!isLazyModeActive || commandCooldown) return;
+
+    let transcript =
+      event.results[event.results.length - 1][0].transcript
+        .toLowerCase()
+        .trim()
+        .replace(/[^\w\s]/g, "")
+        .replace(/\s+/g, " ");
+
+    console.log("Heard:", transcript);
+
+    // SAFE PHONETIC MATCHING
+    if (isSwipeCommand(transcript)) {
+      triggerCommand(swipeVideo, "Swiped");
+    }
+
+    if (isXCommand(transcript)) {
+      triggerCommand(markNotRecommended, "Not Recommended");
+    }
+  };
+
+  recognition.onend = () => {
+    if (isLazyModeActive) recognition.start();
+  };
+
+  lastActionTime = Date.now();
+  recognition.start();
+  startAutoNextWatcher();
+}
+
+
+function stopRecognition() {
+  if (recognition) {
+    recognition.onresult = null;
+    recognition.onend = null;
+    recognition.abort();
+    recognition = null;
+  }
+
+  if (autoNextInterval) {
+    clearInterval(autoNextInterval);
+    autoNextInterval = null;
+  }
+
+  console.log("SWiPE X stopped");
+}
+
+function startAutoNextWatcher() {
+  if (autoNextInterval) return;
+
+  autoNextInterval = setInterval(() => {
+    if (!isLazyModeActive) return;
+
+    const video = document.querySelector("video");
+    if (!video || !video.duration || isNaN(video.duration)) return;
+
+    const videoId =
+      new URLSearchParams(location.search).get("v") || null;
+
+    // New video → reset state
+    if (videoId !== handledVideoId) {
+      handledVideoId = videoId;
+      lastActionTime = Date.now();
+      return;
+    }
+
+    const progress = video.currentTime / video.duration;
+    const idleTime = Date.now() - lastActionTime;
+
+    // 🔒 STRICT CONDITIONS (this prevents mid-video skips)
+    if (progress >= 0.98 && idleTime >= 3000) {
+      console.log("SWiPE X: Auto-next at end");
+      lastActionTime = Date.now(); // prevent loop
+      swipeVideo();
+    }
+  }, 1000);
+}
+
+// Popup Notification
+function updateLastCommandUI(commandText) {
+  chrome.runtime.sendMessage({ lastCommand: commandText });
+}
+
+// Helper Functions
+function clickWithRetry(selector, retries = 5, delay = 300) {
+  const el = document.querySelector(selector);
+  if (el) {
+    el.click();
+    return true;
+  } else if (retries > 0) {
+    setTimeout(() => clickWithRetry(selector, retries - 1, delay), delay);
+  } else {
+    console.log("SWiPE X: Element not found:", selector);
+  }
+}
+
+function handleVoiceCommand(text) {
+  console.log("SWiPE X processing:", text);
+
+  if (text.includes("swipe")) {
+    voiceCommandTriggered = true; 
+    swipeVideo();
+    updateLastCommandUI("Swiped ➡️");
+    return;
+  }
+
+  if (
+    text.includes("x") ||
+    text.includes("ex") ||
+    text.includes("eks")
+  ) {
+    voiceCommandTriggered = true; //  mark as used
+    markNotRecommended();
+    updateLastCommandUI("Not Recommended ❌");
+    return;
+  }
+
+  console.log("SWiPE X: No matching command");
+}
+
+// ----- Function: Swipe Video -----
+function swipeVideo() {
+  console.log("SWiPE X: Triggering next video (real button)");
+
+  const nextBtn =
+    document.querySelector('button[aria-label="Next video"]') ||
+    document.querySelector('yt-icon-button[aria-label="Next video"]') ||
+    document.querySelector('.ytp-next-button');
+
+  if (nextBtn) {
+    nextBtn.click();
+    console.log("SWiPE X: Clicked Next button");
+  } else {
+    console.log("SWiPE X: Next button not found");
+  }
+}
+
+// ----- Function: Mark Not Recommended -----
+function markNotRecommended() {
+  const menuBtnSelector = 'ytd-menu-renderer yt-icon-button#button';
+
+  clickWithRetry(menuBtnSelector, 5, 300);
+
+  setTimeout(() => {
+
+    // 🔥 NEW YOUTUBE SHORTS MENU SELECTOR
+    const btn = Array.from(
+      document.querySelectorAll(
+        'button.ytListItemViewModelButtonOrAnchor'
+      )
+    ).find(el =>
+      el.innerText.includes("Don't recommend this channel")
+    );
+
+    if (btn) {
+      btn.click();
+
+      console.log("SWiPE X: Video marked Not Recommended");
+
+      const videoId =
+        new URLSearchParams(window.location.search).get("v") || "";
+
+      chrome.storage.local.get("notRecommendedVideos", (data) => {
+        const list = data.notRecommendedVideos || [];
+
+        list.push({
+          id: videoId,
+          timestamp: Date.now()
+        });
+
+        chrome.storage.local.set({
+          notRecommendedVideos: list
+        });
+      });
+
+    } else {
+      console.log("SWiPE X: Not Recommend button not found");
+    }
+
+  }, 500);
 }
 
 // ================== SPA PROBLEM --> SOLUTION: AUTO RELOAD ==================
@@ -524,31 +789,100 @@ let lastKnownBitrate = null;
 function attachVideoEvents(video) {
   if (!video || video._hooked) return;
   video._hooked = true;
+  
 
-  console.log(`[SwipeExtension]  Hooking into video: ${video.src} (ID: ${getVideoId()})`);
+  console.log("SWiPE X: Hooked video");
 
   video.addEventListener("loadedmetadata", () => {
     prevDuration = video.duration;
+
+    // RESET FOR NEW VIDEO
+    video._lazyHandled = false;
+
+    chrome.storage.local.get("lazyMode", (data) => {
+      if (!data.lazyMode) return;
+
+      console.log("SWiPE X: Lazy mode active → full watch enabled");
+
+      // reset per video
+      video._lazyHandled = false;
+      voiceCommandTriggered = false;
+      watchedTime = 0;
+    });
   });
 
+  // ================== FULL WATCH END LOGIC ==================
+  video.addEventListener("ended", () => {
+    if (video._lazyHandled) return;
+    video._lazyHandled = true;
+
+    const videoId = getVideoId();
+
+    if (startTime) watchedTime += (Date.now() - startTime) / 1000;
+    startTime = null;
+
+    // 📡 send full watch event
+    if (prevDuration) {
+      saveEvent({
+        type: "video-watched-100",
+        videoId,
+        src: video.src,
+        timestamp: new Date().toISOString(),
+        watchedTime: prevDuration.toFixed(2),
+        duration: prevDuration.toFixed(2),
+        percent: 100,
+      });
+    }
+
+    // ================== VOICE CONTROL ==================
+    chrome.storage.local.get("lazyMode", (data) => {
+      if (!data.lazyMode) return;
+
+      // If voice already handled → do nothing
+      if (voiceCommandTriggered) {
+        voiceCommandTriggered = false;
+        return;
+      }
+
+      console.log("SWiPE X: Auto swipe after full watch");
+      swipeVideo();
+    });
+  });
+
+  // ================== EVENTS ==================
   video.addEventListener("play", () => {
     setTimeout(() => {
       const videoId = getVideoId();
       if (!hasPlayed) {
-        saveEvent({ type: "video-start", videoId, src: video.src, timestamp: new Date().toISOString() });
+        saveEvent({
+          type: "video-start",
+          videoId,
+          src: video.src,
+          timestamp: new Date().toISOString()
+        });
         hasPlayed = true;
       } else {
-        saveEvent({ type: "video-resume", videoId, src: video.src, timestamp: new Date().toISOString() });
+        saveEvent({
+          type: "video-resume",
+          videoId,
+          src: video.src,
+          timestamp: new Date().toISOString()
+        });
       }
     }, 100);
+
     startTime = Date.now();
   });
 
   video.addEventListener("pause", () => {
     if (startTime) watchedTime += (Date.now() - startTime) / 1000;
     startTime = null;
+
     const videoId = getVideoId();
-    const watchPercent = prevDuration ? Math.min((watchedTime / prevDuration) * 100, 100) : 0;
+    const watchPercent = prevDuration
+      ? Math.min((watchedTime / prevDuration) * 100, 100)
+      : 0;
+
     saveEvent({
       type: "video-paused",
       videoId,
@@ -560,49 +894,10 @@ function attachVideoEvents(video) {
     });
   });
 
-  video.addEventListener("timeupdate", () => {
-    if (startTime) watchedTime += (Date.now() - startTime) / 1000;
-    startTime = Date.now();
-
-    if (prevDuration && watchedTime >= prevDuration) {
-      const videoId = getVideoId();
-      saveEvent({
-        type: "video-watched-100",
-        videoId,
-        src: video.src,
-        timestamp: new Date().toISOString(),
-        watchedTime: prevDuration.toFixed(2),
-        duration: prevDuration.toFixed(2),
-        percent: 100,
-      });
-      saveEvent({ type: "video-rewatch", videoId, src: video.src, timestamp: new Date().toISOString() });
-      watchedTime = 0;
-    }
-  });
-
-  video.addEventListener("ended", () => {
-    // Prevent false video-jump on rewatch
-    if (startTime) watchedTime += (Date.now() - startTime) / 1000;
-    startTime = null;
-    const videoId = getVideoId();
-    if (prevDuration && Math.abs(watchedTime - prevDuration) < 2) {
-      saveEvent({
-        type: "video-watched-100",
-        videoId,
-        src: video.src,
-        timestamp: new Date().toISOString(),
-        watchedTime: prevDuration.toFixed(2),
-        duration: prevDuration.toFixed(2),
-        percent: 100,
-      });
-      saveEvent({ type: "video-rewatch", videoId, src: video.src, timestamp: new Date().toISOString() });
-    }
-    watchedTime = 0;
-  });
-
   video.addEventListener("seeked", () => {
     const videoId = getVideoId();
-    if (Math.abs(video.currentTime) < 0.01) return; // skip "rewatch" resets
+    if (Math.abs(video.currentTime) < 0.01) return;
+
     saveEvent({
       type: "video-jump",
       videoId,
@@ -610,7 +905,6 @@ function attachVideoEvents(video) {
       timestamp: new Date().toISOString(),
       extra: { jumpTo: video.currentTime.toFixed(2) },
     });
-    console.log(`[SwipeExtension] video-jump ${video.src} (ID: ${videoId}) - Jumped to ${video.currentTime.toFixed(2)}s`);
   });
 }
 
@@ -619,29 +913,26 @@ function attachActionEvents() {
   if (window._attachActionEventsInstalled) return;
   window._attachActionEventsInstalled = true;
 
-  // Modernized checks: See if the clicked item belongs to the view models
+  // Match must start with or exactly be "dislike", not just contain "like"
   const isDislike = (btn) =>
     btn?.matches &&
     (
-      btn.closest('dislike-button-view-model') ||
-      btn.closest('.ytDislikeButtonViewModelHost') ||
-      /dislike/i.test(btn.getAttribute('aria-label') || '')
+      btn.matches('button[aria-label^="Dislike" i]') ||
+      btn.matches('button[aria-label*="dislike" i]')
     );
 
   const isLike = (btn) =>
     btn?.matches &&
-    !isDislike(btn) && 
+    !isDislike(btn) && // ensure not a dislike
     (
-      btn.closest('like-button-view-model') ||
-      btn.closest('.ytLikeButtonViewModelHost') ||
-      /like/i.test(btn.getAttribute('aria-label') || '')
+      btn.matches('button[aria-label^="Like" i]') ||
+      btn.matches('button[aria-label*="like this video" i]')
     );
 
   const isShare = (btn) =>
     btn?.matches &&
     (
-      btn.closest('share-button-view-model') ||
-      btn.closest('.ytShareButtonViewModelHost') ||
+      btn.matches('button[aria-label*="share" i]') ||
       /share/i.test(btn.getAttribute('aria-label') || '') ||
       /share/i.test(btn.textContent || '')
     );
@@ -662,9 +953,8 @@ function attachActionEvents() {
     container.addEventListener(
       'click',
       (ev) => {
-        // Find the actual button native element OR the view-model host itself
-        const btn = ev.target.closest?.('button, like-button-view-model, dislike-button-view-model, share-button-view-model');
-        if (!btn) return;
+        const btn = ev.target.closest?.('button');
+        if (!btn || !container.contains(btn)) return;
 
         if (isDislike(btn)) {
           emit('video-dislike');
@@ -677,22 +967,22 @@ function attachActionEvents() {
       true
     );
   };
- 
-  // This bypasses the need for MutationObservers looking for dynamic bars entirely.
+
   const tryAttachImmediate = () => {
-    const container = document.body || document.documentElement;
+    const container = document.querySelector('#button-bar');
     if (container) attachToContainer(container);
   };
   tryAttachImmediate();
 
-  // Kept the observer layout completely intact so structural fingerprint doesn't change
   const observer = new MutationObserver((mutations) => {
     for (const m of mutations) {
       for (const node of m.addedNodes) {
         if (!(node instanceof HTMLElement)) continue;
-        // Fallback safety layer
-        if (node.matches?.('body')) {
+        if (node.matches?.('#button-bar')) {
           attachToContainer(node);
+        } else {
+          const found = node.querySelector?.('#button-bar');
+          if (found) attachToContainer(found);
         }
       }
     }
@@ -703,6 +993,7 @@ function attachActionEvents() {
     subtree: true,
   });
 }
+
 
 // =================  STATS ========================
 function updateStats(watchedTime, percentWatched, duration, currentBitrate = null) {
@@ -1106,10 +1397,20 @@ observer.observe(document.body, { childList: true, subtree: true });
 
 // ================== RE-HOOK ON URL CHANGE ==================
 setInterval(() => {
-  if (window.location.href !== lastUrl) {
-    lastUrl = window.location.href;
-    const video = document.querySelector("video");
-    if (video) attachVideoEvents(video);
-    attachActionEvents();
-  }
-}, 100);
+  const video = document.querySelector("video");
+
+  if (!video) return;
+
+  chrome.storage.local.get("lazyMode", (data) => {
+    if (!data.lazyMode) return;
+
+    // If video not progressing → force skip
+    if (video.currentTime < 0.5 && !video.paused) return;
+
+    if (video.paused) {
+      video.play().catch(() => {});
+    }
+  });
+}, 2000);
+
+
