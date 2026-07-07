@@ -128,6 +128,11 @@
       color: #555;
     }
 
+    #lazy-toggle:hover {
+      transform: scale(1.1);
+      background: #fcd34d; /* lighter gold on hover */
+    }
+
     /* === Metrics === */
     .metrics {
       display: flex;
@@ -220,6 +225,36 @@
       margin-top: 12px;
       opacity: 0.85;
     }
+    #lazy-emoji {
+      font-size: 30px;
+      margin-top: -12px;
+      transition: all 0.3s ease;
+    }
+
+    /* 🟢 Glow when ON */
+    .glow {
+      filter: drop-shadow(0 0 8px #22c55e);
+    }
+
+    /* 🎤 Bounce when listening */
+    .bounce {
+      animation: bounce 0.8s infinite;
+    }
+
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+    @keyframes fadeIn {
+      from {
+        opacity:0;
+        transform:scale(0.95);
+      }
+      to {
+        opacity:1;
+        transform:scale(1);
+      }
+    }
   </style>
 </head>
 <body>
@@ -229,6 +264,134 @@
     <div class="header">
       <img src="icon-1.png" alt="App Logo" />
       <h1>SWiPE X STATS</h1>
+    </div>
+
+    <!-- Lazy Mode Toggle -->
+    <div style="text-align:center; margin:18px 0; position:relative;">
+
+      <button id="lazy-toggle" style="
+          padding:8px 16px;
+          border-radius:12px;
+          border:none;
+          background:#ffa950;
+          color:#fff;
+          font-weight:600;
+          font-size:14px;
+          cursor:pointer;
+          box-shadow:0 4px 10px rgba(0,0,0,0.15);
+          transition: transform 0.2s ease, background 0.3s ease;
+          position:relative;
+          z-index:2;
+        ">
+        Enable Lazy Mode
+      </button>
+
+      <!-- Sloth Emoji -->
+      <div id="lazy-emoji" class="sleepy">
+        🦥
+      </div>
+
+      <div id="mic-status" style="
+          text-align:center;
+          margin-top:6px;
+          font-size:16px;
+          font-style:normal;
+          font-weight:bold;
+          color:#fda980;
+          display:none;
+      ">
+         The mic is yours 🎤 
+      </div>
+
+    </div>
+
+    <div id="lazy-info-modal" style="
+      display:none;
+      position:fixed;
+      inset:0;
+      background:rgba(15, 15, 20, 0.55);
+      z-index:9999;
+      align-items:center;
+      justify-content:center;
+      backdrop-filter: blur(6px);
+    ">
+
+      <div style="
+        width:340px;
+        background:linear-gradient(145deg, #ffffff, #f7f9fc);
+        border-radius:20px;
+        padding:24px;
+        box-shadow:0 12px 40px rgba(0,0,0,0.25);
+        font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        animation:fadeIn 0.2s ease;
+        position:relative;
+      ">
+
+        <button id="close-lazy-modal" style="
+          position:absolute;
+          top:12px;
+          right:14px;
+          border:none;
+          background:none;
+          font-size:18px;
+          cursor:pointer;
+          color:#888;
+        ">
+          ✕
+        </button>
+
+        <div style="
+          font-size:20px;
+          font-weight:700;
+          margin-bottom:10px;
+          color:#ff7a18;
+          display:flex;
+          align-items:center;
+          gap:8px;
+        ">
+          🦥 Lazy Mode Enabled
+        </div>
+
+        <div style="
+          font-size:14px;
+          line-height:1.6;
+          color:#2b2b2b;
+        ">
+          Browse Shorts hands-free using voice commands while playback and scrolling are automated.
+          <br><br>
+
+          <strong>Automatic behavior</strong>
+          <ul style="padding-left:18px; margin-top:8px;">
+            <li>Shorts are played fully and auto-scrolled automatically — no hands needed</li>
+          </ul>
+
+          <strong>Available voice commands</strong>
+          <div style="margin-top:8px; line-height:1.6;">
+            You can say:
+            <ul style="padding-left:18px; margin-top:8px;">
+              <li><b>“Swipe”</b>, <b>“Skip”</b>, or <b>“Next”</b> → Move to the next video</li>
+              <li><b>“X”</b>,<b>“Remove”</b> or <b>“Reject”</b> → Stop recommendations from this channel</li>
+            </ul>
+          </div>
+
+          <strong>Tips</strong>
+          <ul style="padding-left:18px; margin-top:8px;">
+            <li>Speak clearly for better recognition</li>
+            <li>If a command is not detected, try again</li>
+          </ul>
+
+          <div style="
+            margin-top:14px;
+            font-size:12.5px;
+            color:#666;
+            padding-top:10px;
+            border-top:1px solid #eee;
+          ">
+            🎤 Keep your microphone enabled for voice control.
+          </div>
+        </div>
+
+      </div>
     </div>
 
 
@@ -253,6 +416,29 @@
         <span id="avg-percent" class="value">0%</span>
       </div>
     </div>
+
+    <div style="
+    display:flex;
+    justify-content:center;
+    margin-top:14px;
+  ">
+
+    <button id="export-csv" style="
+      background:none;
+      border:none;
+      color:#4CAF50;
+      font-weight:600;
+      font-size:14px;
+      cursor:pointer;
+      padding:6px 10px;
+      transition:opacity 0.2s ease;
+    ">
+
+      Export CSV
+
+    </button>
+
+  </div>
 
     <div class="charts">
       <div class="chart-block">
@@ -279,7 +465,6 @@
 
     <button id="reset-stats" class="reset-btn">Reset Stats</button>
 
-    <!-- <p class="footer-note">🕒 Active for <span id="footer-session">0m</span> - keep it up!</p> -->
   </div>
 
   <script src="chart.umd.js"></script>
