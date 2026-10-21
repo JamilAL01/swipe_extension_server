@@ -16,7 +16,7 @@ async function postEvent(event) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": API_KEY
+        "x-api-key": API_KEY 
       },
       body: JSON.stringify(event),
     });
@@ -53,9 +53,26 @@ chrome.runtime.onMessage.addListener((msg) => {
 // Track how many relevant tabs are open (e.g. YouTube)
 let trackedTabs = new Set();
 
+function isTrackedPlatform(url = "") {
+  try {
+    const hostname = new URL(url).hostname;
+
+    return (
+      hostname === "youtube.com" ||
+      hostname === "www.youtube.com" ||
+      hostname === "tiktok.com" ||
+      hostname === "www.tiktok.com"
+    );
+  } catch {
+    return false;
+  }
+}
+
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (tab.url && tab.url.includes("youtube.com")) {
+  if (isTrackedPlatform(tab.url)) {
     trackedTabs.add(tabId);
+  } else {
+    trackedTabs.delete(tabId);
   }
 });
 
