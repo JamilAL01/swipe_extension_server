@@ -2,8 +2,9 @@
 // Copyright (c) 2025, SWiPE X / COATI-DIANA
 
 console.log("[SwipeExtension] Content script injected ✅");
-const API_URL = "https://swipex.inria.fr"; 
+const API_URL = "https://swipex.inria.fr";
 const API_KEY = "205aeeaf6a910355d142789b7ff53b2b5219120edb6f43b724aa3d2e473836bd";
+
 
 
 // ================== TRANSLATIONS ==================
@@ -98,7 +99,7 @@ const translations = {
     surveyText: "Please answer a few short questions:",
     submit: "Submit ✅",
     alertIncomplete: "⚠️ Please answer all required questions before submitting.",
-    q1: "1. How often do you watch YouTube Shorts?",
+    q1: "1. How often do you watch Shorts?",
     q1Options: ["-- Select --","Daily","Several times per week","Rarely","Never","Prefer not to say"],
     q2: "2. What device do you usually use?",
     q2Options: ["-- Select --","Desktop computer","Laptop","Smartphone","Tablet","Prefer not to say"],
@@ -199,7 +200,7 @@ const translations = {
     surveyText: "Veuillez répondre à quelques questions courtes :",
     submit: "Envoyer ✅",
     alertIncomplete: "⚠️ Veuillez répondre à toutes les questions obligatoires avant de soumettre.",
-    q1: "1. À quelle fréquence regardez-vous les YouTube Shorts ?",
+    q1: "1. À quelle fréquence regardez-vous les Shorts ?",
     q1Options: ["-- Sélectionner --","Quotidien","Plusieurs fois par semaine","Rarement","Jamais","Je préfère ne pas répondre"],
     q2: "2. Quel appareil utilisez-vous habituellement ?",
     q2Options: ["-- Sélectionner --","Ordinateur de bureau","Ordinateur portable","Smartphone","Tablette","Je préfère ne pas répondre"],
@@ -213,26 +214,31 @@ const translations = {
 };
 
 // ================== LANGUAGE ==================
-let selectedLang = localStorage.getItem("swipeLang") || (navigator.language.startsWith("fr") ? "fr" : "en");
-let consent = localStorage.getItem("swipeConsent");
+let selectedLang =
+  localStorage.getItem("swipeLang") ||
+  (navigator.language.startsWith("fr") ? "fr" : "en");
 
-// ================== GLOBAL USER & SESSION ID ==================
+let consent = null;
 let userId = localStorage.getItem("swipeUserId");
 
+// ================== GLOBAL USER & SESSION ID ==================
+
+// // Synchronize consent with extension-wide storage.
+// if (consent !== null) {
+//   chrome.storage.local.set({ swipeConsent: consent });
+// }
+
+// Synchronize the participant ID.
 if (!userId) {
   userId = crypto.randomUUID();
   localStorage.setItem("swipeUserId", userId);
-
-  // ADD THIS (important)
   chrome.storage.local.set({ swipeUserId: userId });
 } else {
-  // ensure sync exists
   chrome.storage.local.set({ swipeUserId: userId });
 }
 
 let sessionId = crypto.randomUUID();
 
-// For backward compatibility (some parts may use window._swipeUserId)
 window._swipeUserId = userId;
 window._swipeSessionId = sessionId;
 
@@ -347,20 +353,22 @@ function showConsentPopup() {
   };
 
   document.getElementById("consent-yes").onclick = () => {
-    localStorage.setItem("swipeConsent","yes");
+    localStorage.setItem("swipeConsent", "yes");
+    chrome.storage.local.set({ swipeConsent: "yes" });
+
     consent = "yes";
     popup.remove();
-    window._swipeConsentDismissedAt = performance.now();  
-    console.log("[SwipeExtension] User consented ✅");
+    window._swipeConsentDismissedAt = performance.now();
     showSurveyPopup();
   };
 
 
   document.getElementById("consent-no").onclick = () => {
-    localStorage.setItem("swipeConsent","no");
+    localStorage.setItem("swipeConsent", "no");
+    chrome.storage.local.set({ swipeConsent: "no" });
+
     consent = "no";
     popup.remove();
-    console.log("[SwipeExtension] User declined ❌");
   };
 }
 
@@ -597,8 +605,17 @@ function markNotRecommended() {
 
       console.log("SWiPE X: Video marked Not Recommended");
 
-      const videoId =
-        new URLSearchParams(window.location.search).get("v") || "";
+      const video =
+        currentVideo ||
+        document.querySelector("video");
+
+      const videoId = getVideoId();
+
+      saveEvent({
+        type: "video-not-interested",
+        videoId,
+        src: video?.currentSrc || video?.src
+      });
 
       chrome.storage.local.get("notRecommendedVideos", (data) => {
         const list = data.notRecommendedVideos || [];
@@ -705,8 +722,11 @@ function showSurveyPopup() {
     }
 
     if (!window._swipeUserId || !window._swipeSessionId) {
-      console.warn("[SwipeExtension] ❌ Survey submission delayed — user/session not initialized yet");
-      setTimeout(() => submitBtn.click(), 500);
+      console.warn(
+        "[SwipeExtension] Survey submission delayed — user/session not initialized"
+      );
+
+      submitBtn.disabled = false;
       return;
     }
 
@@ -719,26 +739,27 @@ function showSurveyPopup() {
       method: "POST",
       headers: { "Content-Type": "application/json","x-api-key": API_KEY },
       body: JSON.stringify({
-        userId: window._swipeUserId,
-        sessionId: window._swipeSessionId,
-        answers,
-        screen_size: screenInfo,
-        device_type: deviceType,
-        timestamp: new Date().toISOString()
-      })
+      userId: window._swipeUserId,
+      sessionId: window._swipeSessionId,
+      answers: {
+        ...answers,
+        platform: "youtube"
+      },
+      screen_size: screenInfo,
+      device_type: deviceType,
+      timestamp: new Date().toISOString()
+    })
     })
       .then(res => {
         if (!res.ok) throw new Error("Survey save failed");
+
         console.log("[SwipeExtension] Survey saved ✅", answers);
-        localStorage.setItem("surveyDone","true");
+        localStorage.setItem("surveyDone", "true");
         popup.remove();
       })
       .catch(err => {
         console.error("[SwipeExtension] Survey error ❌", err);
         submitBtn.disabled = false;
-      })
-      .finally(() => {
-        submitBtn.removeEventListener("click", handleSurveySubmit);
       });
   };
 
@@ -748,14 +769,25 @@ function showSurveyPopup() {
 }
 
 // ================== CONSENT CHECK ==================
-if (!consent) {
-  showConsentPopup();
-} else if (consent === "yes") {
-  showSurveyPopup();
-}
+chrome.storage.local.get("swipeConsent", ({ swipeConsent }) => {
 
+  const legacyConsent = localStorage.getItem("swipeConsent");
+
+  consent = swipeConsent ?? legacyConsent;
+
+  if (swipeConsent == null && legacyConsent !== null) {
+    chrome.storage.local.set({ swipeConsent: legacyConsent });
+  }
+
+  if (!consent) {
+    showConsentPopup();
+  } else if (consent === "yes") {
+    showSurveyPopup();
+  }
+});
 // ================== USER & SESSION SETUP ==================
 let currentVideo = null;
+let currentVideoId = null;
 let lastSrc = null;
 let startTime = null;
 let watchedTime = 0;
@@ -772,12 +804,19 @@ function getVideoId() {
 function saveEvent(eventData) {
   if (consent !== "yes") return;
 
-  // Add user/session info
   eventData.sessionId = sessionId;
   eventData.userId = userId;
 
-  // Send the event to background script (NOT directly to gateway)
-  chrome.runtime.sendMessage({ type: "event", data: eventData });
+  eventData.extra = {
+    ...(eventData.extra || {}),
+    platform: "youtube"
+  };
+
+  chrome.runtime.sendMessage({
+    type: "event",
+    data: eventData
+  });
+
   console.log("[DEBUG] Event sent to background", eventData);
 }
 
@@ -818,6 +857,13 @@ function attachVideoEvents(video) {
 
     const videoId = getVideoId();
 
+    if (
+      commentSession &&
+      commentSession.videoId !== videoId
+    ) {
+      closeCommentSession("video-change");
+    }
+
     if (startTime) watchedTime += (Date.now() - startTime) / 1000;
     startTime = null;
 
@@ -851,6 +897,7 @@ function attachVideoEvents(video) {
 
   // ================== EVENTS ==================
   video.addEventListener("play", () => {
+    trackCommentPlaybackStarted(video);
     setTimeout(() => {
       const videoId = getVideoId();
       if (!hasPlayed) {
@@ -875,6 +922,7 @@ function attachVideoEvents(video) {
   });
 
   video.addEventListener("pause", () => {
+    trackCommentPlaybackStopped(video);
     if (startTime) watchedTime += (Date.now() - startTime) / 1000;
     startTime = null;
 
@@ -908,90 +956,258 @@ function attachVideoEvents(video) {
   });
 }
 
-// ================== LIKE / DISLIKE / SHARE ==================
+// ================== COMMENT TRACKING ==================
+
+let commentSession = null;
+
+function openCommentSession(video) {
+  if (!video) return;
+
+  const videoId = getVideoId();
+
+  // Prevent duplicate opened events.
+  if (
+    commentSession &&
+    commentSession.videoId === videoId
+  ) {
+    return;
+  }
+
+  // Close any previous unfinished session.
+  if (commentSession) {
+    closeCommentSession("reopened");
+  }
+
+  commentSession = {
+    video,
+    videoId,
+    openedAt: performance.now(),
+    videoWasPlayingAtOpen: !video.paused,
+    playingStartedAt: video.paused
+      ? null
+      : performance.now(),
+    playedMilliseconds: 0
+  };
+
+  queueEvent({
+    type: "video-comment-opened",
+    videoId,
+    src: video.currentSrc || video.src
+  });
+
+  console.log(
+    "[SwipeExtension] YouTube comments opened"
+  );
+}
+
+function trackCommentPlaybackStarted(video) {
+  if (!commentSession) return;
+  if (commentSession.video !== video) return;
+
+  // Playback is already being measured.
+  if (commentSession.playingStartedAt !== null) {
+    return;
+  }
+
+  commentSession.playingStartedAt =
+    performance.now();
+}
+
+function trackCommentPlaybackStopped(video) {
+  if (!commentSession) return;
+  if (commentSession.video !== video) return;
+
+  // Video was not playing.
+  if (commentSession.playingStartedAt === null) {
+    return;
+  }
+
+  commentSession.playedMilliseconds +=
+    performance.now() -
+    commentSession.playingStartedAt;
+
+  commentSession.playingStartedAt = null;
+}
+
+function closeCommentSession(reason) {
+  if (!commentSession) return;
+
+  const session = commentSession;
+  commentSession = null;
+
+  // Include the current playing segment.
+  if (session.playingStartedAt !== null) {
+    session.playedMilliseconds +=
+      performance.now() -
+      session.playingStartedAt;
+  }
+
+  const commentsOpenDuration =
+    (performance.now() - session.openedAt) / 1000;
+
+  const videoPlayedDuringComments =
+    session.playedMilliseconds / 1000;
+
+  queueEvent({
+    type: "video-comment-closed",
+    videoId: session.videoId,
+    src:
+      session.video.currentSrc ||
+      session.video.src,
+    extra: {
+      commentsOpenDuration:
+        commentsOpenDuration.toFixed(2),
+
+      videoPlayedDuringComments:
+        videoPlayedDuringComments.toFixed(2),
+
+      videoWasPlayingAtOpen:
+        session.videoWasPlayingAtOpen,
+
+      videoWasPlayingAtClose:
+        !session.video.paused,
+
+      closeReason: reason
+    }
+  });
+
+  console.log(
+    "[SwipeExtension] YouTube comments closed",
+    {
+      commentsOpenDuration,
+      videoPlayedDuringComments,
+      reason
+    }
+  );
+}
+
+// ================== SHORTS ACTION EVENTS ==================
+
 function attachActionEvents() {
   if (window._attachActionEventsInstalled) return;
   window._attachActionEventsInstalled = true;
 
-  // Match must start with or exactly be "dislike", not just contain "like"
-  const isDislike = (btn) =>
-    btn?.matches &&
-    (
-      btn.matches('button[aria-label^="Dislike" i]') ||
-      btn.matches('button[aria-label*="dislike" i]')
-    );
+  document.addEventListener(
+    "click",
+    (event) => {
+      const button = event.target.closest?.("button");
+      if (!button) return;
 
-  const isLike = (btn) =>
-    btn?.matches &&
-    !isDislike(btn) && // ensure not a dislike
-    (
-      btn.matches('button[aria-label^="Like" i]') ||
-      btn.matches('button[aria-label*="like this video" i]')
-    );
+      // ================== COMMENTS CLOSED ==================
 
-  const isShare = (btn) =>
-    btn?.matches &&
-    (
-      btn.matches('button[aria-label*="share" i]') ||
-      /share/i.test(btn.getAttribute('aria-label') || '') ||
-      /share/i.test(btn.textContent || '')
-    );
+      const commentsPanel = button.closest(
+        'ytd-engagement-panel-section-list-renderer' +
+        '[target-id="engagement-panel-comments-section"]'
+      );
 
-  const emit = (type) => {
-    if (typeof queueEvent !== 'function') return;
-    queueEvent({
-      type,
-      videoId: typeof getVideoId === 'function' ? getVideoId() : undefined,
-      src: typeof currentVideo !== 'undefined' ? currentVideo?.src : undefined,
-    });
-  };
+      const isCommentsCloseButton =
+        commentsPanel &&
+        button.closest("#visibility-button");
 
-  const attachToContainer = (container) => {
-    if (!container || container._reelHooksAttached) return;
-    container._reelHooksAttached = true;
-
-    container.addEventListener(
-      'click',
-      (ev) => {
-        const btn = ev.target.closest?.('button');
-        if (!btn || !container.contains(btn)) return;
-
-        if (isDislike(btn)) {
-          emit('video-dislike');
-        } else if (isLike(btn)) {
-          emit('video-like');
-        } else if (isShare(btn)) {
-          emit('video-share');
-        }
-      },
-      true
-    );
-  };
-
-  const tryAttachImmediate = () => {
-    const container = document.querySelector('#button-bar');
-    if (container) attachToContainer(container);
-  };
-  tryAttachImmediate();
-
-  const observer = new MutationObserver((mutations) => {
-    for (const m of mutations) {
-      for (const node of m.addedNodes) {
-        if (!(node instanceof HTMLElement)) continue;
-        if (node.matches?.('#button-bar')) {
-          attachToContainer(node);
-        } else {
-          const found = node.querySelector?.('#button-bar');
-          if (found) attachToContainer(found);
-        }
+      if (isCommentsCloseButton) {
+        closeCommentSession("panel-closed");
+        return;
       }
-    }
-  });
 
-  observer.observe(document.documentElement || document.body, {
-    childList: true,
-    subtree: true,
-  });
+      const label =
+        button.getAttribute("aria-label") || "";
+
+      const video =
+        currentVideo ||
+        document.querySelector("video");
+
+      if (!video) return;
+
+      // ================== COMMENTS OPENED ==================
+
+      const shortsActionButton = button.closest(
+        "button-view-model" +
+        ".ytwReelActionBarViewModelHostDesktopActionButton"
+      );
+
+      if (
+        shortsActionButton &&
+        /comments?|commentaires?/i.test(label)
+      ) {
+        setTimeout(() => {
+          openCommentSession(video);
+        }, 50);
+
+        return;
+      }
+
+      // ================== LIKE / UNLIKE ==================
+
+      const likeButton = button.closest(
+        "like-button-view-model"
+      );
+
+      if (likeButton) {
+        setTimeout(() => {
+          const isLiked =
+            button.getAttribute("aria-pressed") ===
+            "true";
+
+          queueEvent({
+            type: isLiked
+              ? "video-like"
+              : "video-unlike",
+            videoId: getVideoId(),
+            src:
+              video.currentSrc ||
+              video.src
+          });
+        }, 50);
+
+        return;
+      }
+
+      // ================== DISLIKE / UNDISLIKE ==================
+
+      const dislikeButton = button.closest(
+        "dislike-button-view-model"
+      );
+
+      if (
+        dislikeButton ||
+        /^dislike\b/i.test(label)
+      ) {
+        setTimeout(() => {
+          const isDisliked =
+            button.getAttribute("aria-pressed") ===
+            "true";
+
+          queueEvent({
+            type: isDisliked
+              ? "video-dislike"
+              : "video-undislike",
+            videoId: getVideoId(),
+            src:
+              video.currentSrc ||
+              video.src
+          });
+        }, 50);
+
+        return;
+      }
+
+      // ================== SHARE ==================
+
+      if (
+        shortsActionButton &&
+        /^(share|partager)\b/i.test(label)
+      ) {
+        queueEvent({
+          type: "video-share",
+          videoId: getVideoId(),
+          src:
+            video.currentSrc ||
+            video.src
+        });
+      }
+    },
+    true
+  );
 }
 
 
@@ -1046,7 +1262,7 @@ function trackViewportChanges(video) {
   const sendViewportEvent = (w, h) => {
     saveEvent({
       type: "video-viewport-change",
-      videoId: getVideoId(),
+      videoId: currentVideoId,
       src: video.src,
       timestamp: new Date().toISOString(),
       extra: {
@@ -1340,6 +1556,13 @@ const observer = new MutationObserver(() => {
   if (video.src && video.src !== lastSrc) {
     const videoId = getVideoId();
 
+    if (
+      commentSession &&
+      commentSession.videoId !== videoId
+    ) {
+      closeCommentSession("video-change");
+    }
+
     // --- Stop previous video if any ---
     if (currentVideo && startTime) {
       watchedTime += (Date.now() - startTime) / 1000;
@@ -1376,7 +1599,8 @@ const observer = new MutationObserver(() => {
 
     // --- Start new video ---
     currentVideo = video;
-    lastSrc = video.src;
+    currentVideoId = videoId;
+    lastSrc = video.currentSrc || video.src;
     startTime = Date.now();
     watchedTime = 0;
     prevDuration = video.duration || 0;
@@ -1395,7 +1619,7 @@ const observer = new MutationObserver(() => {
 
 observer.observe(document.body, { childList: true, subtree: true });
 
-// ================== RE-HOOK ON URL CHANGE ==================
+// ================== KEEP ACTIVE VIDEO PLAYING ==================
 setInterval(() => {
   const video = document.querySelector("video");
 
